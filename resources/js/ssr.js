@@ -1,3 +1,5 @@
+import CookieConsent from './Components/CookieConsent.vue';
+import ToastHost from './Components/ToastHost.vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import createServer from '@inertiajs/vue3/server';
 import { renderToString } from '@vue/server-renderer';
@@ -18,7 +20,14 @@ createServer((page) =>
                 import.meta.glob('./Pages/**/*.vue'),
             ),
         setup({ App, props, plugin }) {
-            return createSSRApp({ render: () => h(App, props) })
+            return createSSRApp({
+                render: () =>
+                    h('div', { id: 'app-root' }, [
+                        h(App, props),
+                        h(CookieConsent),
+                        h(ToastHost),
+                    ]),
+            })
                 .use(plugin)
                 .use(ZiggyVue, {
                     ...page.props.ziggy,

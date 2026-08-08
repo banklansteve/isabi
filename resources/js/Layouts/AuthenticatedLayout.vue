@@ -1,198 +1,209 @@
-<script setup>
-import { ref } from 'vue';
-import ApplicationLogo from '@/Components/ApplicationLogo.vue';
-import Dropdown from '@/Components/Dropdown.vue';
-import DropdownLink from '@/Components/DropdownLink.vue';
-import NavLink from '@/Components/NavLink.vue';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import { Link } from '@inertiajs/vue3';
-
-const showingNavigationDropdown = ref(false);
-</script>
-
 <template>
-    <div>
-        <div class="min-h-screen bg-gray-100">
-            <nav
-                class="border-b border-gray-100 bg-white"
-            >
-                <!-- Primary Navigation Menu -->
-                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div class="flex h-16 justify-between">
-                        <div class="flex">
-                            <!-- Logo -->
-                            <div class="flex shrink-0 items-center">
-                                <Link :href="route('dashboard')">
-                                    <ApplicationLogo
-                                        class="block h-9 w-auto fill-current text-gray-800"
-                                    />
-                                </Link>
-                            </div>
-
-                            <!-- Navigation Links -->
-                            <div
-                                class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"
-                            >
-                                <NavLink
-                                    :href="route('dashboard')"
-                                    :active="route().current('dashboard')"
-                                >
-                                    Dashboard
-                                </NavLink>
-                            </div>
-                        </div>
-
-                        <div class="hidden sm:ms-6 sm:flex sm:items-center">
-                            <!-- Settings Dropdown -->
-                            <div class="relative ms-3">
-                                <Dropdown align="right" width="48">
-                                    <template #trigger>
-                                        <span class="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                                            >
-                                                {{ $page.props.auth.user.name }}
-
-                                                <svg
-                                                    class="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fill-rule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clip-rule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </template>
-
-                                    <template #content>
-                                        <DropdownLink
-                                            :href="route('profile.edit')"
-                                        >
-                                            Profile
-                                        </DropdownLink>
-                                        <DropdownLink
-                                            :href="route('logout')"
-                                            method="post"
-                                            as="button"
-                                        >
-                                            Log Out
-                                        </DropdownLink>
-                                    </template>
-                                </Dropdown>
-                            </div>
-                        </div>
-
-                        <!-- Hamburger -->
-                        <div class="-me-2 flex items-center sm:hidden">
-                            <button
-                                @click="
-                                    showingNavigationDropdown =
-                                        !showingNavigationDropdown
-                                "
-                                class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
-                            >
-                                <svg
-                                    class="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        :class="{
-                                            hidden: showingNavigationDropdown,
-                                            'inline-flex':
-                                                !showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        :class="{
-                                            hidden: !showingNavigationDropdown,
-                                            'inline-flex':
-                                                showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Responsive Navigation Menu -->
-                <div
-                    :class="{
-                        block: showingNavigationDropdown,
-                        hidden: !showingNavigationDropdown,
-                    }"
-                    class="sm:hidden"
-                >
-                    <div class="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            :href="route('dashboard')"
-                            :active="route().current('dashboard')"
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
-                    </div>
-
-                    <!-- Responsive Settings Options -->
-                    <div
-                        class="border-t border-gray-200 pb-1 pt-4"
+    <div class="min-h-dvh bg-pale font-app text-ink antialiased">
+        <header
+            class="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-xl transition-[box-shadow] duration-300"
+            :class="{ 'shadow-nav': scrolled }"
+            style="padding-top: env(safe-area-inset-top)"
+        >
+            <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
+                <div class="flex min-w-0 items-center gap-8 lg:gap-14 xl:gap-16">
+                    <Link
+                        :href="route('dashboard')"
+                        class="shrink-0 text-[1.35rem] font-bold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
                     >
-                        <div class="px-4">
-                            <div
-                                class="text-base font-medium text-gray-800"
-                            >
-                                {{ $page.props.auth.user.name }}
-                            </div>
-                            <div class="text-sm font-medium text-gray-500">
-                                {{ $page.props.auth.user.email }}
-                            </div>
-                        </div>
+                        Isabi
+                    </Link>
 
-                        <div class="mt-3 space-y-1">
-                            <ResponsiveNavLink :href="route('profile.edit')">
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                :href="route('logout')"
-                                method="post"
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
-                        </div>
-                    </div>
+                    <nav
+                        class="hidden items-center md:flex md:gap-1 lg:gap-2"
+                        aria-label="Primary"
+                    >
+                        <Link
+                            v-for="item in primaryNav"
+                            :key="item.href"
+                            :href="item.href"
+                            class="nav-link"
+                            :class="isActive(item.match) ? 'nav-link--active' : ''"
+                        >
+                            {{ item.label }}
+                        </Link>
+                    </nav>
                 </div>
-            </nav>
 
-            <!-- Page Heading -->
-            <header
-                class="bg-white shadow"
-                v-if="$slots.header"
-            >
-                <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                    <slot name="header" />
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <Link
+                        :href="route('work-log.create')"
+                        class="tap-target hidden items-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-[background-color,transform] duration-200 hover:bg-base-hover hover:scale-[1.01] active:scale-[0.99] lg:inline-flex"
+                    >
+                        <i class="ti ti-plus text-sm" aria-hidden="true" />
+                        Log a job
+                    </Link>
+
+                    <NotificationBell />
+                    <UserProfileMenu />
+
+                    <button
+                        type="button"
+                        class="tap-target ms-0.5 inline-flex h-10 w-10 items-center justify-center rounded-full text-ink/55 transition-colors duration-200 hover:bg-pale hover:text-ink md:hidden"
+                        :aria-expanded="mobileOpen"
+                        aria-label="Toggle menu"
+                        @click="mobileOpen = !mobileOpen"
+                    >
+                        <i
+                            :class="mobileOpen ? 'ti ti-x' : 'ti ti-menu-2'"
+                            class="text-xl transition-transform duration-200"
+                            aria-hidden="true"
+                        />
+                    </button>
                 </div>
-            </header>
+            </div>
 
-            <!-- Page Content -->
-            <main>
-                <slot />
-            </main>
-        </div>
+            <Transition name="mobile-nav">
+                <div
+                    v-if="mobileOpen"
+                    class="border-t border-ink/10 bg-white md:hidden"
+                >
+                    <nav class="mx-auto max-w-7xl space-y-1 px-4 py-4 sm:px-6" aria-label="Mobile">
+                        <Link
+                            v-for="item in primaryNav"
+                            :key="`m-${item.href}`"
+                            :href="item.href"
+                            class="tap-target flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors duration-200"
+                            :class="
+                                isActive(item.match)
+                                    ? 'bg-tint text-deep'
+                                    : 'text-ink/70 hover:bg-pale'
+                            "
+                            @click="mobileOpen = false"
+                        >
+                            <i :class="[item.icon, 'text-lg text-ink/40']" aria-hidden="true" />
+                            {{ item.label }}
+                        </Link>
+                        <Link
+                            :href="route('logout')"
+                            method="post"
+                            as="button"
+                            class="tap-target flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-coral-deep transition-colors duration-200 hover:bg-coral-tint/40"
+                            @click="mobileOpen = false"
+                        >
+                            <i class="ti ti-logout text-lg" aria-hidden="true" />
+                            Log out
+                        </Link>
+                    </nav>
+                </div>
+            </Transition>
+        </header>
+
+        <header
+            v-if="$slots.header"
+            class="border-b border-ink/10 bg-white/60"
+        >
+            <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-10">
+                <slot name="header" />
+            </div>
+        </header>
+
+        <main class="mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10">
+            <slot />
+        </main>
+
+        <nav
+            class="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-white/95 backdrop-blur-xl md:hidden"
+            style="padding-bottom: env(safe-area-inset-bottom)"
+            aria-label="Bottom navigation"
+        >
+            <div class="mx-auto grid max-w-lg grid-cols-5 gap-0.5 px-2 py-2">
+                <Link
+                    v-for="item in bottomNav"
+                    :key="item.href"
+                    :href="item.href"
+                    class="tap-target flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 transition-colors duration-200"
+                    :class="isActive(item.match) ? 'bg-tint/80 text-base' : 'text-ink/40'"
+                >
+                    <i :class="[item.icon, 'text-xl']" aria-hidden="true" />
+                    <span class="text-[10px] font-semibold tracking-wide">{{ item.short }}</span>
+                </Link>
+            </div>
+        </nav>
     </div>
 </template>
+
+<script setup>
+import NotificationBell from '@/Components/App/NotificationBell.vue';
+import UserProfileMenu from '@/Components/App/UserProfileMenu.vue';
+import { Link } from '@inertiajs/vue3';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+
+const mobileOpen = ref(false);
+const scrolled = ref(false);
+
+const primaryNav = [
+    { label: 'Home', href: route('dashboard'), match: 'dashboard', icon: 'ti ti-home' },
+    { label: 'My page', href: route('page.index'), match: 'page.*', icon: 'ti ti-user-circle' },
+    { label: 'Work log', href: route('work-log.index'), match: 'work-log.*', icon: 'ti ti-notebook' },
+    { label: 'Credits', href: route('credits.index'), match: 'credits.*', icon: 'ti ti-wallet' },
+    { label: 'Referrals', href: route('referrals.index'), match: 'referrals.*', icon: 'ti ti-gift' },
+];
+
+const bottomNav = [
+    { short: 'Home', href: route('dashboard'), match: 'dashboard', icon: 'ti ti-home' },
+    { short: 'Page', href: route('page.index'), match: 'page.*', icon: 'ti ti-user-circle' },
+    { short: 'Jobs', href: route('work-log.index'), match: 'work-log.*', icon: 'ti ti-notebook' },
+    { short: 'Credits', href: route('credits.index'), match: 'credits.*', icon: 'ti ti-wallet' },
+    { short: 'More', href: route('referrals.index'), match: 'referrals.*', icon: 'ti ti-gift' },
+];
+
+const isActive = (pattern) => route().current(pattern);
+
+const onScroll = () => {
+    scrolled.value = window.scrollY > 4;
+};
+
+watch(
+    () => route().current(),
+    () => {
+        mobileOpen.value = false;
+    },
+);
+
+onMounted(() => {
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+});
+
+onUnmounted(() => {
+    window.removeEventListener('scroll', onScroll);
+});
+</script>
+
+<style scoped>
+.nav-link {
+    @apply relative inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-ink/55 transition-[color,background-color] duration-200 ease-out lg:px-5;
+}
+
+.nav-link:hover {
+    @apply bg-pale text-ink;
+}
+
+.nav-link--active {
+    @apply bg-tint text-deep;
+}
+
+.mobile-nav-enter-active {
+    transition:
+        opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mobile-nav-leave-active {
+    transition:
+        opacity 0.16s ease,
+        transform 0.16s ease;
+}
+
+.mobile-nav-enter-from,
+.mobile-nav-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+</style>

@@ -1,3 +1,34 @@
+<template>
+    <div class="relative">
+        <div @click="open = !open">
+            <slot name="trigger" :open="open" />
+        </div>
+
+        <div
+            v-show="open"
+            class="fixed inset-0 z-40"
+            @click="open = false"
+        />
+
+        <Transition name="dropdown-panel">
+            <div
+                v-show="open"
+                class="absolute z-50 mt-2.5"
+                :class="[widthClass, alignmentClasses]"
+                style="display: none"
+                @click="open = false"
+            >
+                <div
+                    class="overflow-hidden rounded-2xl bg-white shadow-premium-hover ring-1 ring-ink/10"
+                    :class="contentClasses"
+                >
+                    <slot name="content" />
+                </div>
+            </div>
+        </Transition>
+    </div>
+</template>
+
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
@@ -12,9 +43,11 @@ const props = defineProps({
     },
     contentClasses: {
         type: String,
-        default: 'py-1 bg-white',
+        default: 'py-1',
     },
 });
+
+const open = ref(false);
 
 const closeOnEscape = (e) => {
     if (open.value && e.key === 'Escape') {
@@ -28,57 +61,42 @@ onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 const widthClass = computed(() => {
     return {
         48: 'w-48',
-    }[props.width.toString()];
+        56: 'w-56',
+        64: 'w-64',
+        72: 'w-72',
+        80: 'w-80',
+    }[props.width.toString()] || 'w-48';
 });
 
 const alignmentClasses = computed(() => {
     if (props.align === 'left') {
         return 'ltr:origin-top-left rtl:origin-top-right start-0';
-    } else if (props.align === 'right') {
-        return 'ltr:origin-top-right rtl:origin-top-left end-0';
-    } else {
-        return 'origin-top';
     }
+    if (props.align === 'right') {
+        return 'ltr:origin-top-right rtl:origin-top-left end-0';
+    }
+    return 'origin-top';
 });
 
-const open = ref(false);
+defineExpose({ open });
 </script>
 
-<template>
-    <div class="relative">
-        <div @click="open = !open">
-            <slot name="trigger" />
-        </div>
+<style scoped>
+.dropdown-panel-enter-active {
+    transition:
+        opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-        <!-- Full Screen Dropdown Overlay -->
-        <div
-            v-show="open"
-            class="fixed inset-0 z-40"
-            @click="open = false"
-        ></div>
+.dropdown-panel-leave-active {
+    transition:
+        opacity 0.16s cubic-bezier(0.4, 0, 1, 1),
+        transform 0.16s cubic-bezier(0.4, 0, 1, 1);
+}
 
-        <Transition
-            enter-active-class="transition ease-out duration-200"
-            enter-from-class="opacity-0 scale-95"
-            enter-to-class="opacity-100 scale-100"
-            leave-active-class="transition ease-in duration-75"
-            leave-from-class="opacity-100 scale-100"
-            leave-to-class="opacity-0 scale-95"
-        >
-            <div
-                v-show="open"
-                class="absolute z-50 mt-2 rounded-md shadow-lg"
-                :class="[widthClass, alignmentClasses]"
-                style="display: none"
-                @click="open = false"
-            >
-                <div
-                    class="rounded-md ring-1 ring-black ring-opacity-5"
-                    :class="contentClasses"
-                >
-                    <slot name="content" />
-                </div>
-            </div>
-        </Transition>
-    </div>
-</template>
+.dropdown-panel-enter-from,
+.dropdown-panel-leave-to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+}
+</style>

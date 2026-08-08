@@ -1,3 +1,105 @@
+@import '@tabler/icons-webfont/dist/tabler-icons.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    :root {
+        --ink: #0b1f3a;
+        --deep: #123b72;
+        --base: #2f6fed;
+        --tint: #e3ecfc;
+        --pale: #f5f8fe;
+        --coral: #ff6a3d;
+        --coral-deep: #c94c24;
+        --coral-tint: #ffe4d9;
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+        scroll-behavior: smooth;
+        scroll-padding-top: 5.5rem;
+    }
+
+    body {
+        @apply bg-pale font-sans text-ink antialiased;
+    }
+
+    ::selection {
+        background: color-mix(in srgb, var(--coral) 28%, white);
+        color: var(--ink);
+    }
+}
+
+@layer components {
+    .form-control-shell {
+        @apply relative;
+    }
+
+    .form-control-shell.is-disabled {
+        @apply opacity-60;
+    }
+
+    .form-control-icon {
+        @apply pointer-events-none absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-lg text-ink/30 transition-colors duration-200;
+    }
+
+    .form-control-shell:focus-within .form-control-icon,
+    .form-select-trigger:focus .form-control-icon,
+    .form-select-trigger.is-open .form-control-icon {
+        @apply text-base;
+    }
+
+    .form-control-shell.has-error .form-control-icon,
+    .form-select-trigger.has-error .form-control-icon {
+        @apply text-red-400;
+    }
+
+    .form-control {
+        @apply w-full rounded-2xl border border-ink/10 bg-white py-3.5 text-sm font-medium text-ink shadow-[0_1px_2px_rgba(11,31,58,0.04)] outline-none transition-all duration-200 placeholder:text-ink/30 focus:border-base focus:ring-4 focus:ring-base/15 disabled:cursor-not-allowed disabled:bg-pale disabled:text-ink/40;
+    }
+
+    .form-control-shell.has-error .form-control,
+    .form-select-trigger.has-error {
+        @apply border-red-400 focus:border-red-400 focus:ring-red-100;
+    }
+
+    .form-select-trigger {
+        @apply relative flex w-full items-center pe-11 text-left;
+    }
+
+    .form-select-trigger.is-placeholder {
+        @apply text-ink/30;
+    }
+
+    .form-select-trigger.is-open {
+        @apply border-base ring-4 ring-base/15;
+    }
+
+    .form-select-panel {
+        @apply absolute z-40 mt-2 w-full overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-premium;
+    }
+
+    .select-panel-enter-active,
+    .select-panel-leave-active {
+        transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+
+    .select-panel-enter-from,
+    .select-panel-leave-to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@layer utilities {
+    .tap-target {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .text-balance {
+        text-wrap: balance;
+    }
+}

@@ -21,6 +21,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@tabler/icons-webfont": "^3.46.0",
         "axios": "^1.19.0"
     }
 }
