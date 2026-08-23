@@ -4,6 +4,7 @@
             <div ref="rootRef" class="relative">
                 <button
                     :id="fieldId"
+                    ref="triggerRef"
                     type="button"
                     class="form-control form-select-trigger pe-11"
                     :class="[
@@ -33,71 +34,75 @@
                     />
                 </button>
 
-                <Transition name="select-panel">
-                    <div
-                        v-if="open"
-                        class="form-select-panel p-3 sm:p-4"
-                        role="dialog"
-                        aria-label="Choose date"
-                    >
-                        <div class="mb-3 flex items-center justify-between gap-2">
-                            <button
-                                type="button"
-                                class="tap-target flex h-9 w-9 items-center justify-center rounded-xl text-ink/50 transition-colors hover:bg-pale hover:text-ink disabled:opacity-30"
-                                :disabled="!canGoPrev"
-                                aria-label="Previous month"
-                                @click="shiftMonth(-1)"
-                            >
-                                <i class="ti ti-chevron-left text-lg" aria-hidden="true" />
-                            </button>
-                            <p class="text-sm font-semibold tracking-tight text-ink">
-                                {{ monthLabel }}
-                            </p>
-                            <button
-                                type="button"
-                                class="tap-target flex h-9 w-9 items-center justify-center rounded-xl text-ink/50 transition-colors hover:bg-pale hover:text-ink disabled:opacity-30"
-                                :disabled="!canGoNext"
-                                aria-label="Next month"
-                                @click="shiftMonth(1)"
-                            >
-                                <i class="ti ti-chevron-right text-lg" aria-hidden="true" />
-                            </button>
-                        </div>
-
-                        <div class="mb-1.5 grid grid-cols-7 gap-1">
-                            <span
-                                v-for="day in weekdays"
-                                :key="day"
-                                class="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-ink/35"
-                            >
-                                {{ day }}
-                            </span>
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-1">
-                            <button
-                                v-for="(cell, index) in cells"
-                                :key="`${cell.iso}-${index}`"
-                                type="button"
-                                class="tap-target flex h-9 items-center justify-center rounded-xl text-sm font-medium transition-colors duration-150"
-                                :class="cellClass(cell)"
-                                :disabled="!cell.inRange"
-                                @click="selectDay(cell)"
-                            >
-                                {{ cell.day }}
-                            </button>
-                        </div>
-
-                        <button
-                            v-if="todayInRange"
-                            type="button"
-                            class="mt-3 w-full rounded-xl bg-pale py-2 text-xs font-semibold text-deep transition-colors hover:bg-tint"
-                            @click="selectToday"
+                <Teleport to="body">
+                    <Transition name="select-panel">
+                        <div
+                            v-if="open"
+                            ref="panelRef"
+                            class="fixed z-[80] overflow-hidden rounded-2xl border border-ink/10 bg-white p-3 shadow-premium-hover sm:p-4"
+                            role="dialog"
+                            aria-label="Choose date"
+                            :style="panelStyle"
                         >
-                            Use today
-                        </button>
-                    </div>
-                </Transition>
+                            <div class="mb-3 flex items-center justify-between gap-2">
+                                <button
+                                    type="button"
+                                    class="tap-target flex h-9 w-9 items-center justify-center rounded-xl text-ink/50 transition-colors hover:bg-pale hover:text-ink disabled:opacity-30"
+                                    :disabled="!canGoPrev"
+                                    aria-label="Previous month"
+                                    @click="shiftMonth(-1)"
+                                >
+                                    <i class="ti ti-chevron-left text-lg" aria-hidden="true" />
+                                </button>
+                                <p class="text-sm font-semibold tracking-tight text-ink">
+                                    {{ monthLabel }}
+                                </p>
+                                <button
+                                    type="button"
+                                    class="tap-target flex h-9 w-9 items-center justify-center rounded-xl text-ink/50 transition-colors hover:bg-pale hover:text-ink disabled:opacity-30"
+                                    :disabled="!canGoNext"
+                                    aria-label="Next month"
+                                    @click="shiftMonth(1)"
+                                >
+                                    <i class="ti ti-chevron-right text-lg" aria-hidden="true" />
+                                </button>
+                            </div>
+
+                            <div class="mb-1.5 grid grid-cols-7 gap-1">
+                                <span
+                                    v-for="day in weekdays"
+                                    :key="day"
+                                    class="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-ink/35"
+                                >
+                                    {{ day }}
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-7 gap-1">
+                                <button
+                                    v-for="(cell, index) in cells"
+                                    :key="`${cell.iso}-${index}`"
+                                    type="button"
+                                    class="tap-target flex h-9 items-center justify-center rounded-xl text-sm font-medium transition-colors duration-150"
+                                    :class="cellClass(cell)"
+                                    :disabled="!cell.inRange"
+                                    @click="selectDay(cell)"
+                                >
+                                    {{ cell.day }}
+                                </button>
+                            </div>
+
+                            <button
+                                v-if="todayInRange"
+                                type="button"
+                                class="mt-3 w-full rounded-xl bg-pale py-2 text-xs font-semibold text-deep transition-colors hover:bg-tint"
+                                @click="selectToday"
+                            >
+                                Use today
+                            </button>
+                        </div>
+                    </Transition>
+                </Teleport>
             </div>
         </template>
     </FormField>
@@ -105,7 +110,7 @@
 
 <script setup>
 import FormField from '@/Components/Form/FormField.vue';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const model = defineModel({ type: String, default: '' });
 
@@ -124,6 +129,9 @@ const emit = defineEmits(['change', 'blur']);
 
 const open = ref(false);
 const rootRef = ref(null);
+const triggerRef = ref(null);
+const panelRef = ref(null);
+const panelStyle = ref({});
 const view = ref(startOfMonth(parseISO(model.value || props.maxDate)));
 
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -217,13 +225,43 @@ function cellClass(cell) {
     return 'text-ink/75 hover:bg-pale';
 }
 
-const toggle = () => {
+const updatePanelPosition = async () => {
+    await nextTick();
+    const trigger = triggerRef.value;
+    if (!trigger) {
+        return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const gutter = 8;
+    const panelWidth = Math.max(rect.width, 288);
+    const approxHeight = 340;
+    const spaceBelow = window.innerHeight - rect.bottom - gutter;
+    const openUp = spaceBelow < approxHeight && rect.top > spaceBelow;
+
+    let left = rect.left;
+    if (left + panelWidth > window.innerWidth - gutter) {
+        left = Math.max(gutter, window.innerWidth - panelWidth - gutter);
+    }
+
+    panelStyle.value = {
+        width: `${panelWidth}px`,
+        left: `${left}px`,
+        top: openUp ? 'auto' : `${rect.bottom + gutter}px`,
+        bottom: openUp ? `${window.innerHeight - rect.top + gutter}px` : 'auto',
+    };
+};
+
+const toggle = async () => {
     if (props.disabled) {
         return;
     }
     open.value = !open.value;
-    if (open.value && model.value) {
-        view.value = startOfMonth(parseISO(model.value));
+    if (open.value) {
+        if (model.value) {
+            view.value = startOfMonth(parseISO(model.value));
+        }
+        await updatePanelPosition();
     }
 };
 
@@ -256,8 +294,16 @@ const shiftMonth = (delta) => {
 };
 
 const onPointerDown = (event) => {
-    if (!rootRef.value?.contains(event.target)) {
-        close();
+    const target = event.target;
+    if (rootRef.value?.contains(target) || panelRef.value?.contains(target)) {
+        return;
+    }
+    close();
+};
+
+const onViewportChange = () => {
+    if (open.value) {
+        updatePanelPosition();
     }
 };
 
@@ -270,8 +316,17 @@ watch(
     },
 );
 
-onMounted(() => document.addEventListener('pointerdown', onPointerDown));
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown));
+onMounted(() => {
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('scroll', onViewportChange, true);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('resize', onViewportChange);
+    window.removeEventListener('scroll', onViewportChange, true);
+});
 
 function parseISO(value) {
     const [y, m, d] = String(value).split('-').map(Number);

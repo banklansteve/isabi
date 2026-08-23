@@ -7,13 +7,18 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createSSRApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Isabi';
 
 createServer((page) =>
     createInertiaApp({
         page,
         render: renderToString,
-        title: (title) => `${title} - ${appName}`,
+        title: (title) => {
+            if (!title) {
+                return appName;
+            }
+            return title.includes(appName) ? title : `${title} · ${appName}`;
+        },
         resolve: (name) =>
             resolvePageComponent(
                 `./Pages/${name}.vue`,

@@ -1,11 +1,11 @@
 <template>
-    <div class="rounded-xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.06] sm:p-5">
+    <div class="rounded-[1.5rem] bg-white p-5 shadow-premium ring-1 ring-ink/[0.06] sm:p-6">
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-                <h2 class="text-base font-semibold tracking-tight text-ink sm:text-lg">
+                <h2 class="font-editorial text-lg font-semibold tracking-tight text-ink">
                     Jobs logged
                 </h2>
-                <p class="mt-1 text-sm font-medium text-ink/45">
+                <p class="mt-0.5 text-sm font-medium text-ink/45">
                     Last 6 months
                 </p>
             </div>

@@ -1,20 +1,37 @@
 <?php
 
-use App\Http\Controllers\Admin\ActivityLogController;
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AppPlaceholderController;
+use App\Http\Controllers\ArtisanDirectoryController;
 use App\Http\Controllers\CookieConsentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HelpController;
 use App\Http\Controllers\Internal\PricingDocsController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicJobController;
 use App\Http\Controllers\PublicProfileController;
 use App\Http\Controllers\PublicReviewController;
+use App\Http\Controllers\ReferralController;
+use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TokenController;
 use App\Http\Controllers\WorkLogController;
-use App\Enums\UserRole;
+use App\Support\Seo;
+use App\Support\SeoSchema;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
+    $copy = config('seo.pages.home');
+
+    app(Seo::class)
+        ->title($copy['title'])
+        ->description($copy['description'])
+        ->canonical(url('/'))
+        ->schema(SeoSchema::organization())
+        ->schema(SeoSchema::website());
+
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
@@ -22,11 +39,42 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/faq', function () {
+    $copy = config('seo.pages.faq');
+
+    app(Seo::class)
+        ->title($copy['title'])
+        ->description($copy['description'])
+        ->canonical(route('faq'))
+        ->schema(SeoSchema::faq(config('seo.faq')));
+
     return Inertia::render('Faq', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
     ]);
 })->name('faq');
+
+Route::get('/how-it-works', function () {
+    $copy = config('seo.pages.how-it-works');
+
+    app(Seo::class)
+        ->title($copy['title'])
+        ->description($copy['description'])
+        ->canonical(route('how-it-works'));
+
+    return Inertia::render('HowItWorks', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+    ]);
+})->name('how-it-works');
+
+Route::get('/goodbye', function () {
+    app(Seo::class)->title('We’re sorry to see you go')->noindex();
+
+    return Inertia::render('Account/Goodbye', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+    ]);
+})->name('account.goodbye');
 
 $staticPages = [
     'about' => [
@@ -75,6 +123,11 @@ $staticPages = [
 
 foreach ($staticPages as $slug => $page) {
     Route::get('/'.$slug, function () use ($page) {
+        app(Seo::class)
+            ->title($page['title'])
+            ->description($page['summary'] ?? $page['body'] ?? null)
+            ->canonical(url()->current());
+
         return Inertia::render('StaticPage', $page);
     })->name($slug);
 }
@@ -82,9 +135,17 @@ foreach ($staticPages as $slug => $page) {
 Route::post('/cookie-consent', [CookieConsentController::class, 'store'])
     ->name('cookie-consent.store');
 
+Route::get('/robots.txt', RobotsController::class)->name('robots');
+Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
+Route::get('/artisans', ArtisanDirectoryController::class)->name('public.directory');
+
 Route::get('/p/{slug}', [PublicProfileController::class, 'show'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->name('public.profile');
+Route::get('/p/{slug}/{job}', [PublicJobController::class, 'show'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('job', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->name('public.job');
 
 Route::get('/r/{token}', [PublicReviewController::class, 'show'])
     ->where('token', '[A-Za-z0-9]+')
@@ -100,9 +161,13 @@ Route::get('/r/{token}/thanks', [PublicReviewController::class, 'thanks'])
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
+    Route::post('/impersonation/leave', [UserAdminController::class, 'leaveImpersonation'])
+        ->name('impersonation.leave');
+
     Route::get('/my-page', [AppPlaceholderController::class, 'myPage'])->name('page.index');
 
     Route::get('/work-log', [WorkLogController::class, 'index'])->name('work-log.index');
+    Route::get('/work-log/export', [WorkLogController::class, 'export'])->name('work-log.export');
     Route::get('/work-log/create', [WorkLogController::class, 'create'])->name('work-log.create');
     Route::post('/work-log', [WorkLogController::class, 'store'])->name('work-log.store');
     Route::get('/work-log/{workLog}', [WorkLogController::class, 'show'])->name('work-log.show');
@@ -110,36 +175,30 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->name('work-log.update');
     Route::post('/work-log/{workLog}/request-review', [WorkLogController::class, 'requestReview'])
         ->name('work-log.request-review');
+    Route::post('/work-log/{workLog}/remind-review', [WorkLogController::class, 'remindReview'])
+        ->name('work-log.remind-review');
 
-    Route::get('/credits', [AppPlaceholderController::class, 'credits'])->name('credits.index');
-    Route::get('/referrals', [AppPlaceholderController::class, 'referrals'])->name('referrals.index');
-    Route::get('/help', [AppPlaceholderController::class, 'help'])->name('help.index');
+    Route::get('/tokens', [TokenController::class, 'index'])->name('tokens.index');
+    Route::get('/tokens/buy', [TokenController::class, 'buy'])->name('tokens.buy');
+    Route::post('/tokens/purchase', [TokenController::class, 'purchase'])->name('tokens.purchase');
+    Route::redirect('/credits', '/tokens')->name('credits.index');
+
+    Route::get('/referrals', [ReferralController::class, 'index'])->name('referrals.index');
+    Route::post('/notifications/{delivery}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
+    Route::get('/help', [HelpController::class, 'index'])->name('help.index');
+    Route::get('/help/chat', [HelpController::class, 'chat'])->name('help.chat');
+    Route::post('/help/chat', [HelpController::class, 'send'])->name('help.chat.send');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/slug', [ProfileController::class, 'updateSlug'])->name('profile.slug');
+    Route::patch('/profile/review-messages', [ProfileController::class, 'updateReviewMessages'])
+        ->name('profile.review-messages');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
-
-/*
-| Staff / admin area
-| - role:super_admin,operations_admin → any staff
-| - ability:admin.settings.manage → super admin only (via ability map)
-*/
-Route::middleware([
-    'auth',
-    'verified',
-    'role:'.UserRole::SuperAdmin->value.','.UserRole::OperationsAdmin->value,
-])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('/', AdminDashboardController::class)->name('dashboard');
-
-        Route::middleware('role:'.UserRole::SuperAdmin->value)->group(function () {
-            Route::get('/activity', ActivityLogController::class)->name('activity');
-        });
-    });
 
 Route::middleware(['auth', 'internal.docs'])
     ->prefix('internal')
@@ -149,3 +208,4 @@ Route::middleware(['auth', 'internal.docs'])
     });
 
 require __DIR__.'/auth.php';
+require __DIR__.'/admin.php';

@@ -1,0 +1,13 @@
+diff a/app/Enums/UserRole.php b/app/Enums/UserRole.php	(rejected hunks)
+@@ -218,7 +218,11 @@ public function abilities(): array
+                 'admin.settings.manage',
+                 'admin.roles.manage',
+                 'admin.activity.view',
++                'hr.view',
+                 'hr.manage',
++                'hr.leave.manage',
++                'hr.payroll.view',
++                'hr.payroll.manage',
+                 'legal.manage',
+                 'pricing.manage',
+             ],

@@ -317,6 +317,13 @@
                     <p class="mt-3 text-base font-medium leading-relaxed text-ink/60 sm:text-lg">
                         Four short steps. Built for phones, WhatsApp, and the way trades actually get hired.
                     </p>
+                    <Link
+                        :href="route('how-it-works')"
+                        class="tap-target mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-deep transition-colors hover:text-base-action"
+                    >
+                        Read the full guide
+                        <i class="ti ti-arrow-right" aria-hidden="true" />
+                    </Link>
                 </div>
 
                 <ol class="mt-12 grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4 xl:gap-6">
@@ -948,6 +955,7 @@
 
 <script setup>
 import SiteFooter from '@/Components/SiteFooter.vue';
+import { popularTopics } from '@/Data/helpTopics';
 import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 
@@ -1153,28 +1161,10 @@ const pricingPlans = {
     },
 };
 
-const faqs = [
-    {
-        question: 'Is Isabi really free to start?',
-        answer: 'Yes. Creating your page, logging jobs, and sharing your profile are all free — no card required at signup. You only pay if you want more than 5 client review requests a month, or extras like a custom link.',
-    },
-    {
-        question: 'Do I need a bank card or debit account to sign up?',
-        answer: "No. Signup is free and needs nothing but your email address and a few business details. When you do choose to pay later to unlock more services, you can use bank transfer, USSD, or card — whichever you're comfortable with. We never save your card details or charge you automatically.",
-    },
-    {
-        question: 'Can I write my own reviews, or ask a client to say something nice?',
-        answer: "No — and that's by design. Only clients can submit a review, through a private link tied to a specific logged job. You can't write, edit, or approve what they say. This is what makes reviews on Isabi worth more than a screenshot.",
-    },
-    {
-        question: "What if my client doesn't have WhatsApp or isn't tech-savvy?",
-        answer: "The review link works in any browser — WhatsApp is just the easiest way to send it, since most clients already have it. They don't need to download an app or create an account to leave a review.",
-    },
-    {
-        question: 'Is my profile public? Can anyone see it?',
-        answer: "Yes, that's the point. Your page is built to be shared — with a link or QR code — so new customers can check your work and reviews before they contact you. You control what you log; you can't hide reviews you don't like once a client submits them.",
-    },
-];
+const faqs = popularTopics('guest', 5).map((item) => ({
+    question: item.question,
+    answer: item.answer,
+}));
 
 const profiles = [
     {

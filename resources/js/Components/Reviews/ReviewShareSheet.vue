@@ -1,7 +1,7 @@
 <template>
     <AppModal
         :show="show"
-        title="Send review link"
+        :title="isReminder ? 'Send reminder' : 'Send review link'"
         :description="description"
         icon="ti ti-brand-whatsapp"
         icon-tone="whatsapp"
@@ -49,21 +49,22 @@
 
             <button
                 type="button"
-                class="tap-target flex w-full items-center justify-center gap-2 rounded-2xl bg-pale px-5 py-3.5 text-sm font-bold text-ink ring-1 ring-ink/[0.06] transition hover:bg-tint/60"
+                class="tap-target flex w-full items-center justify-center gap-2 rounded-2xl bg-pale px-5 py-3.5 text-sm font-bold text-ink ring-1 ring-ink/[0.06] transition hover:bg-tint/60 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!resolvedReviewUrl || copying"
                 @click="copyLink"
             >
                 <i
                     :class="linkCopied ? 'ti ti-check text-emerald-600' : 'ti ti-copy'"
                     aria-hidden="true"
                 />
-                {{ linkCopied ? 'Link copied' : 'Copy review link' }}
+                {{ linkCopied ? 'Link copied' : copying ? 'Copying…' : 'Copy review link' }}
             </button>
 
             <p
-                v-if="reviewUrl"
+                v-if="resolvedReviewUrl"
                 class="break-all rounded-xl bg-pale/80 px-3 py-2.5 text-[11px] font-medium leading-relaxed text-ink/45"
             >
-                {{ reviewUrl }}
+                {{ resolvedReviewUrl }}
             </p>
         </div>
     </AppModal>
@@ -71,6 +72,7 @@
 
 <script setup>
 import AppModal from '@/Components/App/AppModal.vue';
+import { copyToClipboard } from '@/utils/clipboard';
 import { isMobileDevice, whatsappLaunchHref } from '@/utils/openWhatsApp';
 import { computed, ref, watch } from 'vue';
 
@@ -83,14 +85,26 @@ const props = defineProps({
     reviewUrl: { type: String, default: '' },
     clientWhatsapp: { type: String, default: '' },
     message: { type: String, default: '' },
+    kind: { type: String, default: 'invite' },
 });
 
 const emit = defineEmits(['close', 'opened']);
 
 const linkCopied = ref(false);
+const copying = ref(false);
 let copyTimer = null;
 
 const isMobile = computed(() => isMobileDevice());
+const isReminder = computed(() => props.kind === 'reminder');
+
+const resolvedReviewUrl = computed(() => {
+    if (props.reviewUrl?.trim()) {
+        return props.reviewUrl.trim();
+    }
+    // Fallback: pull the first URL out of the WhatsApp message body.
+    const match = String(props.message || '').match(/https?:\/\/[^\s]+/i);
+    return match?.[0]?.replace(/[).,;]+$/, '') || '';
+});
 
 const launchHref = computed(() =>
     whatsappLaunchHref({
@@ -101,11 +115,17 @@ const launchHref = computed(() =>
     }),
 );
 
-const description = computed(() =>
-    props.clientWhatsapp?.trim()
+const description = computed(() => {
+    if (isReminder.value) {
+        return props.clientWhatsapp?.trim()
+            ? 'One gentle follow-up — WhatsApp opens with your reminder ready to send.'
+            : 'One gentle follow-up — you’ll pick the chat, then send the ready reminder.';
+    }
+
+    return props.clientWhatsapp?.trim()
         ? 'Confirm below to open WhatsApp with this review message ready to send.'
-        : 'Confirm below to open WhatsApp — you’ll pick the chat, then send the ready message.',
-);
+        : 'Confirm below to open WhatsApp — you’ll pick the chat, then send the ready message.';
+});
 
 const helperText = computed(() =>
     isMobile.value
@@ -127,19 +147,29 @@ const onOpenWhatsApp = () => {
 };
 
 const copyLink = async () => {
-    if (!props.reviewUrl) {
+    const url = resolvedReviewUrl.value;
+    if (!url || copying.value) {
+        if (!url) {
+            toast('Review link isn’t ready yet. Try again in a moment.', 'error');
+        }
         return;
     }
 
+    copying.value = true;
     try {
-        await navigator.clipboard.writeText(props.reviewUrl);
+        const ok = await copyToClipboard(url);
+        if (!ok) {
+            toast('Couldn’t copy automatically — select the link below.', 'error');
+            return;
+        }
         linkCopied.value = true;
+        toast('Review link copied.');
         window.clearTimeout(copyTimer);
         copyTimer = window.setTimeout(() => {
             linkCopied.value = false;
         }, 2200);
-    } catch {
-        toast('Couldn’t copy automatically — select the link below.', 'error');
+    } finally {
+        copying.value = false;
     }
 };
 
@@ -148,6 +178,7 @@ watch(
     (open) => {
         if (!open) {
             linkCopied.value = false;
+            copying.value = false;
         }
     },
 );

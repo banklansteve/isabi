@@ -8,8 +8,9 @@ use App\Models\WorkLog;
 use App\Services\CloudinaryMediaService;
 use App\Support\ActivityLogger;
 use App\Support\JobCategories;
+use App\Support\Seo;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,11 @@ class PublicReviewController extends Controller
 
         $artisan = $workLog->user;
 
+        app(Seo::class)
+            ->title('Review '.$artisan->displayBusinessName())
+            ->description('Leave a review for a finished job. This link is private to you.')
+            ->noindex();
+
         return Inertia::render('Reviews/Form', [
             'token' => $token,
             'artisan' => [
@@ -53,7 +59,7 @@ class PublicReviewController extends Controller
                     $workLog->job_category,
                     $workLog->job_subcategory,
                 ),
-                'worked_on_label' => $workLog->worked_on?->timezone(config('app.timezone'))->format('j M Y'),
+                'worked_on_label' => $workLog->worked_on?->timezone(config('app.display_timezone'))->format('j M Y'),
                 'service_label' => collect([
                     $workLog->service_city,
                     $workLog->service_lga,
@@ -100,7 +106,8 @@ class PublicReviewController extends Controller
                 Review::create([
                     'work_log_id' => $workLog->id,
                     'user_id' => $workLog->user_id,
-                    'rating' => (int) $data['rating'],
+                    'rating' => round((float) $data['rating'], 1),
+                    'would_recommend' => (bool) $data['would_recommend'],
                     'comment' => $data['comment'] ?? null,
                     'client_display_name' => $data['client_display_name'] ?? null,
                     'referred_by' => $data['referred_by'] ?? null,
@@ -118,15 +125,25 @@ class PublicReviewController extends Controller
             throw ValidationException::withMessages([
                 'photo' => $e->getMessage(),
             ]);
+        } catch (QueryException $e) {
+            // Unique work_log_id — one review per job, even under race conditions.
+            if ($workLog->review()->exists()) {
+                return redirect()->route('reviews.thanks', $token);
+            }
+
+            throw $e;
         }
+
+        $ratingLabel = number_format((float) $data['rating'], 1);
 
         ActivityLogger::log(
             action: 'review.received',
-            summary: "A client left a {$data['rating']}-star review for {$workLog->user->name}.",
+            summary: "A client left a {$ratingLabel}-star review for {$workLog->user->name}.",
             user: $workLog->user,
             properties: [
                 'work_log_uid' => $workLog->uid,
-                'rating' => (int) $data['rating'],
+                'rating' => (float) $data['rating'],
+                'would_recommend' => (bool) $data['would_recommend'],
             ],
         );
 
@@ -141,6 +158,10 @@ class PublicReviewController extends Controller
             ->firstOrFail();
 
         $artisan = $workLog->user;
+
+        app(Seo::class)
+            ->title('Thanks for your review')
+            ->noindex();
 
         return Inertia::render('Reviews/Thanks', [
             'artisan' => [

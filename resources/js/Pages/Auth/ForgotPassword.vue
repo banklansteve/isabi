@@ -11,14 +11,11 @@
         <Head title="Forgot password" />
 
         <div class="auth-enter">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base">
-                Password reset
-            </p>
-            <h1 class="mt-2 font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2rem]">
+            <h1 class="text-center font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2.1rem]">
                 Forgot your password?
             </h1>
-            <p class="mt-2 text-sm font-medium leading-relaxed text-ink/55">
-                No problem. Enter your email and we’ll send a link to choose a new one.
+            <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
+                Enter your email and we’ll send a link to choose a new one.
             </p>
 
             <div
@@ -75,6 +72,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 defineProps({
     status: {
         type: String,
+        default: '',
     },
 });
 

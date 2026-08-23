@@ -21,7 +21,7 @@ enum UserRole: string
     {
         return match ($this) {
             self::SuperAdmin => 'Full platform control — users, billing, settings, and every admin surface.',
-            self::OperationsAdmin => 'Day-to-day staff access — content, support queues, and limited user management.',
+            self::OperationsAdmin => 'Day-to-day staff access — support, moderation, patrol, and other assigned duties.',
             self::User => 'Regular artisan account — public page, jobs, reviews, and billing for their own profile.',
         };
     }
@@ -57,13 +57,20 @@ enum UserRole: string
                 'admin.billing.manage',
                 'admin.settings.manage',
                 'admin.roles.manage',
+                'admin.staff.invite',
                 'admin.activity.view',
+                'admin.support.manage',
+                'admin.moderation.manage',
+                'admin.patrol.manage',
             ],
             self::OperationsAdmin => [
                 'admin.access',
                 'admin.content.manage',
                 'admin.requests.manage',
                 'admin.users.view',
+                'admin.support.manage',
+                'admin.moderation.manage',
+                'admin.patrol.manage',
             ],
             self::User => [],
         };

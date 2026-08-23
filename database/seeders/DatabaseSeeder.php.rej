@@ -1,0 +1,9 @@
+diff a/database/seeders/DatabaseSeeder.php b/database/seeders/DatabaseSeeder.php	(rejected hunks)
+@@ -17,6 +17,7 @@ public function run(): void
+         $this->call([
+             StaffRoleSeeder::class,
+             RoleUserSeeder::class,
++            HrSeeder::class,
+         ]);
+     }
+ }

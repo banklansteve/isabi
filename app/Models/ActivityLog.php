@@ -38,8 +38,9 @@ class ActivityLog extends Model
     public function icon(): string
     {
         return match (true) {
-            str_starts_with($this->action, 'auth.login') => 'ti ti-login',
-            str_starts_with($this->action, 'auth.logout') => 'ti ti-logout',
+            'staff.invited' => 'Staff invited',
+            str_starts_with($this->action, 'staff') => 'ti ti-users',
+            str_starts_with($this->action, 'admin.settings') => 'ti ti-settings',
             str_starts_with($this->action, 'auth.register') => 'ti ti-user-plus',
             str_starts_with($this->action, 'profile') => 'ti ti-user-circle',
             str_starts_with($this->action, 'password') => 'ti ti-lock',
@@ -74,7 +75,20 @@ class ActivityLog extends Model
         return match ($this->action) {
             'auth.login' => 'Signed in',
             'auth.logout' => 'Signed out',
+            'auth.admin_login' => 'Admin signed in',
+            'auth.admin_logout' => 'Admin signed out',
             'auth.register' => 'Account created',
+            'staff.invited' => 'Staff invited',
+            'staff.invite_resent' => 'Invite code resent',
+            'staff.email_verified' => 'Staff email confirmed',
+            'staff.password_set' => 'Staff password set',
+            'staff.duties_assigned' => 'Staff duties updated',
+            'staff.updated' => 'Staff updated',
+            'staff.destroyed' => 'Staff removed',
+            'staff.role_created' => 'Duty created',
+            'staff.role_updated' => 'Duty updated',
+            'staff.role_destroyed' => 'Duty removed',
+            'admin.settings_updated' => 'Settings updated',
             'profile.updated' => 'Profile updated',
             'profile.deleted' => 'Account deleted',
             'password.updated' => 'Password changed',
@@ -85,10 +99,10 @@ class ActivityLog extends Model
             'page.credits' => 'Opened credits & plan',
             'page.referrals' => 'Opened referrals',
             'page.help' => 'Opened help',
+            'page.help_chat' => 'Opened support chat',
             'page.dashboard' => 'Opened home',
             'work_log.created' => 'Job logged',
             default => str($this->action)->replace('.', ' · ')->headline()->toString(),
         };
     }
 }
-

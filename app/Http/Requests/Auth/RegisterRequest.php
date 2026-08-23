@@ -51,6 +51,7 @@ class RegisterRequest extends FormRequest
             'office_address' => ['required', 'string', 'max:255'],
             'whatsapp' => ['required', 'string', 'max:20', 'regex:/^(?:\+?234|0)[789][01]\d{8}$/'],
             'password' => ['required', 'confirmed', Password::defaults()],
+            'ref' => ['nullable', 'string', 'max:40'],
         ];
     }
 
@@ -77,6 +78,7 @@ class RegisterRequest extends FormRequest
             'email' => strtolower(trim((string) $this->input('email'))),
             'whatsapp' => $whatsapp,
             'office_address' => trim((string) $this->input('office_address')),
+            'ref' => trim((string) $this->input('ref')) ?: null,
         ]);
     }
 }

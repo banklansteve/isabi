@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Support\ActivityLogger;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AppPlaceholderController extends Controller
 {
-    public function myPage(Request $request): \Illuminate\Http\RedirectResponse
+    public function myPage(Request $request): RedirectResponse
     {
         $user = $request->user();
 
@@ -72,56 +73,6 @@ class AppPlaceholderController extends Controller
                 'Credit balance & history',
                 'Top-up packs',
                 'Annual plan status',
-            ],
-        ]);
-    }
-
-    public function referrals(Request $request): Response
-    {
-        $user = $request->user();
-
-        ActivityLogger::log(
-            action: 'page.referrals',
-            summary: "{$user->name} opened Referrals.",
-            user: $user,
-        );
-
-        return Inertia::render('App/Placeholder', [
-            'title' => 'Referrals',
-            'eyebrow' => 'Grow together',
-            'summary' => 'Share your referral link or code. Earn credits when artisans you invite log their first job.',
-            'icon' => 'ti ti-gift',
-            'highlights' => [
-                'Your referral link & code',
-                'Credits earned so far',
-                'Who signed up through you',
-            ],
-        ]);
-    }
-
-    public function help(Request $request): Response
-    {
-        $user = $request->user();
-
-        ActivityLogger::log(
-            action: 'page.help',
-            summary: "{$user->name} opened Help & support.",
-            user: $user,
-        );
-
-        return Inertia::render('App/Placeholder', [
-            'title' => 'Help & support',
-            'eyebrow' => 'Support',
-            'summary' => 'Guides, FAQs, and a way to reach the Isabi team when something isn’t clear.',
-            'icon' => 'ti ti-help-circle',
-            'highlights' => [
-                'How Isabi works',
-                'Billing questions',
-                'Contact support',
-            ],
-            'cta' => [
-                'label' => 'Read the FAQ',
-                'href' => route('faq'),
             ],
         ]);
     }

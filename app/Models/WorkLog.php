@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\JobSlug;
 use App\Support\WorkLogEditPolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,7 @@ class WorkLog extends Model
     protected $fillable = [
         'user_id',
         'uid',
+        'slug',
         'description',
         'worked_on',
         'client_name',
@@ -28,6 +30,10 @@ class WorkLog extends Model
         'review_requested_at',
         'review_token',
         'review_token_expires_at',
+        'review_reminder_sent_at',
+        'flagged_at',
+        'flag_reason',
+        'hidden_at',
     ];
 
     /**
@@ -40,7 +46,29 @@ class WorkLog extends Model
             'amount_charged' => 'integer',
             'review_requested_at' => 'datetime',
             'review_token_expires_at' => 'datetime',
+            'review_reminder_sent_at' => 'datetime',
+            'flagged_at' => 'datetime',
+            'hidden_at' => 'datetime',
         ];
+    }
+
+    public function reminderDue(): bool
+    {
+        if ($this->review_reminder_sent_at || $this->review || ! $this->review_requested_at) {
+            return false;
+        }
+
+        $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
+        if (! $user?->wantsReviewReminders()) {
+            return false;
+        }
+
+        $days = $user->reviewReminderDays();
+        if ($days === null) {
+            return false;
+        }
+
+        return $this->review_requested_at->copy()->addDays($days)->isPast();
     }
 
     protected static function booted(): void
@@ -49,12 +77,58 @@ class WorkLog extends Model
             if (blank($log->uid)) {
                 $log->uid = (string) Str::uuid();
             }
+
+            if (blank($log->slug) && filled($log->user_id)) {
+                $log->slug = JobSlug::uniqueFor($log->user_id, $log->description);
+            }
         });
+
+        // A corrected description should fix the URL with it, but only while
+        // nothing has been shared publicly — once a review link is out or a
+        // review has landed, the slug is frozen so the link can't rot.
+        static::updating(function (WorkLog $log): void {
+            if (! $log->isDirty('description') || blank($log->user_id)) {
+                return;
+            }
+
+            if ($log->review_requested_at || $log->review()->exists()) {
+                return;
+            }
+
+            $log->slug = JobSlug::uniqueFor($log->user_id, $log->description, $log->id);
+        });
+    }
+
+    /** Public job pages only earn indexing once there's something to show. */
+    public function isPubliclySubstantial(): bool
+    {
+        $hasReview = $this->relationLoaded('review')
+            ? $this->review !== null
+            : $this->review()->exists();
+
+        if ($hasReview) {
+            return true;
+        }
+
+        return $this->relationLoaded('media')
+            ? $this->media->isNotEmpty()
+            : $this->media()->exists();
     }
 
     public function getRouteKeyName(): string
     {
         return 'uid';
+    }
+
+    public function publicUrl(): ?string
+    {
+        $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
+
+        if (blank($user?->slug) || blank($this->slug)) {
+            return null;
+        }
+
+        return route('public.job', [$user->slug, $this->slug]);
     }
 
     public function user(): BelongsTo

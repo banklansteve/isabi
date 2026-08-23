@@ -1,0 +1,86 @@
+diff a/routes/web.php b/routes/web.php	(rejected hunks)
+@@ -2,6 +2,15 @@
+ 
+ use App\Http\Controllers\Admin\ActivityLogController;
+ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
++use App\Http\Controllers\Admin\Hr\HrChecklistController;
++use App\Http\Controllers\Admin\Hr\HrController;
++use App\Http\Controllers\Admin\Hr\HrDocumentController;
++use App\Http\Controllers\Admin\Hr\HrLeaveController;
++use App\Http\Controllers\Admin\Hr\HrPayrollController;
++use App\Http\Controllers\Admin\Hr\HrPerformanceController;
++use App\Http\Controllers\Admin\Hr\HrProfileController;
++use App\Http\Controllers\Admin\Hr\HrReportController;
++use App\Http\Controllers\Admin\Hr\HrSettingsController;
+ use App\Http\Controllers\Admin\StaffController;
+ use App\Http\Controllers\Admin\StaffRoleController;
+ use App\Http\Controllers\Admin\UserController;
+@@ -157,6 +166,68 @@
+             Route::patch('/staff/{user}', [StaffController::class, 'update'])->name('staff.update');
+         });
+ 
++        Route::middleware('ability:hr.view')
++            ->prefix('hr')
++            ->name('hr.')
++            ->group(function () {
++                Route::get('/', [HrController::class, 'index'])->name('index');
++                Route::get('/leave', [HrLeaveController::class, 'index'])->name('leave.index');
++                Route::get('/calendar', [HrLeaveController::class, 'calendar'])->name('calendar');
++                Route::get('/reports', [HrReportController::class, 'index'])->name('reports.index');
++                Route::get('/reports/{report}/export', [HrReportController::class, 'export'])->name('reports.export');
++
++                Route::get('/settings', [HrSettingsController::class, 'index'])->name('settings');
++
++                Route::get('/staff/{user}', [HrProfileController::class, 'show'])->name('staff.show');
++
++                Route::get('/documents/{staffDocument}/download', [HrDocumentController::class, 'download'])
++                    ->name('documents.download');
++
++                Route::get('/payslips/{payslip}/pdf', [HrPayrollController::class, 'downloadPayslip'])
++                    ->name('payslips.pdf');
++
++                // Managing employment details, onboarding, exits, notes, documents.
++                Route::middleware('ability:hr.manage')->group(function () {
++                    Route::post('/staff/{user}/profile', [HrProfileController::class, 'store'])->name('staff.profile');
++                    Route::post('/staff/{user}/exit', [HrProfileController::class, 'exit'])->name('staff.exit');
++                    Route::post('/staff/{user}/reactivate', [HrProfileController::class, 'reactivate'])->name('staff.reactivate');
++
++                    Route::post('/staff/{user}/performance', [HrPerformanceController::class, 'store'])->name('performance.store');
++                    Route::delete('/performance/{performanceNote}', [HrPerformanceController::class, 'destroy'])->name('performance.destroy');
++
++                    Route::post('/staff/{user}/documents', [HrDocumentController::class, 'store'])->name('documents.store');
++                    Route::delete('/documents/{staffDocument}', [HrDocumentController::class, 'destroy'])->name('documents.destroy');
++
++                    Route::post('/staff/{user}/checklists', [HrChecklistController::class, 'attach'])->name('checklists.attach');
++                    Route::post('/checklist-items/{checklistInstanceItem}/toggle', [HrChecklistController::class, 'toggleItem'])->name('checklists.toggle');
++
++                    Route::post('/checklist-templates/{checklistTemplate}/items', [HrSettingsController::class, 'storeTemplateItem'])->name('templates.items.store');
++                    Route::delete('/checklist-template-items/{checklistTemplateItem}', [HrSettingsController::class, 'destroyTemplateItem'])->name('templates.items.destroy');
++                });
++
++                // Leave workflow: creating on behalf, approvals, allocations, types.
++                Route::post('/staff/{user}/leave', [HrLeaveController::class, 'store'])->name('leave.store');
++
++                Route::middleware('ability:hr.leave.manage')->group(function () {
++                    Route::post('/leave/{leaveRequest}/approve', [HrLeaveController::class, 'approve'])->name('leave.approve');
++                    Route::post('/leave/{leaveRequest}/reject', [HrLeaveController::class, 'reject'])->name('leave.reject');
++                    Route::post('/leave/{leaveRequest}/cancel', [HrLeaveController::class, 'cancel'])->name('leave.cancel');
++                    Route::post('/staff/{user}/leave-allocations', [HrLeaveController::class, 'allocate'])->name('leave.allocate');
++
++                    Route::post('/leave-types', [HrSettingsController::class, 'storeLeaveType'])->name('leave-types.store');
++                    Route::patch('/leave-types/{leaveType}', [HrSettingsController::class, 'updateLeaveType'])->name('leave-types.update');
++                    Route::delete('/leave-types/{leaveType}', [HrSettingsController::class, 'destroyLeaveType'])->name('leave-types.destroy');
++                });
++
++                // Payroll: the most sensitive data, gated to its own abilities.
++                Route::middleware('ability:hr.payroll.manage')->group(function () {
++                    Route::post('/staff/{user}/compensation', [HrPayrollController::class, 'updateCompensation'])->name('compensation.update');
++                    Route::post('/staff/{user}/payslips', [HrPayrollController::class, 'storePayslip'])->name('payslips.store');
++                    Route::post('/payslips/{payslip}/status', [HrPayrollController::class, 'updatePayslipStatus'])->name('payslips.status');
++                    Route::delete('/payslips/{payslip}', [HrPayrollController::class, 'destroyPayslip'])->name('payslips.destroy');
++                });
++            });
++
+         Route::middleware('role:'.UserRole::SuperAdmin->value)->group(function () {
+             Route::get('/activity', ActivityLogController::class)->name('activity');
+         });

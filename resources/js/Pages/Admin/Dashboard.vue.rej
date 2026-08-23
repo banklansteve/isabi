@@ -1,0 +1,15 @@
+diff a/resources/js/Pages/Admin/Dashboard.vue b/resources/js/Pages/Admin/Dashboard.vue	(rejected hunks)
+@@ -19,6 +19,13 @@
+                     >
+                         Users
+                     </Link>
++                    <Link
++                        v-if="$page.props.auth?.user?.is_super_admin"
++                        :href="route('admin.hr.index')"
++                        class="tap-target inline-flex items-center text-sm font-semibold text-ink/60 transition-colors hover:text-ink"
++                    >
++                        People
++                    </Link>
+                     <Link
+                         v-if="$page.props.auth?.user?.is_super_admin"
+                         :href="route('admin.staff.index')"

@@ -5,7 +5,7 @@
         <header
             class="border-b border-ink/10 bg-white/95"
         >
-            <div class="mx-auto flex max-w-lg items-center px-5 py-3">
+            <div class="mx-auto flex max-w-3xl items-center px-5 py-3 sm:px-8">
                 <Link
                     :href="route('home')"
                     class="font-display text-[1.35rem] font-extrabold tracking-tight text-ink"
@@ -15,7 +15,7 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-lg px-5 py-14 text-center sm:py-20">
+        <main class="mx-auto max-w-3xl px-5 py-14 text-center sm:px-8 sm:py-20">
             <div
                 class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-2xl text-emerald-600 ring-1 ring-emerald-100"
             >

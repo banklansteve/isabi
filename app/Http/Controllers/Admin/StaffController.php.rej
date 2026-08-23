@@ -1,0 +1,22 @@
+diff a/app/Http/Controllers/Admin/StaffController.php b/app/Http/Controllers/Admin/StaffController.php	(rejected hunks)
+@@ -25,7 +25,7 @@ public function index(Request $request): Response
+         $tab = $request->string('tab')->toString() ?: 'roles';
+ 
+         $staff = User::query()
+-            ->with('staffRole')
++            ->with(['staffRole', 'hrProfile'])
+             ->where('role', '!=', UserRole::User->value)
+             ->when($search !== '', function ($query) use ($search) {
+                 $query->where(function ($inner) use ($search) {
+@@ -265,6 +265,11 @@ private function presentStaff(User $user): array
+             'role_icon' => $card['icon'],
+             'is_super_admin' => $user->isSuperAdmin(),
+             'legacy' => (bool) ($card['legacy'] ?? false),
++            'on_leave' => $user->relationLoaded('hrProfile')
++                && $user->hrProfile
++                && ! $user->hrProfile->isExited()
++                && $user->isOnLeaveOn(),
++            'exited' => (bool) ($user->hrProfile?->isExited()),
+             'initials' => strtoupper(
+                 mb_substr((string) ($user->first_name ?: $user->name), 0, 1)
+                 .mb_substr((string) ($user->last_name ?: ''), 0, 1)

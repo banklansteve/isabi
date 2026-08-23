@@ -31,6 +31,11 @@ class PasswordController extends Controller
             user: $request->user(),
         );
 
-        return back();
+        return back()->with('toast', [
+            'type' => 'success',
+            'title' => 'Password updated',
+            'message' => 'Your new password is active. Keep it somewhere safe.',
+            'duration' => 4800,
+        ]);
     }
 }

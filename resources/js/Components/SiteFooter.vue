@@ -174,7 +174,8 @@ const columns = [
     {
         title: 'Product',
         links: [
-            { type: 'hash', hash: 'how-it-works', label: 'How it works' },
+            { type: 'route', name: 'public.directory', label: 'Find artisans' },
+            { type: 'route', name: 'how-it-works', label: 'How it works' },
             { type: 'hash', hash: 'on-your-page', label: "What's on your page" },
             { type: 'hash', hash: 'pricing', label: 'Pricing' },
             { type: 'hash', hash: 'samples', label: 'Sample profiles' },

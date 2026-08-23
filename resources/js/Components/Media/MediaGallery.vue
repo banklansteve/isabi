@@ -18,12 +18,23 @@
                 >
                     <img
                         v-if="item.kind === 'image'"
-                        :src="item.url"
+                        :src="item.thumb_url || item.url"
                         :alt="item.original_name || 'Photo'"
-                        class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                        loading="lazy"
+                        decoding="async"
+                        class="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.02]"
                     />
                     <template v-else>
+                        <img
+                            v-if="item.poster_url"
+                            :src="item.poster_url"
+                            :alt="item.original_name || 'Video'"
+                            loading="lazy"
+                            decoding="async"
+                            class="h-full w-full object-cover opacity-90"
+                        />
                         <video
+                            v-else
                             :src="item.url"
                             class="pointer-events-none h-full w-full object-cover opacity-90"
                             muted
@@ -37,7 +48,9 @@
                             <span
                                 class="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-ink shadow-lg ring-1 ring-ink/5"
                             >
-                                <i class="ti ti-player-play-filled text-lg" aria-hidden="true" />
+                                <svg class="h-4 w-4 translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.8-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14z" />
+                                </svg>
                             </span>
                         </span>
                     </template>
@@ -66,9 +79,10 @@
 
 <script setup>
 import MediaLightbox from '@/Components/Media/MediaLightbox.vue';
+import { warmMediaItem } from '@/utils/mediaWarm';
 import { ref } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: { type: Array, default: () => [] },
     /** Tailwind grid classes */
     gridClass: {
@@ -82,6 +96,7 @@ const lightboxIndex = ref(0);
 
 const openAt = (i) => {
     lightboxIndex.value = i;
+    warmMediaItem(props.items[i]);
     lightboxOpen.value = true;
 };
 

@@ -9,8 +9,10 @@ use App\Models\User;
 use App\Support\ActivityLogger;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
+use App\Support\Referrals\ReferralService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,18 +22,21 @@ class RegisteredUserController extends Controller
     /**
      * Display the registration view.
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $ref = trim((string) $request->query('ref', ''));
+
         return Inertia::render('Auth/Register', [
             'trades' => config('trades'),
             'locations' => NigeriaLocations::all(),
+            'referralCode' => $ref !== '' ? $ref : null,
         ]);
     }
 
     /**
      * Handle an incoming registration request.
      */
-    public function store(RegisterRequest $request): RedirectResponse
+    public function store(RegisterRequest $request, ReferralService $referrals): RedirectResponse
     {
         $data = $request->validated();
         $slug = ProfileSlug::uniqueFrom($data['business_name']);
@@ -51,6 +56,8 @@ class RegisteredUserController extends Controller
             'role' => UserRole::User,
         ]);
 
+        $referrals->attributeOnSignup($user, $data['ref'] ?? null);
+
         event(new Registered($user));
 
         Auth::login($user);
@@ -63,6 +70,7 @@ class RegisteredUserController extends Controller
                 'trade' => $user->trade,
                 'state' => $user->state,
                 'lga' => $user->lga,
+                'ref' => $data['ref'] ?? null,
             ],
         );
 

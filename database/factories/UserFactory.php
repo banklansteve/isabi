@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\StaffStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -60,6 +61,15 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::SuperAdmin,
+            'staff_status' => StaffStatus::Active,
+            'password_set_at' => now(),
+            'email_verified_at' => now(),
+            'trade' => null,
+            'state' => null,
+            'lga' => null,
+            'office_address' => null,
+            'whatsapp' => null,
+            'profile_completion' => 0,
         ]);
     }
 
@@ -67,6 +77,32 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::OperationsAdmin,
+            'staff_status' => StaffStatus::Active,
+            'password_set_at' => now(),
+            'email_verified_at' => now(),
+            'trade' => null,
+            'state' => null,
+            'lga' => null,
+            'office_address' => null,
+            'whatsapp' => null,
+            'profile_completion' => 0,
+        ]);
+    }
+
+    public function invitedStaff(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::OperationsAdmin,
+            'staff_status' => StaffStatus::Invited,
+            'password' => null,
+            'password_set_at' => null,
+            'email_verified_at' => null,
+            'trade' => null,
+            'state' => null,
+            'lga' => null,
+            'office_address' => null,
+            'whatsapp' => null,
+            'profile_completion' => 0,
         ]);
     }
 

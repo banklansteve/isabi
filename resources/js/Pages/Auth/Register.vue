@@ -315,6 +315,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    referralCode: {
+        type: String,
+        default: null,
+    },
 });
 
 const steps = [
@@ -361,6 +365,7 @@ const form = useForm({
     whatsapp: '',
     password: '',
     password_confirmation: '',
+    ref: props.referralCode || '',
 });
 
 const slugPreview = computed(() => {

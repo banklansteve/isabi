@@ -1,5 +1,19 @@
 <template>
     <div class="min-h-dvh bg-pale font-app text-ink antialiased">
+        <div
+            v-if="impersonating"
+            class="flex items-center justify-center gap-3 bg-ink px-4 py-2 text-center text-[13px] font-semibold text-white"
+        >
+            <span>Viewing as {{ impersonating.as }}</span>
+            <Link
+                :href="route('impersonation.leave')"
+                method="post"
+                as="button"
+                class="rounded-lg bg-white/15 px-2.5 py-1 text-[12px] font-bold hover:bg-white/25"
+            >
+                Leave
+            </Link>
+        </div>
         <header
             class="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-xl transition-[box-shadow] duration-300"
             :class="{ 'shadow-nav': scrolled }"
@@ -9,7 +23,7 @@
                 <div class="flex min-w-0 items-center gap-8 lg:gap-14 xl:gap-16">
                     <Link
                         :href="route('dashboard')"
-                        class="shrink-0 text-[1.35rem] font-bold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
+                        class="shrink-0 text-[1.45rem] font-extrabold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
                     >
                         Isabi
                     </Link>
@@ -33,13 +47,14 @@
                 <div class="flex items-center gap-2 sm:gap-3">
                     <Link
                         :href="route('work-log.create')"
-                        class="tap-target hidden items-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-[background-color,transform] duration-200 hover:bg-base-hover hover:scale-[1.01] active:scale-[0.99] lg:inline-flex"
+                        class="tap-target hidden items-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-[0.95rem] font-bold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-[background-color,transform] duration-200 hover:bg-base-hover hover:scale-[1.01] active:scale-[0.99] lg:inline-flex"
                     >
                         <i class="ti ti-plus text-sm" aria-hidden="true" />
                         Log a job
                     </Link>
 
                     <NotificationBell />
+                    <ProfileCompletionRing />
                     <UserProfileMenu />
 
                     <button
@@ -68,7 +83,7 @@
                             v-for="item in primaryNav"
                             :key="`m-${item.href}`"
                             :href="item.href"
-                            class="tap-target flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors duration-200"
+                            class="tap-target flex items-center gap-3 rounded-xl px-4 py-3 text-[0.95rem] font-bold tracking-tight transition-colors duration-200"
                             :class="
                                 isActive(item.match)
                                     ? 'bg-tint text-deep'
@@ -103,7 +118,13 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10">
+        <main
+            :class="
+                fullBleed
+                    ? 'pb-28 sm:pb-14'
+                    : 'mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10'
+            "
+        >
             <slot />
         </main>
 
@@ -125,35 +146,59 @@
                 </Link>
             </div>
         </nav>
+
     </div>
 </template>
 
 <script setup>
 import NotificationBell from '@/Components/App/NotificationBell.vue';
+import ProfileCompletionRing from '@/Components/App/ProfileCompletionRing.vue';
 import UserProfileMenu from '@/Components/App/UserProfileMenu.vue';
-import { Link } from '@inertiajs/vue3';
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+defineProps({
+    /** Edge-to-edge content (e.g. public profile preview) — keeps app nav, drops main padding. */
+    fullBleed: { type: Boolean, default: false },
+});
+
+const page = usePage();
+const impersonating = computed(() => page.props.auth?.impersonating || null);
 const mobileOpen = ref(false);
 const scrolled = ref(false);
 
 const primaryNav = [
     { label: 'Home', href: route('dashboard'), match: 'dashboard', icon: 'ti ti-home' },
-    { label: 'My page', href: route('page.index'), match: 'page.*', icon: 'ti ti-user-circle' },
+    {
+        label: 'My page',
+        href: route('page.index'),
+        match: ['page.*', 'public.profile'],
+        icon: 'ti ti-user-circle',
+    },
     { label: 'Work log', href: route('work-log.index'), match: 'work-log.*', icon: 'ti ti-notebook' },
-    { label: 'Credits', href: route('credits.index'), match: 'credits.*', icon: 'ti ti-wallet' },
+    { label: 'Tokens', href: route('tokens.index'), match: 'tokens.*', icon: 'ti ti-coin' },
     { label: 'Referrals', href: route('referrals.index'), match: 'referrals.*', icon: 'ti ti-gift' },
 ];
 
 const bottomNav = [
     { short: 'Home', href: route('dashboard'), match: 'dashboard', icon: 'ti ti-home' },
-    { short: 'Page', href: route('page.index'), match: 'page.*', icon: 'ti ti-user-circle' },
+    {
+        short: 'Page',
+        href: route('page.index'),
+        match: ['page.*', 'public.profile'],
+        icon: 'ti ti-user-circle',
+    },
     { short: 'Jobs', href: route('work-log.index'), match: 'work-log.*', icon: 'ti ti-notebook' },
-    { short: 'Credits', href: route('credits.index'), match: 'credits.*', icon: 'ti ti-wallet' },
+    { short: 'Tokens', href: route('tokens.index'), match: 'tokens.*', icon: 'ti ti-coin' },
     { short: 'More', href: route('referrals.index'), match: 'referrals.*', icon: 'ti ti-gift' },
 ];
 
-const isActive = (pattern) => route().current(pattern);
+const isActive = (pattern) => {
+    if (Array.isArray(pattern)) {
+        return pattern.some((p) => route().current(p));
+    }
+    return route().current(pattern);
+};
 
 const onScroll = () => {
     scrolled.value = window.scrollY > 4;
@@ -178,7 +223,7 @@ onUnmounted(() => {
 
 <style scoped>
 .nav-link {
-    @apply relative inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-ink/55 transition-[color,background-color] duration-200 ease-out lg:px-5;
+    @apply relative inline-flex items-center rounded-xl px-4 py-2.5 text-[0.95rem] font-bold tracking-tight text-ink/70 transition-[color,background-color] duration-200 ease-out lg:px-5;
 }
 
 .nav-link:hover {

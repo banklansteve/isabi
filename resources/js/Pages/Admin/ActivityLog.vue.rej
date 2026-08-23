@@ -1,0 +1,14 @@
+diff a/resources/js/Pages/Admin/ActivityLog.vue b/resources/js/Pages/Admin/ActivityLog.vue	(rejected hunks)
+@@ -19,6 +19,12 @@
+                     >
+                         Users
+                     </Link>
++                    <Link
++                        :href="route('admin.hr.index')"
++                        class="tap-target inline-flex items-center text-sm font-semibold text-ink/55 transition-colors hover:text-ink"
++                    >
++                        People
++                    </Link>
+                     <Link
+                         :href="route('admin.staff.index')"
+                         class="tap-target inline-flex items-center text-sm font-semibold text-ink/55 transition-colors hover:text-ink"

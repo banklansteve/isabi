@@ -32,9 +32,26 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 43200),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Per-principal idle lifetimes
+    |--------------------------------------------------------------------------
+    |
+    | Admin Settings can override these independently. Values are minutes of
+    | inactivity. The global `lifetime` above is only the Laravel fallback
+    | used before a user is known (and for session-store GC).
+    |
+    */
+
+    'lifetime_users' => (int) env('SESSION_LIFETIME_USERS', 43200),
+
+    'lifetime_operations' => (int) env('SESSION_LIFETIME_OPERATIONS', 20160),
+
+    'lifetime_super_admin' => (int) env('SESSION_LIFETIME_SUPER_ADMIN', 20160),
 
     /*
     |--------------------------------------------------------------------------

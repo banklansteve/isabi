@@ -20,12 +20,14 @@
             <div class="w-80">
                 <div class="flex items-center justify-between px-4 py-3.5">
                     <p class="text-sm font-bold text-ink">Notifications</p>
-                    <span
+                    <button
                         v-if="unreadCount > 0"
+                        type="button"
                         class="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-deep"
+                        @click="markAllRead"
                     >
                         {{ unreadCount }} new
-                    </span>
+                    </button>
                 </div>
                 <div class="border-t border-ink/10" />
 
@@ -35,6 +37,8 @@
                         :key="item.id"
                         type="button"
                         class="flex w-full gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-pale"
+                        :class="item.unread ? 'bg-tint/40' : ''"
+                        @click="markRead(item)"
                     >
                         <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint text-base">
                             <i :class="item.icon || 'ti ti-bell'" aria-hidden="true" />
@@ -63,11 +67,23 @@
 
 <script setup>
 import Dropdown from '@/Components/Dropdown.vue';
-import { usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const page = usePage();
 
 const unreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const items = computed(() => page.props.notifications?.items ?? []);
+
+const markRead = (item) => {
+    if (!item?.id || !item.unread) {
+        return;
+    }
+
+    router.post(route('notifications.read', item.id), {}, { preserveScroll: true, preserveState: true });
+};
+
+const markAllRead = () => {
+    router.post(route('notifications.read-all'), {}, { preserveScroll: true, preserveState: true });
+};
 </script>

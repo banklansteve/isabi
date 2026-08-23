@@ -1,0 +1,33 @@
+diff a/README.md b/README.md	(rejected hunks)
+@@ -2,10 +2,30 @@ # iSabi
+ 
+ Existing iSabi product: Laravel, Vue 3, Inertia, and Tailwind. Login, artisan dashboard, work logs, public profiles, and admin chrome are unchanged from the current app.
+ 
+-Additive admin work sits at `/admin/staff` (operations roles) and `/admin/users` (artisan directory). Login, artisan dashboard, work logs, and existing chrome are unchanged.
++Additive admin work sits at:
++
++- `/admin/staff` — **Access & Roles** (what operations staff can *do* on the platform)
++- `/admin/users` — artisan directory
++- `/admin/hr` — **People / HR** (who staff *are* as employees: profile, leave, payroll, performance, documents)
++
++Login, artisan dashboard, work logs, and existing chrome are unchanged.
+ 
+ On Users, **View** opens a right-hand detail panel. The slide uses a GPU `transform` only — no width/left animation — so it eases in cleanly.
+ 
++## People / HR module (`/admin/hr`)
++
++An internal-facing HR tool, separate from Access & Roles. Super Admin only.
++
++- **Directory & profile** — tabbed profile (Overview, Leave, Payroll, Performance, Documents). Staff can be marked **exited** without deleting their history; exiting prompts a reminder to revoke platform access in Access & Roles (the two systems are not synced).
++- **Leave** — configurable leave types with allowances, per-staff balances, an approval workflow (pending → approved/rejected/cancelled), a shared team calendar, and guards against overlapping requests and negative balances (an approver can override, and it is logged).
++- **Payroll** — per-staff compensation (base + custom allowances) and payslips with PDF export. Compensation edits require a logged reason. Gated behind dedicated `hr.payroll.*` permissions and hidden from anyone without them — enforced server-side, not just in the UI. It records what is owed/paid and does not move money (`// TODO: connect to payout provider …`).
++- **Performance** — a lightweight, dated note timeline with an optional rating.
++- **Documents** — per-profile storage with a type tag, optional expiry, and an expiry alert.
++- **Checklists** — editable onboarding / offboarding templates attached to a profile and checked off.
++- **Reports** — headcount, leave utilisation, payroll cost (gated), and performance coverage, each exportable to CSV.
++
++Staff currently on approved leave are flagged as **On leave** wherever they appear (including the Access & Roles staff list).
++
+ ## Run locally
+ 
+ ```bash

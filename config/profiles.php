@@ -14,6 +14,7 @@ return [
         'reset-password', 'forgot-password', 'support', 'terms', 'verify-email',
         'welcome', 'work-log', 'www', 'null', 'undefined', 'settings', 'billing',
         'account', 'user', 'users', 'artisan', 'artisans', 'review', 'reviews',
+        'sitemap', 'jobs', 'directory', 'explore',
     ],
 
     /** Max times an artisan may change their public slug. */

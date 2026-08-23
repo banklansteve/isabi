@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    'paystack' => [
+        'public' => env('PAYSTACK_PUBLIC_KEY'),
+        'secret' => env('PAYSTACK_SECRET_KEY'),
+    ],
+
+    'flutterwave' => [
+        'public' => env('FLUTTERWAVE_PUBLIC_KEY'),
+        'secret' => env('FLUTTERWAVE_SECRET_KEY'),
+    ],
+
+    'whatsapp' => [
+        'provider' => env('WHATSAPP_PROVIDER'),
+    ],
+
 ];

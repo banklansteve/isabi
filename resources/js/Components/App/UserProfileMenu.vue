@@ -7,11 +7,13 @@
                 :aria-expanded="open"
                 aria-label="Open profile menu"
             >
-                <span
-                    class="flex h-9 w-9 items-center justify-center rounded-full bg-tint text-sm font-semibold tracking-tight text-deep ring-2 ring-white shadow-sm transition-shadow duration-200 group-hover:shadow-md sm:h-10 sm:w-10"
-                >
-                    {{ user.initials || 'I' }}
-                </span>
+                <UserAvatar
+                    :src="user.avatar_url"
+                    :initials="user.initials || 'I'"
+                    :alt="user.name || 'Profile'"
+                    size="md"
+                    class="ring-2 ring-white shadow-sm transition-shadow duration-200 group-hover:shadow-md"
+                />
                 <i
                     class="ti ti-chevron-down me-0.5 text-base text-ink/40 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
                     :class="{ 'rotate-180 text-ink/70': open }"
@@ -23,11 +25,12 @@
         <template #content>
             <div class="w-72">
                 <div class="flex items-start gap-3 px-4 pb-3.5 pt-4">
-                    <span
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-semibold tracking-tight text-deep"
-                    >
-                        {{ user.initials || 'I' }}
-                    </span>
+                    <UserAvatar
+                        :src="user.avatar_url"
+                        :initials="user.initials || 'I'"
+                        :alt="user.name || 'Profile'"
+                        size="lg"
+                    />
                     <div class="min-w-0 flex-1 pt-0.5">
                         <p class="truncate text-sm font-semibold tracking-tight text-ink">
                             {{ user.name }}
@@ -98,6 +101,7 @@
 </template>
 
 <script setup>
+import UserAvatar from '@/Components/App/UserAvatar.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -107,7 +111,7 @@ const user = computed(() => page.props.auth.user);
 
 const menuItems = [
     { label: 'Account settings', icon: 'ti ti-settings', href: route('profile.edit') },
-    { label: 'Credits & plan', icon: 'ti ti-wallet', href: route('credits.index') },
+    { label: 'Tokens & plan', icon: 'ti ti-coin', href: route('tokens.index') },
     { label: 'Referrals', icon: 'ti ti-gift', href: route('referrals.index') },
     { label: 'Help & support', icon: 'ti ti-help-circle', href: route('help.index') },
 ];

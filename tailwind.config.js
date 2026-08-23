@@ -32,7 +32,10 @@ export default {
                 display: ['Syne', ...defaultTheme.fontFamily.sans],
                 sans: ['"Plus Jakarta Sans"', ...defaultTheme.fontFamily.sans],
                 app: ['Manrope', '"Plus Jakarta Sans"', ...defaultTheme.fontFamily.sans],
+                admin: ['"IBM Plex Sans"', ...defaultTheme.fontFamily.sans],
                 voice: ['"Instrument Serif"', ...defaultTheme.fontFamily.serif],
+                // Editorial serif for portfolio/testimonial content — warm and highly legible at large sizes.
+                editorial: ['Fraunces', 'Georgia', ...defaultTheme.fontFamily.serif],
             },
             fontSize: {
                 'display-xl': [

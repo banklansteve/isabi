@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -40,6 +41,36 @@ class WorkLogMedia extends Model
         }
 
         return Storage::disk($this->disk)->url($this->path);
+    }
+
+    /** Grid-sized image for mosaics and thumbnails. */
+    public function thumbUrl(int $width = 1200): string
+    {
+        if (! $this->isImage()) {
+            return $this->url();
+        }
+
+        return MediaUrl::image($this->url(), $width) ?: $this->url();
+    }
+
+    /** Large-but-not-original image for the lightbox stage. */
+    public function previewUrl(int $width = 1600): string
+    {
+        if (! $this->isImage()) {
+            return $this->url();
+        }
+
+        return MediaUrl::image($this->url(), $width) ?: $this->url();
+    }
+
+    /** Still frame for video tiles, when the provider can generate one. */
+    public function posterUrl(int $width = 900): ?string
+    {
+        if (! $this->isVideo()) {
+            return null;
+        }
+
+        return MediaUrl::videoPoster($this->url(), $width);
     }
 
     public function isImage(): bool

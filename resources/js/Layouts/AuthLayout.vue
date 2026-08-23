@@ -1,5 +1,8 @@
 <template>
-    <div class="min-h-dvh bg-pale text-ink lg:grid lg:grid-cols-2">
+    <div
+        class="min-h-dvh bg-pale text-ink lg:grid lg:grid-cols-2"
+        :class="tone === 'admin' ? 'font-admin' : ''"
+    >
         <!-- Brand panel -->
         <aside
             class="relative hidden overflow-hidden bg-gradient-to-br from-[#123B72] via-[#0B1F3A] to-[#0B1F3A] text-white lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12 xl:px-16"
@@ -109,6 +112,10 @@
 import { Link } from '@inertiajs/vue3';
 
 defineProps({
+    tone: {
+        type: String,
+        default: 'marketing',
+    },
     headline: {
         type: String,
         default: 'Your work, backed by the people who hired you.',

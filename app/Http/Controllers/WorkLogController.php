@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientTokensException;
 use App\Http\Requests\StoreWorkLogRequest;
 use App\Http\Requests\UpdateWorkLogRequest;
 use App\Models\WorkLog;
@@ -10,8 +11,11 @@ use App\Services\CloudinaryMediaService;
 use App\Support\ActivityLogger;
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
+use App\Support\Referrals\ReferralService;
 use App\Support\ReviewInvite;
+use App\Support\Tokens\ReviewLinkGate;
 use App\Support\WorkLogEditPolicy;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +30,8 @@ class WorkLogController extends Controller
 {
     public function __construct(
         private readonly CloudinaryMediaService $cloudinary,
+        private readonly ReviewLinkGate $reviewLinkGate,
+        private readonly ReferralService $referrals,
     ) {}
 
     public function index(Request $request): Response
@@ -50,7 +56,7 @@ class WorkLogController extends Controller
                 'uid' => $log->uid,
                 'description' => $log->description,
                 'worked_on' => $log->worked_on?->toDateString(),
-                'worked_on_label' => $log->worked_on?->timezone(config('app.timezone'))->format('j M Y'),
+                'worked_on_label' => $log->worked_on?->timezone(config('app.display_timezone'))->format('j M Y'),
                 'client_name' => $log->client_name,
                 'job_category' => $log->job_category,
                 'job_subcategory' => $log->job_subcategory,
@@ -59,18 +65,54 @@ class WorkLogController extends Controller
                 'client_whatsapp' => $log->client_whatsapp,
                 'amount_naira' => $log->amountInNaira(),
                 'media_count' => $log->media->count(),
-                'thumbnail' => $log->media->first()?->url(),
+                'thumbnail' => $log->media->first()?->thumbUrl(600),
                 'review_requested' => WorkLogEditPolicy::hasReviewRequested($log),
                 'has_review' => $log->relationLoaded('review')
                     ? $log->review !== null
                     : $log->review()->exists(),
+                'reminder_due' => $log->setRelation('user', $user)->reminderDue(),
+                'reminder_sent' => $log->review_reminder_sent_at !== null,
             ])
             ->values();
 
         return Inertia::render('WorkLog/Index', [
             'entries' => $entries,
             'maxLookbackDays' => StoreWorkLogRequest::MAX_LOOKBACK_DAYS,
+            'dueReminderCount' => $entries->where('reminder_due', true)->count(),
         ]);
+    }
+
+    /**
+     * Download the artisan's full job log + reviews as a PDF for tenders.
+     */
+    public function export(Request $request)
+    {
+        $user = $request->user();
+
+        $logs = WorkLog::query()
+            ->where('user_id', $user->id)
+            ->with('review')
+            ->orderByDesc('worked_on')
+            ->orderByDesc('id')
+            ->get();
+
+        ActivityLogger::log(
+            action: 'work_log.exported',
+            summary: "{$user->name} exported their work log as PDF.",
+            user: $user,
+            properties: ['jobs' => $logs->count()],
+        );
+
+        $pdf = Pdf::loadView('pdf.work-log-export', [
+            'user' => $user,
+            'logs' => $logs,
+            'generatedAt' => now()->timezone(config('app.display_timezone')),
+            'publicUrl' => $user->publicUrl(),
+        ])->setPaper('a4');
+
+        $filename = 'isabi-work-log-'.($user->slug ?: 'export').'-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
     }
 
     public function create(Request $request): Response
@@ -139,11 +181,14 @@ class WorkLogController extends Controller
             ],
         );
 
+        $this->referrals->qualifyOnFirstJob($user->fresh());
+
         return redirect()
             ->route('work-log.show', $workLog)
             ->with('toast', [
                 'type' => 'success',
-                'message' => 'Job logged successfully.',
+                'title' => 'Job logged',
+                'message' => 'Your proof trail just got stronger.',
                 'duration' => 5000,
             ]);
     }
@@ -152,7 +197,7 @@ class WorkLogController extends Controller
     {
         abort_unless((int) $workLog->user_id === (int) $request->user()->id, 403);
 
-        $workLog->load(['media', 'review']);
+        $workLog->load(['media', 'review', 'user']);
         $flags = $workLog->editFlags();
         $hasReview = $workLog->review !== null;
         $user = $request->user();
@@ -164,10 +209,12 @@ class WorkLogController extends Controller
         return Inertia::render('WorkLog/Show', [
             'entry' => [
                 'uid' => $workLog->uid,
+                'slug' => $workLog->slug,
+                'public_url' => $workLog->publicUrl(),
                 'description' => $workLog->description,
                 'worked_on' => $workLog->worked_on?->toDateString(),
-                'worked_on_label' => $workLog->worked_on?->timezone(config('app.timezone'))->format('l, j F Y'),
-                'worked_on_short' => $workLog->worked_on?->timezone(config('app.timezone'))->format('j M Y'),
+                'worked_on_label' => $workLog->worked_on?->timezone(config('app.display_timezone'))->format('l, j F Y'),
+                'worked_on_short' => $workLog->worked_on?->timezone(config('app.display_timezone'))->format('j M Y'),
                 'client_name' => $workLog->client_name,
                 'job_category' => $workLog->job_category,
                 'job_subcategory' => $workLog->job_subcategory,
@@ -178,34 +225,68 @@ class WorkLogController extends Controller
                 'service_label' => self::serviceLabel($workLog),
                 'client_whatsapp' => $workLog->client_whatsapp,
                 'amount_naira' => $workLog->amountInNaira(),
-                'created_at_label' => $workLog->created_at?->timezone(config('app.timezone'))->format('j M Y · g:i A'),
+                'created_at_label' => $workLog->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:i A'),
+                'created_at_short' => $workLog->created_at?->timezone(config('app.display_timezone'))->format('j M Y'),
                 'review_requested' => WorkLogEditPolicy::hasReviewRequested($workLog),
+                'review_requested_short' => $workLog->review_requested_at
+                    ?->timezone(config('app.display_timezone'))
+                    ->format('j M Y'),
+                'review_requested_ago' => $workLog->review_requested_at
+                    ?->timezone(config('app.display_timezone'))
+                    ->diffForHumans(),
                 'has_review' => $hasReview,
+                'reminder_due' => $workLog->reminderDue(),
+                'reminder_sent' => $workLog->review_reminder_sent_at !== null,
+                'reminder_sent_short' => $workLog->review_reminder_sent_at
+                    ?->timezone(config('app.display_timezone'))
+                    ->format('j M Y'),
                 'review' => $hasReview ? [
-                    'rating' => $workLog->review->rating,
+                    'rating' => (float) $workLog->review->rating,
+                    'would_recommend' => $workLog->review->would_recommend,
                     'comment' => $workLog->review->comment,
                     'client_display_name' => $workLog->review->client_display_name,
                     'referred_by' => $workLog->review->referred_by,
                     'photo_url' => $workLog->review->photoUrl(),
+                    'photo_thumb_url' => $workLog->review->photoThumbUrl(700),
+                    'photo_preview_url' => $workLog->review->photoPreviewUrl(),
                     'submitted_at_label' => $workLog->review->submitted_at
-                        ?->timezone(config('app.timezone'))
+                        ?->timezone(config('app.display_timezone'))
                         ->format('j M Y'),
                 ] : null,
                 'media' => $workLog->media->map(fn (WorkLogMedia $m) => [
                     'id' => $m->id,
                     'url' => $m->url(),
+                    'thumb_url' => $m->thumbUrl(700),
+                    'preview_url' => $m->previewUrl(1600),
+                    'poster_url' => $m->posterUrl(800),
                     'kind' => $m->kind,
                     'original_name' => $m->original_name,
                 ])->values(),
             ],
             'editFlags' => $flags,
             'reviewInvite' => $reviewInvite,
+            'reviewQuota' => $this->reviewLinkGate->status($request->user()),
             'whatsappShare' => $request->session()->pull('whatsapp_share'),
             'openReviewShare' => (bool) $request->session()->pull('open_review_share'),
         ]);
     }
 
     public function requestReview(Request $request, WorkLog $workLog): RedirectResponse
+    {
+        return $this->openWhatsAppShare(
+            $request,
+            $workLog,
+            kind: ReviewInvite::KIND_INVITE,
+            activity: 'review.requested',
+            summary: 'requested a client review',
+            toast: 'Review link ready — tap Open WhatsApp to send.',
+        );
+    }
+
+    /**
+     * One-shot reminder nudge — same WhatsApp click-to-chat flow as the first invite.
+     */
+    public function remindReview(Request $request, WorkLog $workLog): RedirectResponse
     {
         abort_unless((int) $workLog->user_id === (int) $request->user()->id, 403);
 
@@ -219,19 +300,88 @@ class WorkLogController extends Controller
                 ]);
         }
 
-        $workLog = ReviewInvite::ensureToken($workLog);
+        if ($workLog->review_reminder_sent_at) {
+            return redirect()
+                ->route('work-log.show', $workLog)
+                ->with('toast', [
+                    'type' => 'info',
+                    'message' => 'You’ve already sent the reminder for this job.',
+                    'duration' => 4500,
+                ]);
+        }
+
+        if (! $workLog->review_requested_at) {
+            return redirect()
+                ->route('work-log.show', $workLog)
+                ->with('toast', [
+                    'type' => 'info',
+                    'message' => 'Send the first review link before a reminder.',
+                    'duration' => 4500,
+                ]);
+        }
+
+        $workLog->forceFill(['review_reminder_sent_at' => now()])->save();
+
+        return $this->openWhatsAppShare(
+            $request,
+            $workLog->fresh(['user']),
+            kind: ReviewInvite::KIND_REMINDER,
+            activity: 'review.reminder_prepared',
+            summary: 'prepared a review reminder',
+            toast: 'Reminder ready — tap Open WhatsApp to nudge your client.',
+        );
+    }
+
+    private function openWhatsAppShare(
+        Request $request,
+        WorkLog $workLog,
+        string $kind,
+        string $activity,
+        string $summary,
+        string $toast,
+    ): RedirectResponse {
+        abort_unless((int) $workLog->user_id === (int) $request->user()->id, 403);
+
+        if ($workLog->review()->exists()) {
+            return redirect()
+                ->route('work-log.show', $workLog)
+                ->with('toast', [
+                    'type' => 'info',
+                    'message' => 'This job already has a client review.',
+                    'duration' => 4500,
+                ]);
+        }
+
         $user = $request->user();
+
+        if ($kind === ReviewInvite::KIND_INVITE && blank($workLog->review_requested_at)) {
+            try {
+                $this->reviewLinkGate->authorizeNewRequest($user, $workLog);
+            } catch (InsufficientTokensException $e) {
+                return redirect()
+                    ->route('tokens.buy')
+                    ->with('toast', [
+                        'type' => 'error',
+                        'message' => $e->getMessage(),
+                        'duration' => 6500,
+                    ]);
+            }
+        }
+
+        $workLog = ReviewInvite::ensureToken($workLog->loadMissing('user'));
         $payload = ReviewInvite::payload(
             $workLog,
             $user->first_name ?: $user->displayBusinessName(),
+            $kind,
         );
 
         ActivityLogger::log(
-            action: 'review.requested',
-            summary: "{$user->name} requested a client review.",
+            action: $activity,
+            summary: "{$user->name} {$summary}.",
             user: $user,
             properties: [
                 'work_log_uid' => $workLog->uid,
+                'kind' => $kind,
             ],
         );
 
@@ -244,11 +394,12 @@ class WorkLogController extends Controller
                 'whatsapp_web_url' => $payload['whatsapp_web_url'],
                 'review_url' => $payload['review_url'],
                 'message' => $payload['message'],
+                'kind' => $kind,
             ])
             ->with('open_review_share', true)
             ->with('toast', [
                 'type' => 'success',
-                'message' => 'Review link ready — tap Open WhatsApp to send.',
+                'message' => $toast,
                 'duration' => 5000,
             ]);
     }
@@ -286,6 +437,9 @@ class WorkLogController extends Controller
                 'media' => $workLog->media->map(fn (WorkLogMedia $m) => [
                     'id' => $m->id,
                     'url' => $m->url(),
+                    'thumb_url' => $m->thumbUrl(700),
+                    'preview_url' => $m->previewUrl(1600),
+                    'poster_url' => $m->posterUrl(800),
                     'kind' => $m->kind,
                     'original_name' => $m->original_name,
                 ])->values(),
@@ -361,7 +515,8 @@ class WorkLogController extends Controller
             ->route('work-log.show', $workLog)
             ->with('toast', [
                 'type' => 'success',
-                'message' => 'Job updated.',
+                'title' => 'Job updated',
+                'message' => 'Changes are saved to this work log entry.',
                 'duration' => 4500,
             ]);
     }

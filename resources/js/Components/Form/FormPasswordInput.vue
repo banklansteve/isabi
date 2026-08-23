@@ -1,5 +1,6 @@
 <template>
     <FormTextInput
+        ref="input"
         v-model="model"
         :id="id"
         :label="label"
@@ -57,4 +58,9 @@ defineProps({
 defineEmits(['blur', 'focus', 'input']);
 
 const visible = ref(false);
+const input = ref(null);
+
+defineExpose({
+    focus: () => input.value?.focus?.(),
+});
 </script>

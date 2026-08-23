@@ -3,40 +3,90 @@
 
     <AuthenticatedLayout>
         <div class="mx-auto max-w-2xl">
-            <AppPageHeader
-                title="Log a job"
-                :description="headerDescription"
-                :back-href="route('work-log.index')"
-                back-label="Work log"
+            <!-- Hero -->
+            <section
+                class="create-hero relative mb-6 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#1A4FB5] via-[#123B72] to-[#071427] px-5 py-7 shadow-premium-ink sm:mb-7 sm:px-7 sm:py-8"
             >
-                <template #meta>
-                    <FormStepProgress
-                        v-model="step"
-                        :steps="steps"
-                        :max-reachable="maxReachable"
-                    />
-                </template>
-            </AppPageHeader>
+                <div
+                    class="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_10%_0%,rgba(255,255,255,0.14),transparent_55%),radial-gradient(45%_55%_at_100%_100%,rgba(255,106,61,0.14),transparent_50%)]"
+                    aria-hidden="true"
+                />
+                <div
+                    class="pointer-events-none absolute inset-0 opacity-[0.16]"
+                    style="
+                        background-image: radial-gradient(rgba(255, 255, 255, 0.1) 0.7px, transparent 0.7px);
+                        background-size: 18px 18px;
+                    "
+                    aria-hidden="true"
+                />
+
+                <div class="relative">
+                    <Link
+                        :href="route('work-log.index')"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition-colors hover:text-white"
+                    >
+                        <i class="ti ti-arrow-left" aria-hidden="true" />
+                        Work log
+                    </Link>
+                    <p
+                        class="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-coral" aria-hidden="true" />
+                        New record
+                    </p>
+                    <h1
+                        class="mt-2.5 font-editorial text-[2rem] font-semibold leading-[1.1] tracking-tight text-white sm:text-[2.35rem]"
+                    >
+                        Log a job
+                    </h1>
+                    <p class="mt-2 max-w-md text-sm font-medium leading-relaxed text-white/65">
+                        {{ headerDescription }}
+                    </p>
+                </div>
+            </section>
+
+            <div
+                class="mb-5 rounded-[1.35rem] bg-white p-3.5 shadow-premium ring-1 ring-ink/[0.06] sm:p-4"
+            >
+                <FormStepProgress
+                    v-model="step"
+                    :steps="steps"
+                    :max-reachable="maxReachable"
+                />
+            </div>
 
             <form class="space-y-5" @submit.prevent="onFormSubmit">
-                <!-- Step 1: Required -->
+                <AppInlineAlert
+                    v-if="formHasErrors"
+                    tone="error"
+                    title="Couldn’t save this job"
+                    message="Check the highlighted fields and try again. If it keeps failing, your connection may have dropped."
+                />
+
+                <!-- Step 1 -->
                 <section
                     v-show="step === 0"
-                    class="step-panel rounded-[1.5rem] bg-white p-5 shadow-premium ring-1 ring-ink/[0.06] sm:p-7"
+                    class="step-panel rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
                 >
-                    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div
+                        class="flex flex-wrap items-start justify-between gap-3 border-b border-ink/[0.05] bg-gradient-to-r from-pale/90 to-white px-5 py-4 sm:px-7 sm:py-5"
+                    >
                         <div>
-                            <p class="text-sm font-semibold text-ink">The essentials</p>
+                            <p class="font-editorial text-lg font-semibold tracking-tight text-ink">
+                                The essentials
+                            </p>
                             <p class="mt-0.5 text-xs font-medium text-ink/45">
-                                Required — this is enough to save a real job record.
+                                Required — enough to save a real job record.
                             </p>
                         </div>
-                        <span class="rounded-full bg-tint px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-deep">
+                        <span
+                            class="rounded-full bg-ink px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white"
+                        >
                             Required
                         </span>
                     </div>
 
-                    <div class="space-y-5">
+                    <div class="space-y-5 p-5 sm:p-7">
                         <FormTextInput
                             id="description"
                             v-model="form.description"
@@ -60,24 +110,30 @@
                     </div>
                 </section>
 
-                <!-- Step 2: Optional -->
+                <!-- Step 2 -->
                 <section
                     v-show="step === 1"
-                    class="step-panel rounded-[1.5rem] bg-white p-5 shadow-premium ring-1 ring-ink/[0.06] sm:p-7"
+                    class="step-panel overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
                 >
-                    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div
+                        class="flex flex-wrap items-start justify-between gap-3 border-b border-ink/[0.05] bg-gradient-to-r from-pale/90 to-white px-5 py-4 sm:px-7 sm:py-5"
+                    >
                         <div>
-                            <p class="text-sm font-semibold text-ink">Nice to have</p>
+                            <p class="font-editorial text-lg font-semibold tracking-tight text-ink">
+                                Nice to have
+                            </p>
                             <p class="mt-0.5 text-xs font-medium text-ink/45">
-                                Optional — skip anytime. These make discovery, reviews, and recall easier later.
+                                Optional — skip anytime. Photos and client details help later.
                             </p>
                         </div>
-                        <span class="rounded-full bg-pale px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink/50">
+                        <span
+                            class="rounded-full bg-pale px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink/50"
+                        >
                             Optional
                         </span>
                     </div>
 
-                    <div class="space-y-5">
+                    <div class="space-y-5 p-5 sm:p-7">
                         <FormTextInput
                             id="client_name"
                             v-model="form.client_name"
@@ -85,7 +141,7 @@
                             icon="ti ti-user"
                             placeholder="e.g. Mrs. Adeyemi"
                             autocomplete="off"
-                            hint="Private — only you see this. Helps you spot entries later (“Mrs. Adeyemi’s kitchen”)."
+                            hint="Private — only you see this."
                             :error="form.errors.client_name"
                         />
 
@@ -120,7 +176,7 @@
                             <div class="mb-3">
                                 <p class="text-sm font-semibold text-ink">Service location</p>
                                 <p class="mt-0.5 text-xs font-medium text-ink/45">
-                                    Reinforces your verified service area and future “jobs near you” proof.
+                                    Where the work happened — builds local proof over time.
                                 </p>
                             </div>
                             <div class="space-y-4">
@@ -202,105 +258,133 @@
                     </div>
                 </section>
 
-                <!-- Step 3: Preview -->
+                <!-- Step 3 -->
                 <section
                     v-show="step === 2"
-                    class="step-panel rounded-[1.5rem] bg-white p-5 shadow-premium ring-1 ring-ink/[0.06] sm:p-7"
+                    class="step-panel overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
                 >
-                    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div
+                        class="flex flex-wrap items-start justify-between gap-3 border-b border-ink/[0.05] bg-gradient-to-r from-pale/90 to-white px-5 py-4 sm:px-7 sm:py-5"
+                    >
                         <div>
-                            <p class="text-sm font-semibold text-ink">Preview & save</p>
+                            <p class="font-editorial text-lg font-semibold tracking-tight text-ink">
+                                Preview & save
+                            </p>
                             <p class="mt-0.5 text-xs font-medium text-ink/45">
-                                Quick check before this becomes part of your work record.
+                                Quick check before this joins your work record.
                             </p>
                         </div>
-                        <span class="rounded-full bg-tint px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-deep">
+                        <span
+                            class="rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-deep"
+                        >
                             Review
                         </span>
                     </div>
 
-                    <div class="overflow-hidden rounded-2xl ring-1 ring-ink/[0.06]">
-                        <div class="border-b border-ink/[0.06] bg-gradient-to-br from-pale to-white px-4 py-4 sm:px-5">
-                            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/40">
-                                Job record
-                            </p>
-                            <p class="mt-1.5 text-lg font-bold tracking-tight text-ink">
-                                {{ form.description || '—' }}
-                            </p>
-                            <p class="mt-1 text-sm font-medium text-ink/50">
-                                {{ workedOnLabel }}
-                            </p>
-                        </div>
-
-                        <dl class="divide-y divide-ink/[0.06]">
+                    <div class="p-5 sm:p-7">
+                        <div class="overflow-hidden rounded-2xl ring-1 ring-ink/[0.06]">
                             <div
-                                v-for="row in previewRows"
-                                :key="row.label"
-                                class="flex items-start justify-between gap-4 px-4 py-3.5 sm:px-5"
+                                class="border-b border-ink/[0.06] bg-gradient-to-br from-[#123B72] to-[#071427] px-4 py-5 sm:px-5"
                             >
-                                <dt class="shrink-0 text-xs font-semibold text-ink/40">
-                                    {{ row.label }}
-                                </dt>
-                                <dd class="text-right text-sm font-semibold text-ink">
-                                    {{ row.value }}
-                                    <span
-                                        v-if="row.private"
-                                        class="mt-0.5 block text-[10px] font-medium text-ink/35"
-                                    >
-                                        Private
-                                    </span>
-                                </dd>
-                            </div>
-                        </dl>
-
-                        <div class="border-t border-ink/[0.06] px-4 py-4 sm:px-5">
-                            <div class="mb-2.5 flex items-center justify-between gap-2">
-                                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/40">
-                                    Media
-                                </p>
-                                <p class="text-xs font-medium text-ink/40">
-                                    {{ mediaPreviews.length ? `${mediaPreviews.length} file${mediaPreviews.length === 1 ? '' : 's'}` : 'None added' }}
-                                </p>
-                            </div>
-
-                            <ul
-                                v-if="mediaPreviews.length"
-                                class="grid grid-cols-3 gap-2 sm:grid-cols-4"
-                            >
-                                <li
-                                    v-for="item in mediaPreviews"
-                                    :key="item.id"
-                                    class="aspect-square overflow-hidden rounded-xl bg-pale ring-1 ring-ink/10"
+                                <p
+                                    class="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45"
                                 >
-                                    <img
-                                        v-if="item.kind === 'image'"
-                                        :src="item.url"
-                                        :alt="item.name"
-                                        class="h-full w-full object-cover"
-                                    />
-                                    <div
-                                        v-else
-                                        class="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center"
-                                    >
-                                        <i class="ti ti-video text-xl text-ink/40" aria-hidden="true" />
-                                        <span class="line-clamp-2 text-[10px] font-medium text-ink/50">
-                                            {{ item.name }}
+                                    Job record
+                                </p>
+                                <p
+                                    class="mt-2 font-editorial text-xl font-semibold tracking-tight text-white sm:text-[1.35rem]"
+                                >
+                                    {{ form.description || '—' }}
+                                </p>
+                                <p class="mt-1.5 text-sm font-medium text-white/60">
+                                    {{ workedOnLabel }}
+                                </p>
+                            </div>
+
+                            <dl class="divide-y divide-ink/[0.06]">
+                                <div
+                                    v-for="row in previewRows"
+                                    :key="row.label"
+                                    class="flex items-start justify-between gap-4 px-4 py-3.5 sm:px-5"
+                                >
+                                    <dt class="shrink-0 text-xs font-semibold text-ink/40">
+                                        {{ row.label }}
+                                    </dt>
+                                    <dd class="text-right text-sm font-semibold text-ink">
+                                        {{ row.value }}
+                                        <span
+                                            v-if="row.private"
+                                            class="mt-0.5 block text-[10px] font-medium text-ink/35"
+                                        >
+                                            Private
                                         </span>
-                                    </div>
-                                </li>
-                            </ul>
-                            <p
-                                v-else
-                                class="rounded-xl bg-pale px-3 py-4 text-center text-xs font-medium text-ink/40"
-                            >
-                                No photos or video — that’s fine. You can add them later when editing.
-                            </p>
+                                    </dd>
+                                </div>
+                            </dl>
+
+                            <div class="border-t border-ink/[0.06] px-4 py-4 sm:px-5">
+                                <div class="mb-2.5 flex items-center justify-between gap-2">
+                                    <p
+                                        class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/40"
+                                    >
+                                        Media
+                                    </p>
+                                    <p class="text-xs font-medium text-ink/40">
+                                        {{
+                                            mediaPreviews.length
+                                                ? `${mediaPreviews.length} file${mediaPreviews.length === 1 ? '' : 's'}`
+                                                : 'None added'
+                                        }}
+                                    </p>
+                                </div>
+
+                                <ul
+                                    v-if="mediaPreviews.length"
+                                    class="grid grid-cols-3 gap-2 sm:grid-cols-4"
+                                >
+                                    <li
+                                        v-for="item in mediaPreviews"
+                                        :key="item.id"
+                                        class="aspect-square overflow-hidden rounded-xl bg-pale ring-1 ring-ink/10"
+                                    >
+                                        <img
+                                            v-if="item.kind === 'image'"
+                                            :src="item.url"
+                                            :alt="item.name"
+                                            class="h-full w-full object-cover"
+                                        />
+                                        <div
+                                            v-else
+                                            class="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center"
+                                        >
+                                            <i
+                                                class="ti ti-video text-xl text-ink/40"
+                                                aria-hidden="true"
+                                            />
+                                            <span
+                                                class="line-clamp-2 text-[10px] font-medium text-ink/50"
+                                            >
+                                                {{ item.name }}
+                                            </span>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <p
+                                    v-else
+                                    class="rounded-xl bg-pale px-3 py-4 text-center text-xs font-medium text-ink/40"
+                                >
+                                    No photos or video — that’s fine. You can add them later when editing.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 <!-- Actions -->
-                <div class="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                    class="sticky bottom-3 z-10 flex flex-col-reverse items-stretch gap-3 rounded-[1.35rem] bg-white/95 p-3 shadow-premium ring-1 ring-ink/[0.06] backdrop-blur-md sm:static sm:flex-row sm:items-center sm:justify-between sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0 sm:backdrop-blur-none"
+                    style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))"
+                >
                     <FormButton
                         v-if="step > 0"
                         type="button"
@@ -312,7 +396,9 @@
                     />
                     <span v-else class="hidden sm:block sm:min-w-[7.5rem]" />
 
-                    <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                    <div
+                        class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3"
+                    >
                         <button
                             v-if="step === 1"
                             type="button"
@@ -335,7 +421,7 @@
                         <FormButton
                             v-else
                             type="submit"
-                            variant="primary"
+                            variant="accent"
                             class="!min-h-12 !rounded-2xl !px-8 sm:!min-w-[11rem]"
                             icon-right="ti ti-check"
                             :loading="form.processing"
@@ -350,7 +436,7 @@
 </template>
 
 <script setup>
-import AppPageHeader from '@/Components/AppPageHeader.vue';
+import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormFileUpload from '@/Components/Form/FormFileUpload.vue';
@@ -358,7 +444,7 @@ import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormStepProgress from '@/Components/Form/FormStepProgress.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -402,20 +488,13 @@ const form = useForm({
 });
 
 const states = computed(() => Object.keys(props.locations || {}));
-
 const categoryParents = computed(() => props.jobCategories?.parents || []);
-
 const subcategoryOptions = computed(() => {
-    if (!form.job_category) {
-        return [];
-    }
+    if (!form.job_category) return [];
     return props.jobCategories?.groups?.[form.job_category] || [];
 });
-
 const lgas = computed(() => {
-    if (!form.service_state) {
-        return [];
-    }
+    if (!form.service_state) return [];
     return props.locations[form.service_state] || [];
 });
 
@@ -423,10 +502,10 @@ const onCategoryChange = () => {
     form.job_subcategory = '';
 };
 
+const formHasErrors = computed(() => Object.keys(form.errors || {}).length > 0);
+
 const mediaError = computed(() => {
-    if (form.errors.media) {
-        return form.errors.media;
-    }
+    if (form.errors.media) return form.errors.media;
     const keyed = Object.keys(form.errors).find((k) => k.startsWith('media.'));
     return keyed ? form.errors[keyed] : '';
 });
@@ -446,9 +525,7 @@ const headerDescription = computed(() => {
 });
 
 const workedOnLabel = computed(() => {
-    if (!form.worked_on) {
-        return '—';
-    }
+    if (!form.worked_on) return '—';
     try {
         return new Date(`${form.worked_on}T12:00:00`).toLocaleDateString(undefined, {
             weekday: 'short',
@@ -467,13 +544,9 @@ const serviceLabel = computed(() => {
 });
 
 const amountLabel = computed(() => {
-    if (form.amount_charged === '' || form.amount_charged === null) {
-        return '—';
-    }
+    if (form.amount_charged === '' || form.amount_charged === null) return '—';
     const n = Number(form.amount_charged);
-    if (Number.isNaN(n)) {
-        return '—';
-    }
+    if (Number.isNaN(n)) return '—';
     return `₦${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 });
 
@@ -520,9 +593,7 @@ const validateStep1 = () => {
 };
 
 const goNext = () => {
-    if (step.value === 0 && !validateStep1()) {
-        return;
-    }
+    if (step.value === 0 && !validateStep1()) return;
     step.value = Math.min(step.value + 1, 2);
     maxReachable.value = Math.max(maxReachable.value, step.value);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -600,14 +671,18 @@ watch(
 </script>
 
 <style scoped>
-.step-panel {
-    animation: soft-panel 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.create-hero {
+    animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes soft-panel {
+.step-panel {
+    animation: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rise {
     from {
         opacity: 0;
-        transform: translateY(6px);
+        transform: translateY(8px);
     }
     to {
         opacity: 1;

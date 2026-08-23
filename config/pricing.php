@@ -25,7 +25,7 @@ return [
     ],
 
     'credits' => [
-        'name' => 'Isabi Credits',
+        'name' => 'Tokens',
         'expire' => false,
         'actions' => [
             'review_link' => 1,
@@ -77,6 +77,8 @@ return [
         'processors' => ['paystack', 'flutterwave'],
         'methods' => ['bank_transfer', 'ussd', 'debit_card_once'],
         'forbidden' => ['card_on_file', 'standing_instruction', 'silent_auto_renew'],
+        // When true, purchases credit tokens immediately (swap to false once Paystack/Flutterwave is live).
+        'instant_fulfill' => env('TOKENS_INSTANT_FULFILL', true),
     ],
 
     'planned' => [

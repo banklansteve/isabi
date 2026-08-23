@@ -1,0 +1,61 @@
+diff a/app/Models/User.php b/app/Models/User.php	(rejected hunks)
+@@ -292,5 +292,59 @@ public function workLogs(): HasMany
+     {
+         return $this->hasMany(WorkLog::class);
+     }
++
++    public function hrProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
++    {
++        return $this->hasOne(HrProfile::class);
++    }
++
++    public function leaveRequests(): HasMany
++    {
++        return $this->hasMany(LeaveRequest::class);
++    }
++
++    public function leaveAllocations(): HasMany
++    {
++        return $this->hasMany(LeaveAllocation::class);
++    }
++
++    public function compensationRecord(): \Illuminate\Database\Eloquent\Relations\HasOne
++    {
++        return $this->hasOne(CompensationRecord::class);
++    }
++
++    public function payslips(): HasMany
++    {
++        return $this->hasMany(Payslip::class);
++    }
++
++    public function performanceNotes(): HasMany
++    {
++        return $this->hasMany(PerformanceNote::class);
++    }
++
++    public function staffDocuments(): HasMany
++    {
++        return $this->hasMany(StaffDocument::class);
++    }
++
++    public function checklistInstances(): HasMany
++    {
++        return $this->hasMany(ChecklistInstance::class);
++    }
++
++    /**
++     * Whether this staff member has an approved leave request covering today.
++     */
++    public function isOnLeaveOn(?\Illuminate\Support\Carbon $date = null): bool
++    {
++        $date = ($date ?? now())->toDateString();
++
++        return $this->leaveRequests()
++            ->where('status', LeaveRequest::STATUS_APPROVED)
++            ->where('start_date', '<=', $date)
++            ->where('end_date', '>=', $date)
++            ->exists();
++    }
+ }
+ 

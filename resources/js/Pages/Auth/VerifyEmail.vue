@@ -1,61 +1,90 @@
-<script setup>
-import { computed } from 'vue';
-import GuestLayout from '@/Layouts/GuestLayout.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-
-const props = defineProps({
-    status: {
-        type: String,
-    },
-});
-
-const form = useForm({});
-
-const submit = () => {
-    form.post(route('verification.send'));
-};
-
-const verificationLinkSent = computed(
-    () => props.status === 'verification-link-sent',
-);
-</script>
-
 <template>
-    <GuestLayout>
-        <Head title="Email Verification" />
+    <AuthLayout
+        headline="One click to unlock your page."
+        support="We sent a verification link to your email. Confirm it so clients can trust that this Isabi page is really yours."
+        :points="[
+            'Keeps fake accounts off the platform',
+            'Takes seconds once the email arrives',
+            'You can resend the link anytime',
+        ]"
+    >
+        <Head title="Verify email" />
 
-        <div class="mb-4 text-sm text-gray-600">
-            Thanks for signing up! Before getting started, could you verify your
-            email address by clicking on the link we just emailed to you? If you
-            didn't receive the email, we will gladly send you another.
-        </div>
+        <div class="auth-enter">
+            <h1 class="text-center font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2.1rem]">
+                Verify your email
+            </h1>
+            <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
+                Check your inbox for a link from Isabi. Didn’t get it? Resend below.
+            </p>
 
-        <div
-            class="mb-4 text-sm font-medium text-green-600"
-            v-if="verificationLinkSent"
-        >
-            A new verification link has been sent to the email address you
-            provided during registration.
-        </div>
+            <div
+                v-if="verificationLinkSent"
+                class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+            >
+                A new verification link has been sent to the email on your account.
+            </div>
 
-        <form @submit.prevent="submit">
-            <div class="mt-4 flex items-center justify-between">
-                <PrimaryButton
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Resend Verification Email
-                </PrimaryButton>
+            <form class="mt-8 space-y-4" @submit.prevent="submit">
+                <FormButton
+                    type="submit"
+                    variant="primary"
+                    block
+                    icon-left="ti ti-mail-forward"
+                    :loading="form.processing"
+                    loading-label="Sending…"
+                    label="Resend verification email"
+                />
+            </form>
 
+            <p class="mt-8 text-center text-sm font-medium text-ink/50">
                 <Link
                     :href="route('logout')"
                     method="post"
                     as="button"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    >Log Out</Link
+                    class="font-bold text-base transition-colors hover:text-deep"
                 >
-            </div>
-        </form>
-    </GuestLayout>
+                    Log out
+                </Link>
+            </p>
+        </div>
+    </AuthLayout>
 </template>
+
+<script setup>
+import FormButton from '@/Components/Form/FormButton.vue';
+import AuthLayout from '@/Layouts/AuthLayout.vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
+const props = defineProps({
+    status: { type: String, default: '' },
+});
+
+const form = useForm({});
+
+const verificationLinkSent = computed(
+    () => props.status === 'verification-link-sent',
+);
+
+const submit = () => {
+    form.post(route('verification.send'));
+};
+</script>
+
+<style scoped>
+.auth-enter {
+    animation: auth-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-rise {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

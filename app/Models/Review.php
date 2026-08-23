@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
@@ -13,6 +14,7 @@ class Review extends Model
         'work_log_id',
         'user_id',
         'rating',
+        'would_recommend',
         'comment',
         'client_display_name',
         'referred_by',
@@ -22,6 +24,9 @@ class Review extends Model
         'submitter_ip_hash',
         'user_agent',
         'submitted_at',
+        'flagged_at',
+        'flag_reason',
+        'hidden_at',
     ];
 
     /**
@@ -30,8 +35,11 @@ class Review extends Model
     protected function casts(): array
     {
         return [
-            'rating' => 'integer',
+            'rating' => 'float',
+            'would_recommend' => 'boolean',
             'submitted_at' => 'datetime',
+            'flagged_at' => 'datetime',
+            'hidden_at' => 'datetime',
         ];
     }
 
@@ -60,5 +68,15 @@ class Review extends Model
     public function photoUrl(): ?string
     {
         return $this->photo_url ?: null;
+    }
+
+    public function photoThumbUrl(int $width = 900): ?string
+    {
+        return MediaUrl::image($this->photoUrl(), $width);
+    }
+
+    public function photoPreviewUrl(int $width = 1600): ?string
+    {
+        return MediaUrl::image($this->photoUrl(), $width);
     }
 }
