@@ -23,10 +23,12 @@ class HrController extends Controller
         $department = (string) $request->string('department');
 
         $today = now()->toDateString();
+        $canDiscipline = $request->user()->canDo('hr.discipline.view');
 
         $members = User::query()
             ->staff()
             ->with('hrProfile')
+            ->when($canDiscipline, fn ($query) => $query->withExists(['disciplinaryCases as has_open_matter' => fn ($cases) => $cases->open()]))
             ->withExists(['leaveRequests as on_approved_leave' => function ($query) use ($today) {
                 $query->where('status', LeaveRequest::STATUS_APPROVED)
                     ->whereDate('start_date', '<=', $today)
@@ -82,6 +84,7 @@ class HrController extends Controller
                 'manage' => $request->user()->canDo('hr.manage'),
                 'leave' => $request->user()->canDo('hr.leave.manage'),
                 'payroll' => $request->user()->canDo('hr.payroll.view'),
+                'discipline_view' => $canDiscipline,
             ],
         ]);
     }

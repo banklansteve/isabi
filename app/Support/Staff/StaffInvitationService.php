@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class StaffInvitationService
 {
     /**
-     * @return array{user: User, invitation: StaffInvitation, token: string}
+     * @return array{user: User, invitation: StaffInvitation, token: string, expires_hours: int}
      */
     public function invite(
         User $invitedBy,
@@ -30,7 +30,7 @@ class StaffInvitationService
 
         [$firstName, $lastName] = $this->splitName($name);
 
-        return DB::transaction(function () use ($invitedBy, $email, $firstName, $lastName, $suggestedRoleId) {
+        $payload = DB::transaction(function () use ($invitedBy, $email, $firstName, $lastName, $suggestedRoleId) {
             $user = User::query()->create([
                 'first_name' => $firstName ?: null,
                 'last_name' => $lastName ?: null,
@@ -44,7 +44,7 @@ class StaffInvitationService
                 'password_set_at' => null,
             ]);
 
-            $payload = $this->issueToken($user, $invitedBy, $suggestedRoleId);
+            $payload = $this->issueToken($user, $invitedBy, $suggestedRoleId, send: false);
 
             AdminAudit::record(
                 'staff.invited',
@@ -61,10 +61,14 @@ class StaffInvitationService
 
             return $payload;
         });
+
+        $this->deliverInvite($payload['user'], $payload['token'], $payload['expires_hours'], $invitedBy);
+
+        return $payload;
     }
 
     /**
-     * @return array{user: User, invitation: StaffInvitation, token: string}
+     * @return array{user: User, invitation: StaffInvitation, token: string, expires_hours: int}
      */
     public function resend(User $staff, User $actor): array
     {
@@ -123,9 +127,9 @@ class StaffInvitationService
     }
 
     /**
-     * @return array{user: User, invitation: StaffInvitation, token: string}
+     * @return array{user: User, invitation: StaffInvitation, token: string, expires_hours: int}
      */
-    public function issueToken(User $user, ?User $invitedBy = null, ?int $suggestedRoleId = null): array
+    public function issueToken(User $user, ?User $invitedBy = null, ?int $suggestedRoleId = null, bool $send = true): array
     {
         $hours = AdminPermissions::ttlHours();
         $token = Str::random(64);
@@ -151,18 +155,55 @@ class StaffInvitationService
             'invited_by_user_id' => $invitedBy?->id ?? $user->invited_by_user_id,
         ]);
 
-        Mail::to($user->email)->send(new StaffInvitationMail(
-            invitee: $user,
-            acceptUrl: route('admin.invite.accept', ['token' => $token], absolute: true),
-            expiresHours: $hours,
-            invitedBy: $invitedBy,
-        ));
-
-        return [
+        $payload = [
             'user' => $user->fresh(),
             'invitation' => $invitation->fresh(),
             'token' => $token,
+            'expires_hours' => $hours,
         ];
+
+        if ($send) {
+            $this->deliverInvite($payload['user'], $token, $hours, $invitedBy);
+        }
+
+        return $payload;
+    }
+
+    private function deliverInvite(User $user, string $token, int $hours, ?User $invitedBy): void
+    {
+        try {
+            Mail::to($user->email)->send(new StaffInvitationMail(
+                invitee: $user,
+                acceptUrl: route('admin.invite.accept', ['token' => $token], absolute: true),
+                expiresHours: $hours,
+                invitedBy: $invitedBy,
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+
+            throw ValidationException::withMessages([
+                'email' => $this->inviteMailError($e),
+            ]);
+        }
+    }
+
+    private function inviteMailError(\Throwable $e): string
+    {
+        $message = strtolower($e->getMessage());
+
+        if (str_contains($message, 'failed to authenticate') || str_contains($message, '535')) {
+            return 'Gmail rejected the SMTP username or app password. Create a new App Password and update MAIL_PASSWORD.';
+        }
+
+        if (str_contains($message, '550') || str_contains($message, 'from address')) {
+            return 'Gmail rejected the From address. It must be the same Gmail account used for SMTP.';
+        }
+
+        if (str_contains($message, 'connection') || str_contains($message, 'timed out')) {
+            return 'Could not reach smtp.gmail.com. Check the network and that port 587 is open.';
+        }
+
+        return 'The invite was saved, but the email could not be sent. Use Resend after checking SMTP settings.';
     }
 
     public function findPendingByToken(string $token): ?StaffInvitation
@@ -190,19 +231,13 @@ class StaffInvitationService
         return $invitation;
     }
 
-    public function accept(StaffInvitation $invitation, string $password, ?string $name = null): User
+    public function accept(StaffInvitation $invitation, string $password, string $firstName, string $lastName): User
     {
         $user = $invitation->user;
         abort_unless($user && $invitation->isPending() && ! $invitation->isExpired(), 422);
 
-        [$firstName, $lastName] = $this->splitName($name);
-
-        if ($firstName !== '') {
-            $user->first_name = $firstName;
-        }
-        if ($lastName !== '') {
-            $user->last_name = $lastName;
-        }
+        $user->first_name = $firstName;
+        $user->last_name = $lastName;
 
         $user->forceFill([
             'password' => $password,

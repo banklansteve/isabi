@@ -25,6 +25,7 @@ class PublicProfileController extends Controller
         $viewerIsOwner = $viewer !== null && (int) $viewer->id === (int) $user->id;
 
         $workLogs = $user->workLogs()
+            ->publiclyVisible()
             ->with(['media', 'review'])
             ->orderByDesc('worked_on')
             ->orderByDesc('id')
@@ -61,7 +62,7 @@ class PublicProfileController extends Controller
                     'kind' => $m->kind,
                     'original_name' => $m->original_name,
                 ])->values(),
-                'review' => $log->review ? [
+                'review' => ($log->review && $log->review->isPubliclyVisible()) ? [
                     'rating' => (float) $log->review->rating,
                     'would_recommend' => $log->review->would_recommend,
                     'comment' => $log->review->comment,
@@ -77,17 +78,17 @@ class PublicProfileController extends Controller
             ])
             ->values();
 
-        $reviewCount = $user->reviews()->count();
+        $reviewCount = $user->reviews()->publiclyVisible()->count();
         $avgRating = $reviewCount > 0
-            ? round((float) $user->reviews()->avg('rating'), 1)
+            ? round((float) $user->reviews()->publiclyVisible()->avg('rating'), 1)
             : null;
-        $verifiedWorks = $user->workLogs()->whereHas('review')->count();
-        $jobsCount = $user->workLogs()->count();
+        $verifiedWorks = $user->workLogs()->publiclyVisible()->whereHas('review', fn ($query) => $query->publiclyVisible())->count();
+        $jobsCount = $user->workLogs()->publiclyVisible()->count();
 
         // How long clients take to respond once a job is logged. A short,
         // consistent turnaround reads as unprompted rather than chased.
         $responseHours = $user->workLogs()
-            ->whereHas('review')
+            ->whereHas('review', fn ($query) => $query->publiclyVisible())
             ->with('review:id,work_log_id,submitted_at')
             ->get(['id', 'created_at'])
             ->map(function ($log) {
@@ -128,7 +129,8 @@ class PublicProfileController extends Controller
                 .' on Isabi.';
 
         $reviewedForSchema = $user->workLogs()
-            ->whereHas('review')
+            ->publiclyVisible()
+            ->whereHas('review', fn ($query) => $query->publiclyVisible())
             ->with('review')
             ->orderByDesc('id')
             ->limit(10)

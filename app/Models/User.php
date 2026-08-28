@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Enums\StaffStatus;
 use App\Enums\UserRole;
 use App\Notifications\StaffResetPasswordNotification;
+use App\Support\Identity\UserUid;
 use App\Support\Referrals\ReferralService;
 use App\Support\Staff\AdminPermissions;
 use Database\Factories\UserFactory;
@@ -65,6 +66,14 @@ use Illuminate\Support\Str;
     'plan',
     'annual_expires_at',
     'public_page_views',
+    'last_login_ip',
+    'last_login_at',
+    'last_logout_at',
+    'last_seen_at',
+    'shift_days',
+    'shift_starts_at',
+    'shift_ends_at',
+    'session_epoch',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -97,6 +106,11 @@ class User extends Authenticatable
             'token_balance' => 'integer',
             'annual_expires_at' => 'datetime',
             'public_page_views' => 'integer',
+            'last_login_at' => 'datetime',
+            'last_logout_at' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'shift_days' => 'array',
+            'session_epoch' => 'integer',
         ];
     }
 
@@ -174,9 +188,13 @@ class User extends Authenticatable
             if (blank($user->referral_code) && $user->isRegularUser()) {
                 $user->referral_code = ReferralService::generateCode();
             }
+
+            UserUid::fill($user);
         });
 
         static::saving(function (User $user): void {
+            UserUid::fill($user);
+
             if ($user->first_name || $user->last_name) {
                 $user->name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
             }
@@ -410,8 +428,10 @@ class User extends Authenticatable
 
     public function invalidateSessions(): void
     {
-        $this->setRememberToken(Str::random(60));
-        $this->save();
+        $this->forceFill([
+            'remember_token' => Str::random(60),
+            'session_epoch' => ((int) $this->session_epoch) + 1,
+        ])->save();
 
         if (config('session.driver') !== 'database') {
             return;
@@ -439,6 +459,11 @@ class User extends Authenticatable
     public function workLogs(): HasMany
     {
         return $this->hasMany(WorkLog::class);
+    }
+
+    public function patrolCases(): HasMany
+    {
+        return $this->hasMany(PatrolCase::class);
     }
 
     public function activityLogs(): HasMany
@@ -527,7 +552,7 @@ class User extends Authenticatable
     }
 
     /**
-     * @return list<array{id: int, slug: string, name: string, icon: string|null}>
+     * @return list<array{id: int, slug: string, name: string, icon: string|null, description: string|null}>
      */
     public function assignedDuties(): array
     {
@@ -541,6 +566,7 @@ class User extends Authenticatable
                     'slug' => $role->slug,
                     'name' => $role->name,
                     'icon' => $role->icon,
+                    'description' => $role->description,
                 ])
                 ->all();
         }
@@ -554,6 +580,7 @@ class User extends Authenticatable
                 'slug' => $role->slug,
                 'name' => $role->name,
                 'icon' => $role->icon,
+                'description' => $role->description,
             ])
             ->all();
     }
@@ -635,6 +662,19 @@ class User extends Authenticatable
     public function disciplinaryRecords(): HasMany
     {
         return $this->hasMany(DisciplinaryRecord::class);
+    }
+
+    public function disciplinaryCases(): HasMany
+    {
+        return $this->hasMany(DisciplinaryCase::class);
+    }
+
+    public function pendingDisciplinaryNoticeCount(): int
+    {
+        return DisciplinaryAction::query()
+            ->whereHas('case', fn ($query) => $query->where('user_id', $this->id))
+            ->whereNull('acknowledged_at')
+            ->count();
     }
 
     public function payslips(): HasMany

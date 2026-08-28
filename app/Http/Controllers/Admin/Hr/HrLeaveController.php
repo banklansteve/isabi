@@ -273,26 +273,37 @@ class HrLeaveController extends Controller
 
         $data = $request->validated();
         $year = (int) ($data['year'] ?? LeaveManager::currentYear());
+        $type = LeaveType::query()->findOrFail($data['leave_type_id']);
+
+        if (array_key_exists('remaining_days', $data) && $data['remaining_days'] !== null && $data['remaining_days'] !== '') {
+            $used = LeaveManager::usedDays($user, $type, $year);
+            $allowance = $used + (int) $data['remaining_days'];
+        } else {
+            $allowance = (int) $data['allowance_days'];
+        }
 
         $user->leaveAllocations()->updateOrCreate(
-            ['leave_type_id' => $data['leave_type_id'], 'year' => $year],
-            ['allowance_days' => $data['allowance_days']],
-        );
-
-        $type = LeaveType::find($data['leave_type_id']);
-
-        ActivityLogger::log(
-            action: 'hr.leave_allocation_updated',
-            summary: "{$request->user()->name} set {$user->name}'s {$type?->name} allowance to {$data['allowance_days']} days for {$year}.",
-            properties: [
-                'staff_id' => $user->id,
-                'leave_type_id' => $data['leave_type_id'],
-                'allowance_days' => $data['allowance_days'],
-                'year' => $year,
+            ['leave_type_id' => $type->id, 'year' => $year],
+            [
+                'allowance_days' => $allowance,
+                'reason' => $data['reason'],
+                'updated_by' => $request->user()->id,
             ],
         );
 
-        return back()->with('toast', ['type' => 'success', 'message' => 'Leave allowance updated.']);
+        ActivityLogger::log(
+            action: 'hr.leave_allocation_updated',
+            summary: "{$request->user()->name} set {$user->name}'s {$type->name} allowance to {$allowance} days for {$year}.",
+            properties: [
+                'staff_id' => $user->id,
+                'leave_type_id' => $type->id,
+                'allowance_days' => $allowance,
+                'year' => $year,
+                'reason' => $data['reason'],
+            ],
+        );
+
+        return back()->with('toast', ['type' => 'success', 'message' => 'Leave balance updated.']);
     }
 
     /**

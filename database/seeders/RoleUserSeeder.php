@@ -53,6 +53,7 @@ class RoleUserSeeder extends Seeder
             $user->password = $password;
             $user->email_verified_at = now();
             $user->password_set_at = $profile['role']->isStaff() ? now() : $user->password_set_at;
+            \App\Support\Identity\UserUid::fill($user);
             $user->save();
         }
     }

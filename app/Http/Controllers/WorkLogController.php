@@ -141,6 +141,7 @@ class WorkLogController extends Controller
             $workLog = DB::transaction(function () use ($request, $user, $data) {
                 $workLog = WorkLog::create([
                     'user_id' => $user->id,
+                    'created_ip' => $request->ip(),
                     'description' => $data['description'],
                     'worked_on' => $data['worked_on'],
                     'client_name' => $data['client_name'] ?? null,

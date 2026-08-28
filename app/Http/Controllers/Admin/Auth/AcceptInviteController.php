@@ -7,7 +7,6 @@ use App\Http\Requests\Admin\Auth\AcceptInviteRequest;
 use App\Support\Staff\StaffInvitationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,10 +25,11 @@ class AcceptInviteController extends Controller
         return Inertia::render('Admin/Auth/AcceptInvite', [
             'token' => $token,
             'email' => $user->email,
-            'name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: '',
-            'needs_name' => blank($user->first_name),
+            'first_name' => $user->first_name ?? '',
+            'last_name' => $user->last_name ?? '',
             'expires_at' => $invitation->expires_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
             'suggested_role' => $invitation->suggestedRole?->name,
+            'app_name' => config('app.name'),
         ]);
     }
 
@@ -44,19 +44,19 @@ class AcceptInviteController extends Controller
         }
 
         $data = $request->validated();
-        $user = $invitation->user;
 
-        if (blank($user->first_name) && blank($data['name'] ?? null)) {
-            throw ValidationException::withMessages([
-                'name' => 'Add your name so the team knows who you are.',
-            ]);
-        }
-
-        $user = $invitations->accept($invitation, $data['password'], $data['name'] ?? null);
+        $user = $invitations->accept(
+            $invitation,
+            $data['password'],
+            $data['first_name'],
+            $data['last_name'],
+        );
 
         // TODO: enforce 2FA before production
         Auth::login($user);
         $request->session()->regenerate();
+        $user->forceFill(['last_login_at' => now(), 'last_logout_at' => null])->save();
+        $request->session()->put('auth.staff_epoch', (int) $user->session_epoch);
 
         return redirect()
             ->route('admin.dashboard')

@@ -20,6 +20,7 @@ use App\Models\WorkLog;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\AnnouncementService;
+use App\Support\Admin\ApprovalService;
 use App\Support\NigeriaLocations;
 use App\Support\NumberFormat;
 use App\Support\Tokens\TokenWallet;
@@ -49,7 +50,7 @@ class UserAdminController extends Controller
         abort_unless($user->isRegularUser(), 404);
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
-            return response()->json($this->panel($user));
+            return response()->json($this->panel($user, $request->user()));
         }
 
         return Inertia::render('Admin/Users/Index', [
@@ -58,27 +59,49 @@ class UserAdminController extends Controller
         ]);
     }
 
-    public function suspend(AdminReasonRequest $request, User $user): JsonResponse|RedirectResponse
+    public function suspend(AdminReasonRequest $request, User $user, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
         abort_unless($user->isRegularUser(), 403);
 
         $reason = $request->validated('reason');
         $old = ['suspended_at' => $user->suspended_at?->toIso8601String()];
 
-        $user->forceFill([
-            'suspended_at' => now(),
-            'suspension_reason' => $reason,
-        ])->save();
-
-        AdminAudit::record(
-            'users.suspended',
-            "{$request->user()->name} suspended {$user->email}: {$reason}",
+        $result = $approvals->run(
+            $request->user(),
+            'users.suspend',
             $user,
-            $old,
-            ['suspended_at' => $user->suspended_at?->toIso8601String(), 'reason' => $reason],
+            $reason,
+            [
+                'user_id' => $user->id,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['suspended_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($user, $reason, $old, $request) {
+                $user->forceFill([
+                    'suspended_at' => now(),
+                    'suspension_reason' => $reason,
+                ])->save();
+
+                AdminAudit::record(
+                    'users.suspended',
+                    "{$request->user()->name} suspended {$user->email}: {$reason}",
+                    $user,
+                    $old,
+                    ['suspended_at' => $user->suspended_at?->toIso8601String(), 'reason' => $reason],
+                );
+
+                $this->forgetSessions($user);
+            },
         );
 
-        $this->forgetSessions($user);
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve this suspension before it takes effect.',
+            ]);
+        }
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
@@ -87,25 +110,47 @@ class UserAdminController extends Controller
         ], ['user' => $this->listPayload($user->fresh()->loadCount(['workLogs', 'reviews']))]);
     }
 
-    public function reinstate(AdminReasonRequest $request, User $user): JsonResponse|RedirectResponse
+    public function reinstate(AdminReasonRequest $request, User $user, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
         abort_unless($user->isRegularUser(), 403);
 
         $reason = $request->validated('reason');
         $old = ['suspended_at' => $user->suspended_at?->toIso8601String(), 'reason' => $user->suspension_reason];
 
-        $user->forceFill([
-            'suspended_at' => null,
-            'suspension_reason' => null,
-        ])->save();
-
-        AdminAudit::record(
-            'users.reinstated',
-            "{$request->user()->name} reinstated {$user->email}: {$reason}",
+        $result = $approvals->run(
+            $request->user(),
+            'users.reinstate',
             $user,
-            $old,
-            ['suspended_at' => null, 'reason' => $reason],
+            $reason,
+            [
+                'user_id' => $user->id,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['suspended_at' => null, 'reason' => $reason],
+            ],
+            function () use ($user, $reason, $old, $request) {
+                $user->forceFill([
+                    'suspended_at' => null,
+                    'suspension_reason' => null,
+                ])->save();
+
+                AdminAudit::record(
+                    'users.reinstated',
+                    "{$request->user()->name} reinstated {$user->email}: {$reason}",
+                    $user,
+                    $old,
+                    ['suspended_at' => null, 'reason' => $reason],
+                );
+            },
         );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve this reinstatement before it takes effect.',
+            ]);
+        }
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
@@ -524,8 +569,11 @@ class UserAdminController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function panel(User $user): array
+    private function panel(User $user, ?User $viewer = null): array
     {
+        $viewer ??= request()->user();
+        $canSeeFinancials = $viewer?->isSuperAdmin() || $viewer?->canDo('admin.credits.view');
+
         $user->loadCount(['workLogs', 'reviews', 'tokenPurchases', 'referralsMade']);
 
         $jobs = WorkLog::query()
@@ -578,34 +626,6 @@ class UserAdminController extends Controller
                 ];
             });
 
-        $transactions = TokenTransaction::query()
-            ->where('user_id', $user->id)
-            ->latest('id')
-            ->limit(400)
-            ->get()
-            ->map(fn (TokenTransaction $tx) => [
-                'id' => $tx->id,
-                'type' => $tx->type,
-                'amount' => $tx->amount,
-                'action' => $tx->action,
-                'description' => $tx->description,
-                'when' => $tx->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
-            ]);
-
-        $purchases = TokenPurchase::query()
-            ->where('user_id', $user->id)
-            ->latest('id')
-            ->limit(200)
-            ->get()
-            ->map(fn (TokenPurchase $purchase) => [
-                'id' => $purchase->id,
-                'pack_name' => $purchase->pack_name,
-                'tokens' => $purchase->tokens,
-                'price' => $purchase->price,
-                'status' => $purchase->status,
-                'when' => ($purchase->paid_at ?? $purchase->created_at)?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
-            ]);
-
         $logins = ActivityLog::query()
             ->where('user_id', $user->id)
             ->whereIn('action', ['auth.login', 'auth.logout'])
@@ -639,29 +659,70 @@ class UserAdminController extends Controller
                 'when' => $log->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
             ]);
 
-        $revenue = (int) TokenPurchase::query()
-            ->where('user_id', $user->id)
-            ->where('status', TokenPurchase::STATUS_COMPLETED)
-            ->sum('price');
+        $detail = $this->detailPayload($user);
+        $credits = [
+            'balance' => null,
+            'transactions' => [],
+            'purchases' => [],
+        ];
 
-        return [
-            'user' => [
-                ...$this->detailPayload($user),
-                'revenue' => $revenue,
-                'revenue_label' => $this->revenueLabel($revenue),
-            ],
-            'jobs' => $jobs,
-            'reviews' => $reviews,
-            'review_requests' => $requests,
-            'credits' => [
+        if ($canSeeFinancials) {
+            $transactions = TokenTransaction::query()
+                ->where('user_id', $user->id)
+                ->latest('id')
+                ->limit(400)
+                ->get()
+                ->map(fn (TokenTransaction $tx) => [
+                    'id' => $tx->id,
+                    'type' => $tx->type,
+                    'amount' => $tx->amount,
+                    'action' => $tx->action,
+                    'description' => $tx->description,
+                    'when' => $tx->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
+                ]);
+
+            $purchases = TokenPurchase::query()
+                ->where('user_id', $user->id)
+                ->latest('id')
+                ->limit(200)
+                ->get()
+                ->map(fn (TokenPurchase $purchase) => [
+                    'id' => $purchase->id,
+                    'pack_name' => $purchase->pack_name,
+                    'tokens' => $purchase->tokens,
+                    'price' => $purchase->price,
+                    'status' => $purchase->status,
+                    'when' => ($purchase->paid_at ?? $purchase->created_at)?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
+                ]);
+
+            $revenue = (int) TokenPurchase::query()
+                ->where('user_id', $user->id)
+                ->where('status', TokenPurchase::STATUS_COMPLETED)
+                ->sum('price');
+
+            $detail['revenue'] = $revenue;
+            $detail['revenue_label'] = $this->revenueLabel($revenue);
+            $credits = [
                 'balance' => (int) $user->token_balance,
                 'transactions' => $transactions,
                 'purchases' => $purchases,
-            ],
+            ];
+        } else {
+            unset($detail['token_balance'], $detail['revenue'], $detail['revenue_label']);
+            $detail['financials_hidden'] = true;
+        }
+
+        return [
+            'user' => $detail,
+            'jobs' => $jobs,
+            'reviews' => $reviews,
+            'review_requests' => $requests,
+            'credits' => $credits,
             'activity' => [
                 'logins' => $logins,
                 'admin_actions' => $adminActions,
             ],
+            'can_see_financials' => (bool) $canSeeFinancials,
         ];
     }
 
@@ -675,6 +736,8 @@ class UserAdminController extends Controller
 
         return [
             'id' => $user->id,
+            'uid' => $user->uid,
+            'uid_kind' => \App\Support\Identity\UserUid::isStaffUid($user->uid) ? 'staff' : 'user',
             'name' => $user->name,
             'business_name' => $user->displayBusinessName(),
             'email' => $user->email,

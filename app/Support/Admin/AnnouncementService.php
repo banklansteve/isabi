@@ -18,11 +18,23 @@ class AnnouncementService
     public function recipients(string $audience, array $segment = []): Builder
     {
         if (! empty($segment['user_ids']) && is_array($segment['user_ids'])) {
-            return User::query()->artisans()->whereIn('id', array_map('intval', $segment['user_ids']));
+            $ids = array_map('intval', $segment['user_ids']);
+
+            if ($audience === Announcement::AUDIENCE_STAFF) {
+                return User::query()->staff()->whereIn('id', $ids);
+            }
+
+            return User::query()->artisans()->whereIn('id', $ids);
         }
 
         if (! empty($segment['user_id'])) {
-            return User::query()->artisans()->where('id', (int) $segment['user_id']);
+            $id = (int) $segment['user_id'];
+
+            if ($audience === Announcement::AUDIENCE_STAFF) {
+                return User::query()->staff()->where('id', $id);
+            }
+
+            return User::query()->artisans()->where('id', $id);
         }
 
         $query = User::query();
@@ -202,6 +214,13 @@ class AnnouncementService
     public function segmentLabel(string $audience, array $segment = []): string
     {
         if ($audience === Announcement::AUDIENCE_STAFF) {
+            if (! empty($segment['user_ids']) && is_array($segment['user_ids'])) {
+                return count($segment['user_ids']).' staff';
+            }
+            if (! empty($segment['user_id'])) {
+                return '1 staff member';
+            }
+
             return 'All active staff';
         }
 
@@ -239,5 +258,66 @@ class AnnouncementService
         }
 
         return $parts === [] ? 'All artisans' : implode(' · ', $parts);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function presentDelivery(AnnouncementDelivery $delivery, User $user): array
+    {
+        $message = $delivery->announcement;
+
+        return [
+            'id' => $delivery->id,
+            'title' => $message
+                ? $this->interpolate($message->subject ?: $message->title, $user)
+                : 'Announcement',
+            'body' => $message
+                ? \Illuminate\Support\Str::limit($this->interpolate($message->body, $user), 90)
+                : '',
+            'time' => ($delivery->sent_at ?? $delivery->created_at)?->diffForHumans() ?? '',
+            'icon' => $message?->audience === 'staff' ? 'ti ti-shield' : 'ti ti-megaphone',
+            'unread' => $delivery->status === AnnouncementDelivery::STATUS_SENT,
+        ];
+    }
+
+    public function unreadInAppCount(User $user): int
+    {
+        return AnnouncementDelivery::query()
+            ->where('user_id', $user->id)
+            ->where('channel', Announcement::CHANNEL_IN_APP)
+            ->where('status', AnnouncementDelivery::STATUS_SENT)
+            ->count();
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @param  list<string>  $channels
+     */
+    public function sendToStaff(
+        User $actor,
+        array $userIds,
+        string $subject,
+        string $body,
+        array $channels,
+        ?int $templateId = null,
+    ): Announcement {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+
+        $announcement = Announcement::query()->create([
+            'announcement_template_id' => $templateId,
+            'audience' => Announcement::AUDIENCE_STAFF,
+            'title' => $subject,
+            'subject' => $subject,
+            'body' => $body,
+            'channels' => $this->channelsFor(Announcement::AUDIENCE_STAFF, $channels),
+            'segment' => ['user_ids' => $ids],
+            'status' => Announcement::STATUS_DRAFT,
+            'created_by_user_id' => $actor->id,
+        ]);
+
+        $this->queue($announcement);
+
+        return $announcement->fresh() ?? $announcement;
     }
 }

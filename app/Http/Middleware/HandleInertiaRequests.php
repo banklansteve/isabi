@@ -2,14 +2,17 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Announcement;
 use App\Models\AnnouncementDelivery;
 use App\Support\Admin\AnnouncementService;
+use App\Support\Admin\OpsAttentionFeed;
+use App\Support\Admin\OpsDutyPresenter;
 use App\Support\CookieConsent;
+use App\Support\Identity\UserUid;
 use App\Support\Seo;
+use App\Support\StaffChat\StaffChatService;
+use App\Support\Staff\StaffPresence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
@@ -41,6 +44,7 @@ class HandleInertiaRequests extends Middleware
 
         if ($user?->isStaff()) {
             $user->loadMissing('staffRoles');
+            app(StaffPresence::class)->touch($user);
         }
 
         return [
@@ -49,6 +53,8 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user
                     ? [
                         'id' => $user->id,
+                        'uid' => $user->uid,
+                        'uid_kind' => UserUid::isStaffUid($user->uid) ? 'staff' : 'user',
                         'name' => $user->name,
                         'first_name' => $user->first_name,
                         'last_name' => $user->last_name,
@@ -71,7 +77,10 @@ class HandleInertiaRequests extends Middleware
                         'staff_status' => $user->staff_status?->value,
                         'abilities' => $user->isStaff() ? $user->permissionKeys() : [],
                         'restricted' => $user->isStaff() ? $user->isRestrictedStaff() : false,
-                        'duties' => $user->isStaff() ? $user->assignedDuties() : [],
+                        'duties' => $user->isStaff() ? OpsDutyPresenter::badges($user) : [],
+                        'pending_notices' => $user->isStaff() && Schema::hasTable('disciplinary_actions')
+                            ? $user->pendingDisciplinaryNoticeCount()
+                            : 0,
                     ]
                     : null,
                 'impersonating' => $request->session()->get('impersonator_id')
@@ -84,6 +93,29 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'toast' => fn () => $request->session()->get('toast'),
             ],
+            'ops_inbox' => function () use ($user) {
+                if (! $user?->isOperationsAdmin() || $user->isRestrictedStaff()) {
+                    return [
+                        'greeting' => 'Hello',
+                        'open_count' => 0,
+                        'unread_count' => 0,
+                        'items' => [],
+                        'tasks' => [],
+                        'shortcuts' => [],
+                        'roles' => [],
+                        'role_summary' => 'Operations',
+                    ];
+                }
+
+                return app(OpsAttentionFeed::class)->inbox($user);
+            },
+            'asap_unread' => function () use ($user) {
+                if (! $user?->isStaff() || $user->isRestrictedStaff() || ! Schema::hasTable('staff_conversations')) {
+                    return 0;
+                }
+
+                return app(StaffChatService::class)->unreadCount($user);
+            },
             'notifications' => function () use ($user) {
                 if (! $user || ! Schema::hasTable('announcement_deliveries')) {
                     return [
@@ -96,32 +128,20 @@ class HandleInertiaRequests extends Middleware
                 $inbox = $service->inboxFor($user);
 
                 return [
-                    'unread_count' => AnnouncementDelivery::query()
-                        ->where('user_id', $user->id)
-                        ->where('channel', Announcement::CHANNEL_IN_APP)
-                        ->where('status', AnnouncementDelivery::STATUS_SENT)
-                        ->count(),
-                    'items' => $inbox->map(function (AnnouncementDelivery $delivery) use ($service, $user) {
-                        $message = $delivery->announcement;
-
-                        return [
-                            'id' => $delivery->id,
-                            'title' => $message
-                                ? $service->interpolate($message->subject ?: $message->title, $user)
-                                : 'Announcement',
-                            'body' => $message
-                                ? Str::limit($service->interpolate($message->body, $user), 90)
-                                : '',
-                            'time' => ($delivery->sent_at ?? $delivery->created_at)?->diffForHumans() ?? '',
-                            'icon' => $message?->audience === 'staff' ? 'ti ti-shield' : 'ti ti-megaphone',
-                            'unread' => $delivery->status === AnnouncementDelivery::STATUS_SENT,
-                        ];
-                    })->values()->all(),
+                    'unread_count' => $service->unreadInAppCount($user),
+                    'items' => $inbox->map(fn (AnnouncementDelivery $delivery) => $service->presentDelivery($delivery, $user))->values()->all(),
                 ];
             },
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
+            ],
+            'reverb' => [
+                'key' => (string) config('broadcasting.connections.reverb.key'),
+                'port' => (int) (config('broadcasting.connections.reverb.options.port') ?: 8080),
+                'scheme' => (string) (config('broadcasting.connections.reverb.options.scheme') ?: 'http'),
+                'enabled' => config('broadcasting.default') === 'reverb'
+                    && filled(config('broadcasting.connections.reverb.key')),
             ],
             'seo' => fn () => $this->seoFor($request)->toArray(),
         ];

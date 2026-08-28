@@ -3,63 +3,54 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\FlagContentRequest;
+use App\Http\Requests\Admin\MessageWorkLogArtisanRequest;
+use App\Http\Requests\Admin\ModerateWorkLogRequest;
+use App\Http\Requests\Admin\ReferWorkLogRequest;
 use App\Http\Requests\Admin\UpdateAdminWorkLogRequest;
+use App\Models\Announcement;
 use App\Models\WorkLog;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
+use App\Support\Admin\AnnouncementService;
+use App\Support\Admin\ApprovalService;
+use App\Support\Admin\JobAdminPresenter;
+use App\Support\ReviewInvite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class JobAdminController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $jobs = WorkLog::query()
-            ->with(['user:id,name,email,business_name,slug,trade'])
-            ->latest('id')
-            ->limit(2500)
-            ->get()
-            ->map(fn (WorkLog $log) => [
-                'id' => $log->id,
-                'uid' => $log->uid,
-                'description' => $log->description,
-                'client_name' => $log->client_name,
-                'category' => $log->job_category,
-                'worked_on' => $log->worked_on?->format('j M Y'),
-                'created_at' => $log->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
-                'created_iso' => $log->created_at?->toIso8601String(),
-                'backdated_days' => $log->worked_on && $log->created_at
-                    ? $log->created_at->startOfDay()->diffInDays($log->worked_on)
-                    : 0,
-                'flagged' => $log->flagged_at !== null,
-                'flag_reason' => $log->flag_reason,
-                'hidden' => $log->hidden_at !== null,
-                'user' => $log->user ? [
-                    'id' => $log->user->id,
-                    'name' => $log->user->displayBusinessName(),
-                    'email' => $log->user->email,
-                    'trade' => $log->user->trade,
-                ] : null,
-            ])
-            ->values();
+        return Inertia::render('Admin/Jobs/Index', $this->indexProps($request));
+    }
+
+    public function show(Request $request, WorkLog $workLog): Response|JsonResponse
+    {
+        abort_unless($request->user()?->canDo('admin.content.manage'), 403);
+
+        if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(JobAdminPresenter::panel($workLog, $request->user()));
+        }
 
         return Inertia::render('Admin/Jobs/Index', [
-            'jobs' => $jobs,
+            ...$this->indexProps($request, $workLog->uid),
         ]);
     }
 
-    public function flag(FlagContentRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
+    public function flag(ModerateWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
     {
-        $data = $request->validated();
-        $old = ['flagged_at' => $workLog->flagged_at?->toIso8601String()];
+        $reason = $request->validated('reason');
+        $old = ['flagged_at' => $workLog->flagged_at?->toIso8601String(), 'reason' => $workLog->flag_reason];
 
         $workLog->forceFill([
             'flagged_at' => now(),
-            'flag_reason' => $data['reason'],
+            'flag_reason' => $reason,
         ])->save();
 
         AdminAudit::record(
@@ -67,18 +58,19 @@ class JobAdminController extends Controller
             "{$request->user()->name} flagged job {$workLog->uid}.",
             $workLog,
             $old,
-            ['flagged_at' => $workLog->flagged_at?->toIso8601String(), 'reason' => $data['reason']],
+            ['flagged_at' => $workLog->flagged_at?->toIso8601String(), 'reason' => $reason],
         );
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $workLog, [
             'type' => 'success',
             'title' => 'Job flagged',
             'message' => 'This job is in the moderation queue.',
-        ], ['flagged' => true]);
+        ]);
     }
 
-    public function unflag(Request $request, WorkLog $workLog): JsonResponse|RedirectResponse
+    public function unflag(ModerateWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
     {
+        $reason = $request->validated('reason');
         $old = ['flagged_at' => $workLog->flagged_at?->toIso8601String(), 'reason' => $workLog->flag_reason];
 
         $workLog->forceFill([
@@ -86,17 +78,25 @@ class JobAdminController extends Controller
             'flag_reason' => null,
         ])->save();
 
-        AdminAudit::record('jobs.unflagged', "{$request->user()->name} cleared the flag on job {$workLog->uid}.", $workLog, $old, ['flagged_at' => null]);
+        AdminAudit::record(
+            'jobs.unflagged',
+            "{$request->user()->name} cleared the flag on job {$workLog->uid}: {$reason}",
+            $workLog,
+            $old,
+            ['flagged_at' => null, 'reason' => $reason],
+        );
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $workLog, [
             'type' => 'success',
             'title' => 'Flag cleared',
             'message' => 'This job is no longer in the flagged queue.',
-        ], ['flagged' => false]);
+        ]);
     }
 
     public function update(UpdateAdminWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
     {
+        abort_unless($request->user()?->canDo('admin.content.manage'), 403);
+
         $data = $request->validated();
         $old = $workLog->only(['description', 'client_name', 'worked_on', 'job_category']);
 
@@ -115,44 +115,298 @@ class JobAdminController extends Controller
             [...$workLog->only(array_keys($old)), 'reason' => $data['reason']],
         );
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $workLog, [
             'type' => 'success',
             'title' => 'Job updated',
             'message' => 'The work log was saved.',
-        ], [
-            'job' => [
-                'id' => $workLog->id,
-                'uid' => $workLog->uid,
-                'description' => $workLog->description,
-                'client_name' => $workLog->client_name,
-                'category' => $workLog->job_category,
-                'worked_on' => $workLog->worked_on?->toDateString(),
-                'worked_on_label' => $workLog->worked_on?->format('j M Y'),
-            ],
         ]);
     }
 
-    public function hide(FlagContentRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
+    public function hide(ModerateWorkLogRequest $request, WorkLog $workLog, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
+        abort_if($workLog->removed_at, 422, 'This job was removed through Patrol. Reopen it there.');
+
         $reason = $request->validated('reason');
+        $old = ['hidden_at' => $workLog->hidden_at?->toIso8601String(), 'hidden_reason' => $workLog->hidden_reason];
+
+        $result = $approvals->run(
+            $request->user(),
+            'jobs.hide',
+            $workLog,
+            $reason,
+            [
+                'work_log_id' => $workLog->id,
+                'work_log_uid' => $workLog->uid,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['hidden_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($workLog, $reason, $old, $request) {
+                $workLog->forceFill([
+                    'hidden_at' => now(),
+                    'hidden_reason' => $reason,
+                ])->save();
+
+                AdminAudit::record(
+                    'jobs.hidden',
+                    "{$request->user()->name} hid job {$workLog->uid}: {$reason}",
+                    $workLog,
+                    $old,
+                    ['hidden_at' => $workLog->hidden_at?->toIso8601String(), 'reason' => $reason],
+                );
+            },
+        );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve hiding this job before it takes effect.',
+            ]);
+        }
+
+        return $this->mutated($request, $workLog, [
+            'type' => 'success',
+            'title' => 'Job hidden',
+            'message' => 'It will no longer show on the public page.',
+        ]);
+    }
+
+    public function remove(ModerateWorkLogRequest $request, WorkLog $workLog, ApprovalService $approvals): JsonResponse|RedirectResponse
+    {
+        abort_if($workLog->removed_at, 422, 'This job is already removed.');
+
+        $reason = $request->validated('reason');
+        $old = [
+            'hidden_at' => $workLog->hidden_at?->toIso8601String(),
+            'removed_at' => $workLog->removed_at?->toIso8601String(),
+            'hidden_reason' => $workLog->hidden_reason,
+        ];
+
+        $result = $approvals->run(
+            $request->user(),
+            'jobs.remove',
+            $workLog,
+            $reason,
+            [
+                'work_log_id' => $workLog->id,
+                'work_log_uid' => $workLog->uid,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['removed_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($workLog, $reason, $old, $request) {
+                $workLog->forceFill([
+                    'hidden_at' => $workLog->hidden_at ?? now(),
+                    'hidden_reason' => $workLog->hidden_reason ?: $reason,
+                    'removed_at' => now(),
+                ])->save();
+
+                AdminAudit::record(
+                    'jobs.removed',
+                    "{$request->user()->name} soft-removed job {$workLog->uid}: {$reason}",
+                    $workLog,
+                    $old,
+                    ['removed_at' => $workLog->removed_at?->toIso8601String(), 'reason' => $reason],
+                );
+            },
+        );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve removing this job before it takes effect.',
+            ]);
+        }
+
+        return $this->mutated($request, $workLog, [
+            'type' => 'success',
+            'title' => 'Job removed',
+            'message' => 'It is soft-removed from the public page.',
+        ]);
+    }
+
+    public function unhide(ModerateWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
+    {
+        abort_if($workLog->removed_at, 422, 'This job was removed through Patrol. Reopen it there.');
+
+        $reason = $request->validated('reason');
+        $old = ['hidden_at' => $workLog->hidden_at?->toIso8601String(), 'hidden_reason' => $workLog->hidden_reason];
 
         $workLog->forceFill([
-            'hidden_at' => now(),
-            'flag_reason' => $reason,
+            'hidden_at' => null,
+            'hidden_reason' => null,
         ])->save();
 
         AdminAudit::record(
-            'jobs.removed',
-            "{$request->user()->name} removed job {$workLog->uid}: {$reason}",
+            'jobs.unhidden',
+            "{$request->user()->name} restored job {$workLog->uid}: {$reason}",
             $workLog,
-            ['hidden_at' => null],
-            ['hidden_at' => now()->toIso8601String(), 'reason' => $reason],
+            $old,
+            ['hidden_at' => null, 'reason' => $reason],
         );
+
+        return $this->mutated($request, $workLog, [
+            'type' => 'success',
+            'title' => 'Job restored',
+            'message' => 'It can show on the public page again.',
+        ]);
+    }
+
+    public function refer(ReferWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
+    {
+        $data = $request->validated();
+        $old = [
+            'referred_to_user_id' => $workLog->referred_to_user_id,
+            'referred_at' => $workLog->referred_at?->toIso8601String(),
+        ];
+
+        $workLog->forceFill([
+            'referred_to_user_id' => $data['assignee_id'],
+            'referred_by_user_id' => $request->user()->id,
+            'referred_note' => $data['note'],
+            'referred_at' => now(),
+        ])->save();
+
+        AdminAudit::record(
+            'jobs.referred',
+            "{$request->user()->name} referred job {$workLog->uid} to staff #{$data['assignee_id']}: {$data['note']}",
+            $workLog,
+            $old,
+            [
+                'referred_to_user_id' => $workLog->referred_to_user_id,
+                'referred_at' => $workLog->referred_at?->toIso8601String(),
+                'note' => $data['note'],
+            ],
+        );
+
+        return $this->mutated($request, $workLog, [
+            'type' => 'success',
+            'title' => 'Referred to operations',
+            'message' => 'The assignment is on this job file.',
+        ]);
+    }
+
+    public function message(
+        MessageWorkLogArtisanRequest $request,
+        WorkLog $workLog,
+        AnnouncementService $announcements,
+    ): JsonResponse|RedirectResponse {
+        $artisan = $workLog->user;
+        abort_unless($artisan?->isRegularUser(), 422, 'This job has no artisan to message.');
+
+        $data = $request->validated();
+        $channel = $data['channel'];
+        $subject = $data['subject'] !== '' ? $data['subject'] : 'A note from Isabi';
+        $body = $announcements->interpolate($data['body'], $artisan);
+
+        if ($channel === Announcement::CHANNEL_WHATSAPP) {
+            $phone = ReviewInvite::normalizeWhatsapp($artisan->whatsapp);
+            if (blank($phone)) {
+                throw ValidationException::withMessages([
+                    'channel' => 'This artisan has no WhatsApp number on file.',
+                ]);
+            }
+
+            $url = 'https://wa.me/'.$phone.'?text='.rawurlencode($body);
+
+            AdminAudit::record(
+                'jobs.artisan_messaged',
+                "{$request->user()->name} opened WhatsApp to {$artisan->email} about job {$workLog->uid}.",
+                $workLog,
+                null,
+                ['channel' => $channel, 'body' => $body],
+            );
+
+            return AdminResponse::mutation($request, [
+                'type' => 'success',
+                'title' => 'WhatsApp ready',
+                'message' => 'Continue in WhatsApp with the prefilled message.',
+            ], [
+                'whatsapp_url' => $url,
+                'job' => JobAdminPresenter::listRow($workLog->fresh(['user'])),
+            ]);
+        }
+
+        $announcement = Announcement::query()->create([
+            'audience' => Announcement::AUDIENCE_USERS,
+            'title' => $subject,
+            'subject' => $subject,
+            'body' => $data['body'],
+            'channels' => [$channel],
+            'segment' => ['user_id' => $artisan->id],
+            'status' => Announcement::STATUS_DRAFT,
+            'created_by_user_id' => $request->user()->id,
+        ]);
+
+        $announcements->queue($announcement);
+
+        AdminAudit::record(
+            'jobs.artisan_messaged',
+            "{$request->user()->name} messaged {$artisan->email} ({$channel}) about job {$workLog->uid}.",
+            $workLog,
+            null,
+            ['channel' => $channel, 'announcement_id' => $announcement->id],
+        );
+
+        $label = $channel === Announcement::CHANNEL_EMAIL ? 'Email queued' : 'In-app message sent';
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
-            'title' => 'Job removed',
-            'message' => 'It will no longer show on the public page.',
-        ], ['hidden' => true]);
+            'title' => $label,
+            'message' => $channel === Announcement::CHANNEL_EMAIL
+                ? 'The email is on its way to this artisan.'
+                : 'They will see it in their Isabi inbox.',
+        ], [
+            'job' => JobAdminPresenter::listRow($workLog->fresh(['user'])),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexProps(Request $request, ?string $openedUid = null): array
+    {
+        $this->ensureUids();
+
+        $jobs = WorkLog::query()
+            ->with(['user:id,name,email,business_name,slug,trade'])
+            ->latest('id')
+            ->limit(2500)
+            ->get()
+            ->map(fn (WorkLog $log) => JobAdminPresenter::listRow($log))
+            ->values();
+
+        $openedUid = $openedUid ?: trim((string) $request->query('job', ''));
+
+        return [
+            'jobs' => $jobs,
+            'opened_uid' => $openedUid !== '' ? $openedUid : null,
+            'can' => JobAdminPresenter::abilities($request->user()),
+        ];
+    }
+
+    private function ensureUids(): void
+    {
+        WorkLog::query()
+            ->whereNull('uid')
+            ->orderBy('id')
+            ->each(function (WorkLog $log): void {
+                $log->forceFill(['uid' => (string) Str::uuid()])->saveQuietly();
+            });
+    }
+
+    /**
+     * @param  array<string, mixed>  $toast
+     */
+    private function mutated(Request $request, WorkLog $workLog, array $toast): JsonResponse|RedirectResponse
+    {
+        $panel = JobAdminPresenter::panel($workLog->fresh(), $request->user());
+
+        return AdminResponse::mutation($request, $toast, [
+            'job' => JobAdminPresenter::listRow($workLog->fresh(['user'])),
+            'record' => $panel['record'],
+        ]);
     }
 }

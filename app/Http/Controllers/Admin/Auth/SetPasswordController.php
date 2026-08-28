@@ -37,6 +37,8 @@ class SetPasswordController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $user->forceFill(['last_login_at' => now(), 'last_logout_at' => null])->save();
+        $request->session()->put('auth.staff_epoch', (int) $user->session_epoch);
 
         ActivityLogger::log(
             action: 'auth.admin_login',

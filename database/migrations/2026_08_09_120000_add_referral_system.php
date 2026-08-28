@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -38,18 +38,18 @@ return new class extends Migration
             $table->index(['referrer_user_id', 'status']);
         });
 
-        User::query()->whereNull('referral_code')->orderBy('id')->each(function (User $user): void {
+        DB::table('users')->whereNull('referral_code')->orderBy('id')->get()->each(function (object $user): void {
             $code = null;
             for ($i = 0; $i < 12; $i++) {
                 $candidate = strtoupper(Str::random(8));
-                if (! User::query()->where('referral_code', $candidate)->exists()) {
+                if (! DB::table('users')->where('referral_code', $candidate)->exists()) {
                     $code = $candidate;
                     break;
                 }
             }
 
             if ($code) {
-                $user->forceFill(['referral_code' => $code])->saveQuietly();
+                DB::table('users')->where('id', $user->id)->update(['referral_code' => $code]);
             }
         });
     }

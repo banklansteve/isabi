@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Auth\LoginRequest;
 use App\Support\ActivityLogger;
 use App\Support\Auth\SessionLifetime;
+use App\Support\Patrol\PatrolIp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +35,9 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $user->forceFill(['last_login_at' => now(), 'last_logout_at' => null])->save();
+        $request->session()->put('auth.staff_epoch', (int) $user->session_epoch);
+        PatrolIp::rememberLogin($user, $request->ip());
 
         ActivityLogger::log(
             action: 'auth.admin_login',
@@ -49,6 +53,7 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
 
         if ($user) {
+            $user->forceFill(['last_logout_at' => now()])->save();
             ActivityLogger::log(
                 action: 'auth.admin_logout',
                 summary: "{$user->name} signed out of the admin portal.",

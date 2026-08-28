@@ -34,6 +34,13 @@ class WorkLog extends Model
         'flagged_at',
         'flag_reason',
         'hidden_at',
+        'hidden_reason',
+        'removed_at',
+        'referred_to_user_id',
+        'referred_by_user_id',
+        'referred_note',
+        'referred_at',
+        'created_ip',
     ];
 
     /**
@@ -49,7 +56,19 @@ class WorkLog extends Model
             'review_reminder_sent_at' => 'datetime',
             'flagged_at' => 'datetime',
             'hidden_at' => 'datetime',
+            'removed_at' => 'datetime',
+            'referred_at' => 'datetime',
         ];
+    }
+
+    public function isPubliclyVisible(): bool
+    {
+        return $this->hidden_at === null && $this->removed_at === null;
+    }
+
+    public function scopePubliclyVisible($query)
+    {
+        return $query->whereNull('hidden_at')->whereNull('removed_at');
     }
 
     public function reminderDue(): bool
@@ -144,6 +163,21 @@ class WorkLog extends Model
     public function review(): HasOne
     {
         return $this->hasOne(Review::class);
+    }
+
+    public function patrolCase(): HasOne
+    {
+        return $this->hasOne(PatrolCase::class);
+    }
+
+    public function referredTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referred_to_user_id');
+    }
+
+    public function referredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referred_by_user_id');
     }
 
     public function amountInNaira(): ?float

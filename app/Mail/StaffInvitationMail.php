@@ -22,8 +22,10 @@ class StaffInvitationMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $appName = config('app.name');
+
         return new Envelope(
-            subject: 'Join the Isabi operations team',
+            subject: "Welcome to the {$appName} operations team",
         );
     }
 
@@ -31,6 +33,9 @@ class StaffInvitationMail extends Mailable
     {
         return new Content(
             markdown: 'mail.staff.invitation',
+            with: [
+                'appName' => config('app.name'),
+            ],
         );
     }
 }

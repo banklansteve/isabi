@@ -12,6 +12,8 @@ class LeaveAllocation extends Model
         'leave_type_id',
         'year',
         'allowance_days',
+        'reason',
+        'updated_by',
     ];
 
     /**
@@ -33,5 +35,10 @@ class LeaveAllocation extends Model
     public function leaveType(): BelongsTo
     {
         return $this->belongsTo(LeaveType::class);
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

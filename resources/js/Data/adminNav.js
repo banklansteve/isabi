@@ -11,6 +11,14 @@ export const adminNavGroups = [
                 tabs: [{ label: 'Home', route: 'admin.dashboard' }],
             },
             {
+                key: 'insights',
+                label: 'Insights',
+                icon: 'ti ti-chart-bar',
+                route: 'admin.insights.index',
+                match: ['admin.insights.*'],
+                tabs: [{ label: 'Performance', route: 'admin.insights.index' }],
+            },
+            {
                 key: 'analytics',
                 label: 'Analytics',
                 icon: 'ti ti-chart-dots-2',
@@ -61,14 +69,14 @@ export const adminNavGroups = [
                 icon: 'ti ti-id-badge-2',
                 route: 'admin.hr.index',
                 match: ['admin.hr.*'],
-                ability: 'hr.view',
+                abilitiesAny: ['hr.view', 'hr.discipline.view'],
                 tabs: [
-                    { label: 'Directory', route: 'admin.hr.index' },
-                    { label: 'Leave', route: 'admin.hr.leave.index' },
-                    { label: 'Calendar', route: 'admin.hr.calendar' },
-                    { label: 'Discipline', route: 'admin.hr.discipline.index' },
-                    { label: 'Reports', route: 'admin.hr.reports.index' },
-                    { label: 'Settings', route: 'admin.hr.settings' },
+                    { label: 'Directory', route: 'admin.hr.index', ability: 'hr.view', matchPrefix: 'admin.hr.staff' },
+                    { label: 'Leave', route: 'admin.hr.leave.index', ability: 'hr.view' },
+                    { label: 'Calendar', route: 'admin.hr.calendar', ability: 'hr.view' },
+                    { label: 'Cases', route: 'admin.hr.discipline.index', ability: 'hr.discipline.view', matchPrefix: 'admin.hr.discipline' },
+                    { label: 'Reports', route: 'admin.hr.reports.index', ability: 'hr.view' },
+                    { label: 'Settings', route: 'admin.hr.settings', ability: 'hr.view' },
                 ],
             },
         ],
@@ -87,7 +95,18 @@ export const adminNavGroups = [
                 tabs: [
                     { label: 'All', route: 'admin.jobs.index' },
                     { label: 'Flagged', route: 'admin.jobs.index', params: { tab: 'flagged' } },
-                    { label: 'Suspicious', route: 'admin.jobs.index', params: { tab: 'suspicious' } },
+                ],
+            },
+            {
+                key: 'patrol',
+                label: 'Patrol',
+                icon: 'ti ti-binoculars',
+                route: 'admin.patrol.index',
+                match: ['admin.patrol.*'],
+                ability: 'patrol.view',
+                tabs: [
+                    { label: 'Job logs', route: 'admin.patrol.index', params: { tab: 'jobs' } },
+                    { label: 'Reviews', route: 'admin.patrol.index', params: { tab: 'reviews' } },
                 ],
             },
             {
@@ -165,7 +184,7 @@ export const adminNavGroups = [
         items: [
             {
                 key: 'messaging',
-                label: 'Messaging',
+                label: 'Announcements',
                 icon: 'ti ti-megaphone',
                 route: 'admin.messaging.index',
                 match: ['admin.messaging.*'],
@@ -177,15 +196,50 @@ export const adminNavGroups = [
                 ],
             },
             {
+                key: 'ops_messages',
+                label: 'Warn a user',
+                icon: 'ti ti-mail-forward',
+                route: 'admin.ops-messages.index',
+                match: ['admin.ops-messages.*'],
+                abilitiesAny: ['admin.ops_messages.send', 'admin.users.manage', 'admin.messaging.manage'],
+                tabs: [{ label: 'Send', route: 'admin.ops-messages.index' }],
+            },
+            {
+                key: 'approvals',
+                label: 'Approvals',
+                icon: 'ti ti-shield-check',
+                route: 'admin.approvals.index',
+                match: ['admin.approvals.*'],
+                super: true,
+                ability: 'admin.approvals.manage',
+                tabs: [{ label: 'Pending', route: 'admin.approvals.index' }],
+            },
+            {
+                key: 'billing_issues',
+                label: 'Billing issues',
+                icon: 'ti ti-credit-card',
+                route: 'admin.billing-issues.index',
+                match: ['admin.billing-issues.*'],
+                ability: 'admin.billing_issues.manage',
+                tabs: [{ label: 'Open', route: 'admin.billing-issues.index' }],
+            },
+            {
                 key: 'support',
-                label: 'Support',
+                label: 'Customer support',
                 icon: 'ti ti-headset',
                 route: 'admin.support.index',
                 match: ['admin.support.*'],
                 ability: 'admin.support.manage',
+                tabs: [],
+            },
+            {
+                key: 'asap',
+                label: 'ASAP',
+                icon: 'ti ti-bolt',
+                route: 'admin.asap.index',
+                match: ['admin.asap.*'],
                 tabs: [
-                    { label: 'Open', route: 'admin.support.index' },
-                    { label: 'Resolved', route: 'admin.support.index', params: { status: 'resolved' } },
+                    { label: 'Team chat', route: 'admin.asap.index' },
                 ],
             },
             {
@@ -210,6 +264,7 @@ export const adminNavGroups = [
                 tabs: [
                     { label: 'General', route: 'admin.settings.index', params: { tab: 'general' } },
                     { label: 'Features', route: 'admin.settings.index', params: { tab: 'features' } },
+                    { label: 'Ops', route: 'admin.settings.index', params: { tab: 'ops' } },
                     { label: 'Payments', route: 'admin.settings.index', params: { tab: 'payments' } },
                     { label: 'Session', route: 'admin.settings.index', params: { tab: 'session' } },
                     { label: 'Slugs', route: 'admin.settings.index', params: { tab: 'slugs' } },
@@ -232,11 +287,31 @@ export function canSeeNavItem(item, isSuperAdmin = false, abilities = []) {
         return false;
     }
 
-    if (item.ability && !isSuperAdmin && !(abilities || []).includes(item.ability)) {
+    if (isSuperAdmin) {
+        return true;
+    }
+
+    if (item.abilitiesAny?.length) {
+        return item.abilitiesAny.some((key) => (abilities || []).includes(key));
+    }
+
+    if (item.ability && !(abilities || []).includes(item.ability)) {
         return false;
     }
 
     return true;
+}
+
+export function canSeeNavTab(tab, isSuperAdmin = false, abilities = []) {
+    if (tab.super && !isSuperAdmin) {
+        return false;
+    }
+
+    if (!tab.ability || isSuperAdmin) {
+        return true;
+    }
+
+    return (abilities || []).includes(tab.ability);
 }
 
 export function matchNavItem(item, current, query = {}) {
@@ -257,6 +332,20 @@ export function activeNavItem(current, isSuperAdmin = false, abilities = []) {
     return flattenAdminNav(isSuperAdmin, abilities).find((item) => matchNavItem(item, current)) || null;
 }
 
+export function navItemHref(item, isSuperAdmin = false, abilities = []) {
+    const tabs = (item.tabs || []).filter((tab) => canSeeNavTab(tab, isSuperAdmin, abilities));
+
+    if (tabs[0]) {
+        return tabHref(tabs[0]);
+    }
+
+    try {
+        return route(item.route);
+    } catch {
+        return '#';
+    }
+}
+
 export function tabHref(tab) {
     const params = tab.params || {};
     try {
@@ -267,6 +356,10 @@ export function tabHref(tab) {
 }
 
 export function tabIsActive(tab, current, query = {}) {
+    if (tab.matchPrefix && String(current || '').startsWith(tab.matchPrefix)) {
+        return true;
+    }
+
     if (current !== tab.route) {
         return false;
     }
@@ -278,5 +371,12 @@ export function tabIsActive(tab, current, query = {}) {
         return !query.tab && !query.status && !query.audience;
     }
 
-    return keys.every((key) => String(query[key] || '') === String(params[key]));
+    return keys.every((key) => {
+        const actual = String(query[key] || '');
+        const expected = String(params[key]);
+        if (key === 'tab' && expected === 'jobs' && actual === '') {
+            return true;
+        }
+        return actual === expected;
+    });
 }

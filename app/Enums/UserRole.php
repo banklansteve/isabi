@@ -62,6 +62,9 @@ enum UserRole: string
                 'admin.support.manage',
                 'admin.moderation.manage',
                 'admin.patrol.manage',
+                'patrol.view',
+                'patrol.investigate',
+                'patrol.resolve',
             ],
             self::OperationsAdmin => [
                 'admin.access',
@@ -70,7 +73,8 @@ enum UserRole: string
                 'admin.users.view',
                 'admin.support.manage',
                 'admin.moderation.manage',
-                'admin.patrol.manage',
+                'patrol.view',
+                'patrol.investigate',
             ],
             self::User => [],
         };

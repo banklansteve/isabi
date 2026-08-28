@@ -1,7 +1,7 @@
 <template>
-    <Head title="Messaging" />
+    <Head title="Announcements" />
 
-    <AdminChrome title="Messaging" :eyebrow="eyebrow" />
+    <AdminChrome title="Announcements" :eyebrow="eyebrow" />
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p class="max-w-xl text-[13px] font-medium leading-relaxed text-ink/50">
                 {{

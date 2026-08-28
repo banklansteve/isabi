@@ -28,7 +28,7 @@ Artisan::command('staff:sync-roles', function () {
 
     $now = now();
     $roles = [
-        ['key' => 'support_agent', 'name' => 'Customer Support Agent', 'old' => ['Customer support', 'Support'], 'icon' => 'ti ti-headset'],
+        ['key' => 'customer_support', 'name' => 'Customer support', 'old' => ['Customer Support Agent', 'Customer support', 'Support', 'support_agent'], 'icon' => 'ti ti-headset'],
         ['key' => 'trust_safety', 'name' => 'Trust & Safety / Moderator', 'old' => ['Moderation', 'Moderator'], 'icon' => 'ti ti-shield-exclamation'],
         ['key' => 'verification_officer', 'name' => 'Verification Officer', 'old' => ['Patrol', 'Patrolling'], 'icon' => 'ti ti-user-check'],
         ['key' => 'finance_officer', 'name' => 'Finance & Billing Officer', 'old' => ['Finance'], 'icon' => 'ti ti-report-money'],
@@ -43,8 +43,14 @@ Artisan::command('staff:sync-roles', function () {
             ->where('key', $role['key'])
             ->orWhere('slug', $role['key'])
             ->orWhereIn('name', array_merge([$role['name']], $role['old']))
-            ->orWhereIn('slug', ['customer-support', 'moderation', 'patrol', 'customer_support'])
+            ->orWhereIn('slug', ['customer-support', 'support_agent', 'customer_support', 'moderation', 'patrol'])
             ->first();
+
+        // Prefer matching the canonical slug when multiple rows collide.
+        $exact = $db->table('staff_roles')->where('slug', $role['key'])->first();
+        if ($exact) {
+            $row = $exact;
+        }
 
         $payload = [];
         foreach ($columns as $field => $meta) {
@@ -88,3 +94,4 @@ Artisan::command('staff:sync-roles', function () {
 */
 Schedule::command('reviews:prepare-reminders')->dailyAt('09:15');
 Schedule::command('announcements:dispatch')->everyMinute();
+Schedule::command('patrol:scan')->hourly();

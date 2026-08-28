@@ -51,6 +51,22 @@ class AnnouncementTemplateSeeder extends Seeder
                 'body' => 'Something needs a look in the admin console. Open the relevant queue (support, reviews, or users) and leave a note on the audit log when you act.',
                 'channels' => [Announcement::CHANNEL_IN_APP, Announcement::CHANNEL_EMAIL],
             ],
+            [
+                'audience' => Announcement::AUDIENCE_STAFF,
+                'name' => 'Leave approved',
+                'slug' => 'staff-leave-approved',
+                'subject' => 'Your leave was approved',
+                'body' => "Hi {{first_name}}, your leave request has been approved.\n\nCheck the dates in HR if you need to adjust anything. Enjoy the time off.",
+                'channels' => [Announcement::CHANNEL_IN_APP, Announcement::CHANNEL_EMAIL],
+            ],
+            [
+                'audience' => Announcement::AUDIENCE_STAFF,
+                'name' => 'Renewal reminder',
+                'slug' => 'staff-renewal-reminder',
+                'subject' => 'A reminder from operations',
+                'body' => "Hi {{first_name}}, this is a reminder to complete any outstanding renewals or follow-ups in the admin console.\n\nOpen Admin & staff or HR if something still needs a look.",
+                'channels' => [Announcement::CHANNEL_IN_APP, Announcement::CHANNEL_EMAIL],
+            ],
         ];
 
         foreach ($templates as $template) {

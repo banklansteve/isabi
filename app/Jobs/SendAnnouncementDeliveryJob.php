@@ -7,6 +7,7 @@ use App\Models\Announcement;
 use App\Models\AnnouncementDelivery;
 use App\Models\User;
 use App\Support\Admin\AnnouncementService;
+use App\Support\Realtime\Realtime;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Mail;
@@ -58,6 +59,17 @@ class SendAnnouncementDeliveryJob implements ShouldQueue
         }
 
         $announcements->refreshCounts($announcement);
+
+        if ($delivery->channel === Announcement::CHANNEL_IN_APP) {
+            $fresh = $delivery->fresh(['announcement', 'user']) ?? $delivery;
+            $recipient = $fresh->user ?? $user;
+
+            app(Realtime::class)->notification(
+                $recipient,
+                $announcements->presentDelivery($fresh, $recipient),
+                $announcements->unreadInAppCount($recipient),
+            );
+        }
     }
 
     private function sendEmail(Announcement $announcement, User $user, AnnouncementService $announcements): void

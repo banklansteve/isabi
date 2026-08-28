@@ -2,20 +2,6 @@
     <Head title="HR reports" />
 
     <AdminChrome title="HR reports" eyebrow="Headcount, leave, coverage" />
-        <section v-if="discipline" class="mb-6 grid grid-cols-3 gap-3">
-            <div class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.06]">
-                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">Open cases</p>
-                <p class="mt-1.5 text-2xl font-bold tracking-tight text-coral-deep">{{ discipline.open }}</p>
-            </div>
-            <div class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.06]">
-                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">Monitoring</p>
-                <p class="mt-1.5 text-2xl font-bold tracking-tight text-amber-600">{{ discipline.monitoring }}</p>
-            </div>
-            <div class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.06]">
-                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">Closed cases</p>
-                <p class="mt-1.5 text-2xl font-bold tracking-tight text-ink">{{ discipline.closed }}</p>
-            </div>
-        </section>
         <!-- Headcount -->
         <section class="rounded-[1.5rem] bg-white p-6 shadow-premium ring-1 ring-ink/[0.06]">
             <div class="flex items-center justify-between">
@@ -128,7 +114,6 @@ const props = defineProps({
     leave: { type: Object, required: true },
     performance: { type: Object, required: true },
     payroll: { type: Object, default: null },
-    discipline: { type: Object, default: null },
     can: { type: Object, default: () => ({}) },
 });
 

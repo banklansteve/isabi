@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\MediaUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Review extends Model
@@ -22,11 +23,14 @@ class Review extends Model
         'photo_path',
         'photo_url',
         'submitter_ip_hash',
+        'submitted_ip',
         'user_agent',
         'submitted_at',
         'flagged_at',
         'flag_reason',
         'hidden_at',
+        'hidden_reason',
+        'removed_at',
     ];
 
     /**
@@ -40,7 +44,18 @@ class Review extends Model
             'submitted_at' => 'datetime',
             'flagged_at' => 'datetime',
             'hidden_at' => 'datetime',
+            'removed_at' => 'datetime',
         ];
+    }
+
+    public function isPubliclyVisible(): bool
+    {
+        return $this->hidden_at === null && $this->removed_at === null;
+    }
+
+    public function scopePubliclyVisible($query)
+    {
+        return $query->whereNull('hidden_at')->whereNull('removed_at');
     }
 
     protected static function booted(): void
@@ -63,6 +78,11 @@ class Review extends Model
     public function artisan(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function patrolCase(): HasOne
+    {
+        return $this->hasOne(PatrolCase::class);
     }
 
     public function photoUrl(): ?string

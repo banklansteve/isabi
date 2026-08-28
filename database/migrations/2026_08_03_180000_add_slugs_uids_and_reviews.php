@@ -1,10 +1,9 @@
 <?php
 
-use App\Models\User;
-use App\Models\WorkLog;
 use App\Support\ProfileSlug;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -56,11 +55,11 @@ return new class extends Migration
             $table->index(['user_id', 'submitted_at']);
         });
 
-        WorkLog::query()->whereNull('uid')->orderBy('id')->each(function (WorkLog $log): void {
-            $log->forceFill(['uid' => (string) Str::uuid()])->saveQuietly();
+        DB::table('work_logs')->whereNull('uid')->orderBy('id')->get()->each(function (object $log): void {
+            DB::table('work_logs')->where('id', $log->id)->update(['uid' => (string) Str::uuid()]);
         });
 
-        User::query()->whereNull('slug')->orderBy('id')->each(function (User $user): void {
+        DB::table('users')->whereNull('slug')->orderBy('id')->get()->each(function (object $user): void {
             $preferred = $user->business_name
                 ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))
                 ?: $user->name
@@ -68,10 +67,10 @@ return new class extends Migration
 
             $slug = ProfileSlug::uniqueFrom($preferred, $user->id);
 
-            $user->forceFill([
+            DB::table('users')->where('id', $user->id)->update([
                 'business_name' => $user->business_name ?: $preferred,
                 'slug' => $slug,
-            ])->saveQuietly();
+            ]);
         });
     }
 

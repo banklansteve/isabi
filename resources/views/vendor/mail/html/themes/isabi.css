@@ -1,0 +1,123 @@
+/* Isabi branded markdown mail — primary #1A4FB5 (base-action) */
+
+body,
+.body {
+    background-color: #F4F6FA;
+    color: #0F172A;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.inner-body {
+    background-color: #ffffff;
+}
+
+.header {
+    width: 100%;
+}
+
+.header a {
+    color: #1A4FB5;
+    font-size: 18px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.content-cell {
+    padding: 32px;
+}
+
+.footer {
+    color: #64748B;
+}
+
+h1 {
+    color: #0F172A;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+h2 {
+    color: #0F172A;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+p {
+    color: #334155;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+a,
+a:hover,
+a:visited {
+    color: #1A4FB5;
+}
+
+.inner-body a {
+    word-break: break-all;
+}
+
+.action {
+    margin: 28px auto;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+}
+
+.button {
+    border-radius: 12px;
+    box-shadow: 0 10px 24px -10px rgba(26, 79, 181, 0.45);
+    display: inline-block;
+    text-decoration: none;
+}
+
+.button-primary,
+.button-blue {
+    background-color: #1A4FB5;
+    border-bottom: 8px solid #1A4FB5;
+    border-left: 18px solid #1A4FB5;
+    border-right: 18px solid #1A4FB5;
+    border-top: 8px solid #1A4FB5;
+    color: #ffffff !important;
+}
+
+.button-primary span,
+.button-blue span {
+    color: #ffffff !important;
+}
+
+.panel {
+    background-color: #F4F6FA;
+    border-radius: 12px;
+}
+
+.subcopy {
+    border-top: 1px solid #E2E8F0;
+    color: #64748B;
+    font-size: 13px;
+    margin-top: 24px;
+    padding-top: 16px;
+}
+
+.subcopy a,
+.subcopy a:visited {
+    color: #1A4FB5;
+    text-decoration: underline;
+}
+
+.table table {
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #E2E8F0;
+    color: #64748B;
+    padding-bottom: 8px;
+}
+
+.table td {
+    color: #0F172A;
+    font-size: 15px;
+    padding: 8px 0;
+}

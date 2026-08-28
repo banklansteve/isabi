@@ -104,9 +104,17 @@ class StaffAuthTest extends TestCase
         $this->assertFalse($staff->staffRoles->contains('slug', 'customer_support'));
 
         Mail::assertSent(StaffInvitationMail::class, function (StaffInvitationMail $mail) {
+            $html = $mail->render();
+
             return $mail->hasTo('ngozi@isabi.dev')
                 && str_contains($mail->acceptUrl, '/admin/invite/accept/')
-                && $mail->expiresHours === 48;
+                && $mail->expiresHours === 48
+                && str_contains($html, 'Set up your account')
+                && str_contains($html, 'welcome aboard')
+                && str_contains($html, $mail->acceptUrl)
+                && ! str_contains($html, 'Verify your email')
+                && ! str_contains($html, 'confirmation code')
+                && ! str_contains($html, '@endif');
         });
     }
 
@@ -148,9 +156,17 @@ class StaffAuthTest extends TestCase
         $this->post(route('logout'));
         $this->assertGuest();
 
-        $this->get(route('admin.invite.accept', $token))->assertOk();
+        $this->get(route('admin.invite.accept', $token))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Auth/AcceptInvite')
+                ->where('email', 'chidi@isabi.dev')
+                ->where('first_name', 'Chidi')
+                ->where('last_name', 'Okoro'));
 
         $this->post(route('admin.invite.accept', $token), [
+            'first_name' => 'Chidi',
+            'last_name' => 'Okoro',
             'password' => 'new-password',
             'password_confirmation' => 'new-password',
         ])->assertRedirect(route('admin.dashboard'));

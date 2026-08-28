@@ -9,7 +9,9 @@ class DestroyStaffRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isSuperAdmin() ?? false;
+        $user = $this->user();
+
+        return ($user?->isSuperAdmin() ?? false) && $user->canDo('admin.staff.manage');
     }
 
     /**
@@ -31,11 +33,12 @@ class DestroyStaffRequest extends FormRequest
                 return;
             }
 
-            $expected = mb_strtolower(trim($staff->name));
             $given = mb_strtolower(trim((string) $this->input('confirmation')));
+            $name = mb_strtolower(trim((string) $staff->name));
+            $email = mb_strtolower(trim((string) $staff->email));
 
-            if ($expected === '' || $given !== $expected) {
-                $validator->errors()->add('confirmation', 'Type the staff member’s name exactly to confirm.');
+            if ($given === '' || ($given !== $name && $given !== $email)) {
+                $validator->errors()->add('confirmation', 'Type the staff member’s name or email exactly to confirm.');
             }
         });
     }

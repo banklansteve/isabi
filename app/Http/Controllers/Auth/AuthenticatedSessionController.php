@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Support\ActivityLogger;
 use App\Support\Auth\SessionLifetime;
+use App\Support\Patrol\PatrolIp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +49,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        PatrolIp::rememberLogin($user, $request->ip());
 
         ActivityLogger::log(
             action: 'auth.login',

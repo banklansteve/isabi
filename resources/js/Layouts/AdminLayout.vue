@@ -59,7 +59,7 @@
                         <Link
                             v-for="item in group.items"
                             :key="item.key"
-                            :href="route(item.route)"
+                            :href="navItemHref(item, isSuper, abilities)"
                             prefetch
                             cache-for="5m"
                             :show-progress="false"
@@ -81,6 +81,12 @@
                                 aria-hidden="true"
                             />
                             <span v-show="!collapsed || mobileOpen" class="truncate">{{ item.label }}</span>
+                            <span
+                                v-if="item.key === 'asap' && asapUnread > 0 && (!collapsed || mobileOpen)"
+                                class="ms-auto rounded-full bg-base-action px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                            >
+                                {{ asapUnread > 9 ? '9+' : asapUnread }}
+                            </span>
                         </Link>
                     </div>
                 </div>
@@ -130,6 +136,17 @@
                     >
                         <i class="ti ti-menu-2 text-xl" aria-hidden="true" />
                     </button>
+                    <Link
+                        v-if="backHref"
+                        :href="backHref"
+                        prefetch
+                        cache-for="5m"
+                        :show-progress="false"
+                        class="tap-target flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink/50 transition-colors hover:bg-pale hover:text-ink"
+                        :aria-label="backLabel"
+                    >
+                        <i class="ti ti-arrow-left text-xl" aria-hidden="true" />
+                    </Link>
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-[15px] font-bold tracking-tight text-ink">
                             {{ heading }}
@@ -138,6 +155,17 @@
                             {{ subheading }}
                         </p>
                     </div>
+                    <Link
+                        v-if="user?.is_staff"
+                        :href="route('admin.notices.index')"
+                        class="tap-target inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-ink/55 transition-colors hover:bg-pale hover:text-ink"
+                    >
+                        Notices
+                        <span
+                            v-if="pendingNotices > 0"
+                            class="rounded-full bg-tint px-1.5 py-0.5 text-[10px] font-bold text-deep"
+                        >{{ pendingNotices }}</span>
+                    </Link>
                     <NotificationBell />
                     <Link
                         :href="route('home')"
@@ -157,7 +185,7 @@
 
                 <div
                     v-if="currentTabs.length > 1"
-                    class="no-scrollbar flex gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6"
+                    class="no-scrollbar flex gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6 lg:justify-end"
                 >
                     <button
                         v-for="tab in currentTabs"
@@ -228,8 +256,10 @@ import {
     activeNavItem,
     adminNavGroups,
     canSeeNavItem,
+    canSeeNavTab,
     flattenAdminNav,
     mobilePrimaryNav,
+    navItemHref,
     tabHref,
     tabIsActive,
 } from '@/Data/adminNav';
@@ -251,10 +281,13 @@ const isSuper = computed(() => !!user.value?.is_super_admin);
 const abilities = computed(() => user.value?.abilities || []);
 const restricted = computed(() => !!user.value?.restricted);
 const initials = computed(() => user.value?.initials || 'I');
+const asapUnread = computed(() => Number(page.props.asap_unread || 0));
 const collapsed = ref(false);
 const mobileOpen = ref(false);
 const heading = computed(() => adminChrome.title || props.title || 'Admin');
 const subheading = computed(() => adminChrome.eyebrow || props.eyebrow || '');
+const backHref = computed(() => adminChrome.backHref || '');
+const backLabel = computed(() => adminChrome.backLabel || 'Back');
 
 const currentRoute = computed(() => {
     void page.url;
@@ -286,7 +319,11 @@ const visibleGroups = computed(() =>
 );
 
 const currentItem = computed(() => activeNavItem(currentRoute.value, isSuper.value, abilities.value));
-const currentTabs = computed(() => currentItem.value?.tabs || []);
+const currentTabs = computed(() =>
+    (currentItem.value?.tabs || []).filter((tab) => canSeeNavTab(tab, isSuper.value, abilities.value)),
+);
+
+const pendingNotices = computed(() => Number(user.value?.pending_notices || 0));
 
 const mobileItems = computed(() =>
     flattenAdminNav(isSuper.value, abilities.value).filter((item) => mobilePrimaryNav.includes(item.key)),

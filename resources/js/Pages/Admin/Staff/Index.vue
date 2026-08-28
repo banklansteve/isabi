@@ -42,7 +42,7 @@
             <AdminEmpty
                 v-if="!rows.length"
                 title="No staff yet"
-                :description="`Invite your first operations teammate. They’ll get a link by email that expires in ${invite_ttl_hours} hours.`"
+                :description="`Invite your first operations teammate. They’ll get one email with a link to set up their account — it expires in ${invite_ttl_hours} hours.`"
                 icon="ti ti-shield-lock"
             >
                 <button
@@ -62,13 +62,18 @@
             />
             <template v-else>
                 <div class="hidden overflow-x-auto lg:block">
-                    <table class="w-full min-w-[880px] text-left text-[13px]">
+                    <table class="w-full min-w-[1080px] text-left text-[13px]">
                         <thead class="border-b border-ink/[0.06] bg-pale/60 text-[11px] font-bold uppercase tracking-wide text-ink/40">
                             <tr>
-                                <th class="px-4 py-3">Name</th>
+                                <th class="w-10 px-4 py-3">
+                                    <input type="checkbox" :checked="allVisibleSelected" class="rounded border-ink/20 text-base-action" @change="togglePage" />
+                                </th>
+                                <th class="px-3 py-3">Name</th>
                                 <th class="px-3 py-3">Status</th>
                                 <th class="px-3 py-3">Roles</th>
                                 <th class="px-3 py-3">Last login</th>
+                                <th class="px-3 py-3">Today</th>
+                                <th class="px-3 py-3">Idle</th>
                                 <th class="px-3 py-3">Joined</th>
                                 <th class="px-4 py-3 text-right"> </th>
                             </tr>
@@ -81,7 +86,10 @@
                                 :class="open?.id === person.id ? 'bg-tint/80' : 'hover:bg-pale/80'"
                                 @click="openStaff(person)"
                             >
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3" @click.stop>
+                                    <input v-model="selected" type="checkbox" :value="person.id" class="rounded border-ink/20 text-base-action" />
+                                </td>
+                                <td class="px-3 py-3">
                                     <div class="flex items-center gap-3">
                                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tint text-[11px] font-bold text-deep">
                                             {{ person.initials || initials(person.name) }}
@@ -124,6 +132,11 @@
                                     <span v-else class="text-ink/35">None</span>
                                 </td>
                                 <td class="px-3 py-3 font-medium text-ink/50">{{ person.last_login || '—' }}</td>
+                                <td class="px-3 py-3 font-medium text-ink/50">
+                                    <p>{{ person.attendance?.logged_in || '—' }} in</p>
+                                    <p class="text-[12px] text-ink/40">{{ person.attendance?.logged_out || '—' }} out</p>
+                                </td>
+                                <td class="px-3 py-3 font-medium text-ink/50">{{ person.attendance?.idle_label || '—' }}</td>
                                 <td class="px-3 py-3 font-medium text-ink/50">{{ person.joined }}</td>
                                 <td class="px-4 py-3 text-right" @click.stop>
                                     <AdminStaffKebab
@@ -149,6 +162,7 @@
                         :class="open?.id === person.id ? 'bg-tint/80' : ''"
                     >
                         <div class="flex items-start gap-3">
+                            <input v-model="selected" type="checkbox" :value="person.id" class="mt-1 rounded border-ink/20 text-base-action" @click.stop />
                             <button type="button" class="flex min-w-0 flex-1 items-start gap-3 text-left" @click="openStaff(person)">
                                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-tint text-xs font-bold text-deep">
                                     {{ person.initials || initials(person.name) }}
@@ -174,7 +188,10 @@
                                         {{ person.roles.map((role) => role.name).join(' · ') || 'No roles' }}
                                     </p>
                                     <p class="mt-1 text-[12px] text-ink/35">
-                                        Last login {{ person.last_login || 'never' }} · Joined {{ person.joined }}
+                                        Last login {{ person.last_login || 'never' }} · Idle {{ person.attendance?.idle_label || '—' }}
+                                    </p>
+                                    <p class="mt-0.5 text-[12px] text-ink/35">
+                                        Today {{ person.attendance?.logged_in || '—' }} in · {{ person.attendance?.logged_out || '—' }} out
                                     </p>
                                 </div>
                             </button>
@@ -201,11 +218,31 @@
             @update:page="list.page.value = $event"
         />
 
+        <Transition name="admin-dock">
+            <div
+                v-if="selected.length"
+                class="fixed inset-x-4 bottom-20 z-40 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-white shadow-premium-ink lg:bottom-6"
+            >
+                <p class="text-[13px] font-semibold">{{ selected.length }} selected</p>
+                <div class="flex gap-2">
+                    <button
+                        type="button"
+                        class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-bold transition-colors duration-150 hover:bg-white/15"
+                        @click="openBulkMessage"
+                    >
+                        Message selected
+                    </button>
+                </div>
+            </div>
+        </Transition>
+
         <AdminStaffDrawer
             :person="open"
             :panel="panel"
             :loading="panelLoading"
             :roles="roles"
+            :templates="templates"
+            :weekdays="shift_weekdays"
             @close="closeStaff"
             @updated="onUpdated"
             @deleted="onDeleted"
@@ -251,7 +288,7 @@
                     </p>
                 </label>
                 <p class="rounded-xl bg-pale px-3 py-2.5 text-[13px] font-medium text-ink/55">
-                    The invite link expires in {{ invite_ttl_hours }} hours.
+                    They’ll get one email with a personal setup link. Opening it confirms their email. It expires in {{ invite_ttl_hours }} hours.
                 </p>
             </form>
             <template #footer>
@@ -270,6 +307,45 @@
                 </div>
             </template>
         </AdminDrawer>
+
+        <AdminConfirmDialog
+            :open="bulkOpen"
+            title="Message selected staff"
+            :description="`Sends to ${selected.length} ${selected.length === 1 ? 'person' : 'people'} via the channels you pick.`"
+            confirm-label="Send"
+            :require-reason="true"
+            :processing="bulkBusy"
+            @close="bulkOpen = false"
+            @confirm="runBulkMessage"
+        >
+            <div class="mt-4 flex flex-wrap gap-1.5">
+                <button
+                    v-for="item in [
+                        { value: 'in_app', label: 'In-app' },
+                        { value: 'email', label: 'Email' },
+                    ]"
+                    :key="item.value"
+                    type="button"
+                    class="rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                    :class="bulkChannels.includes(item.value) ? 'bg-base-action text-white' : 'bg-pale text-ink/55'"
+                    @click="toggleBulkChannel(item.value)"
+                >
+                    {{ item.label }}
+                </button>
+            </div>
+            <input
+                v-model="bulkSubject"
+                type="text"
+                placeholder="Subject"
+                class="mt-3 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base"
+            />
+            <textarea
+                v-model="bulkBody"
+                rows="4"
+                placeholder="Keep it specific…"
+                class="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base"
+            />
+        </AdminConfirmDialog>
 
         <AdminConfirmDialog
             :open="!!rowAction"
@@ -302,8 +378,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 const props = defineProps({
     staff: { type: Array, default: () => [] },
     roles: { type: Array, default: () => [] },
+    templates: { type: Array, default: () => [] },
     invite_ttl_hours: { type: Number, default: 48 },
     opened_id: { type: Number, default: null },
+    shift_weekdays: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -321,6 +399,12 @@ const inviteErrors = ref({ email: '' });
 const menuId = ref(null);
 const rowAction = ref(null);
 const busy = ref(false);
+const selected = ref([]);
+const bulkOpen = ref(false);
+const bulkBusy = ref(false);
+const bulkSubject = ref('A note from Isabi');
+const bulkBody = ref('Hi {{first_name}}, ');
+const bulkChannels = ref(['in_app', 'email']);
 let panelSeq = 0;
 
 const list = useClientList(
@@ -349,6 +433,61 @@ watch([statusFilter, roleFilter], () => {
 });
 
 const isSelf = (person) => person.id === meId.value;
+
+const allVisibleSelected = computed(
+    () => list.pageItems.value.length > 0 && list.pageItems.value.every((person) => selected.value.includes(person.id)),
+);
+
+const togglePage = () => {
+    const ids = list.pageItems.value.map((person) => person.id);
+    if (allVisibleSelected.value) {
+        selected.value = selected.value.filter((id) => !ids.includes(id));
+        return;
+    }
+    selected.value = [...new Set([...selected.value, ...ids])];
+};
+
+const openBulkMessage = () => {
+    bulkSubject.value = 'A note from Isabi';
+    bulkBody.value = 'Hi {{first_name}}, ';
+    bulkChannels.value = ['in_app', 'email'];
+    bulkOpen.value = true;
+};
+
+const toggleBulkChannel = (value) => {
+    if (bulkChannels.value.includes(value)) {
+        if (bulkChannels.value.length === 1) {
+            return;
+        }
+        bulkChannels.value = bulkChannels.value.filter((item) => item !== value);
+        return;
+    }
+    bulkChannels.value = [...bulkChannels.value, value];
+};
+
+const runBulkMessage = async ({ reason }) => {
+    bulkBusy.value = true;
+    try {
+        const { data } = await axios.post(route('admin.staff.bulk-message'), {
+            ids: selected.value,
+            reason,
+            subject: bulkSubject.value,
+            body: bulkBody.value,
+            channels: bulkChannels.value,
+        });
+        toast(data.toast);
+        selected.value = [];
+        bulkOpen.value = false;
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t send',
+            message: error.response?.data?.message || error.response?.data?.errors?.ids?.[0] || 'Try again.',
+        });
+    } finally {
+        bulkBusy.value = false;
+    }
+};
 
 const toggleMenu = (id) => {
     menuId.value = menuId.value === id ? null : id;
@@ -431,6 +570,7 @@ watch(
 
 const onDeleted = (id) => {
     rows.value = rows.value.filter((row) => row.id !== id);
+    selected.value = selected.value.filter((item) => item !== id);
     closeStaff();
 };
 
@@ -583,5 +723,17 @@ const statusClass = (status) => {
 }
 .no-scrollbar::-webkit-scrollbar {
     display: none;
+}
+</style>
+
+<style>
+.admin-dock-enter-active,
+.admin-dock-leave-active {
+    transition: opacity 0.22s cubic-bezier(0.32, 0.72, 0, 1), transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.admin-dock-enter-from,
+.admin-dock-leave-to {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
 }
 </style>

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin\Hr;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
-use App\Models\DisciplinaryRecord;
 use App\Models\HrProfile;
 use App\Models\Payslip;
 use App\Models\User;
@@ -25,11 +24,6 @@ class HrReportController extends Controller
             'headcount' => $this->headcount(),
             'leave' => $this->leaveUtilisation(),
             'performance' => $this->performanceCoverage(),
-            'discipline' => [
-                'open' => DisciplinaryRecord::query()->where('status', DisciplinaryRecord::STATUS_OPEN)->count(),
-                'monitoring' => DisciplinaryRecord::query()->where('status', DisciplinaryRecord::STATUS_MONITORING)->count(),
-                'closed' => DisciplinaryRecord::query()->where('status', DisciplinaryRecord::STATUS_CLOSED)->count(),
-            ],
             'can' => ['payroll' => $canPayroll],
         ];
 

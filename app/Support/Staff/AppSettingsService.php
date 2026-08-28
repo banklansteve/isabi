@@ -109,14 +109,73 @@ class AppSettingsService
      */
     public function cached()
     {
-        return Cache::rememberForever(self::CACHE_KEY, function () {
+        $payload = Cache::get(self::CACHE_KEY);
+
+        // Legacy cache stored Eloquent collections and can unserialize as incomplete objects.
+        if ($payload !== null && ! is_array($payload)) {
+            Cache::forget(self::CACHE_KEY);
+            $payload = null;
+        }
+
+        if ($payload === null) {
+            $payload = Cache::rememberForever(self::CACHE_KEY, function () {
+                return AppSetting::query()
+                    ->get()
+                    ->map(fn (AppSetting $setting) => $setting->getAttributes())
+                    ->values()
+                    ->all();
+            });
+        }
+
+        if (! is_array($payload)) {
+            Cache::forget(self::CACHE_KEY);
+
             return AppSetting::query()->get();
-        });
+        }
+
+        return AppSetting::query()->hydrate($payload);
     }
 
     public function forgetCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+    }
+
+    public function get(string $key, mixed $default = null): mixed
+    {
+        if (! Schema::hasTable('app_settings')) {
+            $definition = collect(config('admin.settings', []))->firstWhere('key', $key);
+
+            if ($definition) {
+                return $this->currentConfigValue($definition) ?? $default;
+            }
+
+            return config($key, $default);
+        }
+
+        try {
+            $setting = $this->cached()->firstWhere('key', $key);
+        } catch (\Throwable) {
+            Cache::forget(self::CACHE_KEY);
+            $setting = $this->cached()->firstWhere('key', $key);
+        }
+
+        if ($setting) {
+            return $setting->typedValue();
+        }
+
+        $definition = collect(config('admin.settings', []))->firstWhere('key', $key);
+
+        if ($definition) {
+            return $this->currentConfigValue($definition) ?? $default;
+        }
+
+        return $default;
+    }
+
+    public function boolean(string $key, bool $default = false): bool
+    {
+        return filter_var($this->get($key, $default), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

@@ -7,7 +7,7 @@ use App\Http\Requests\Admin\Hr\ExitStaffRequest;
 use App\Http\Requests\Admin\Hr\UpdateHrProfileRequest;
 use App\Models\ChecklistTemplate;
 use App\Models\CompensationRecord;
-use App\Models\DisciplinaryRecord;
+use App\Models\DisciplinaryCase;
 use App\Models\HrProfile;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -15,6 +15,7 @@ use App\Models\PerformanceNote;
 use App\Models\StaffDocument;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Hr\DisciplinaryPresenter;
 use App\Support\Hr\HrDefaults;
 use App\Support\Hr\HrPresenter;
 use App\Support\Hr\LeaveManager;
@@ -31,6 +32,7 @@ class HrProfileController extends Controller
 
         $actor = $request->user();
         $canPayroll = $actor->canDo('hr.payroll.view');
+        $canDiscipline = $actor->canDo('hr.discipline.view');
 
         $user->load([
             'hrProfile',
@@ -38,9 +40,6 @@ class HrProfileController extends Controller
             'staffDocuments.uploader',
             'checklistInstances.items.doneBy',
             'checklistInstances.template',
-            'disciplinaryRecords.issuedBy',
-            'disciplinaryRecords.document',
-            'disciplinaryRecords.user',
         ]);
 
         $leaveRequests = $user->leaveRequests()
@@ -79,21 +78,43 @@ class HrProfileController extends Controller
             'checklistTemplates' => ChecklistTemplate::query()
                 ->where('is_active', true)
                 ->get(['id', 'kind', 'name']),
-            'discipline' => [
-                'records' => $user->disciplinaryRecords
-                    ->sortByDesc('occurred_on')
-                    ->map(fn (DisciplinaryRecord $record) => HrPresenter::disciplineRow($record))
-                    ->values(),
-                'types' => DisciplinaryRecord::typeOptions(),
-                'statuses' => DisciplinaryRecord::statusOptions(),
-            ],
             'can' => [
                 'manage' => $actor->canDo('hr.manage'),
                 'leave' => $actor->canDo('hr.leave.manage'),
                 'payroll_view' => $canPayroll,
                 'payroll_manage' => $actor->canDo('hr.payroll.manage'),
+                'discipline_view' => $canDiscipline,
+                'discipline_manage' => $actor->canDo('hr.discipline.manage'),
             ],
         ];
+
+        if ($canDiscipline) {
+            $cases = DisciplinaryCase::query()
+                ->with(['staff', 'owner'])
+                ->where('user_id', $user->id)
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (DisciplinaryCase $case) => DisciplinaryPresenter::caseRow($case))
+                ->values();
+
+            $props['discipline'] = [
+                'has_open_matter' => $cases->contains(fn ($row) => $row['is_open']),
+                'open_count' => $cases->where('is_open', true)->count(),
+                'cases' => $cases,
+                'owners' => User::query()
+                    ->staff()
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'email'])
+                    ->map(fn (User $person) => [
+                        'id' => $person->id,
+                        'name' => $person->name ?: $person->email,
+                    ])
+                    ->values(),
+                'options' => DisciplinaryPresenter::options(),
+                'opened_id' => $request->integer('case') ?: null,
+            ];
+        }
 
         if ($canPayroll) {
             $current = CompensationRecord::currentFor($user);
@@ -126,6 +147,11 @@ class HrProfileController extends Controller
 
         $data = $request->validated();
         $existing = $user->hrProfile;
+        $status = $data['employment_status'] ?? ($existing?->employment_status ?? HrProfile::STATUS_ACTIVE);
+
+        if ($status === HrProfile::STATUS_EXITED) {
+            abort_if($user->isSuperAdmin(), 403, 'The Super Admin seat cannot be exited here.');
+        }
 
         $profile = HrProfile::query()->updateOrCreate(
             ['user_id' => $user->id],
@@ -141,7 +167,11 @@ class HrProfileController extends Controller
                 'emergency_contact_name' => $data['emergency_contact_name'] ?? null,
                 'emergency_contact_phone' => $data['emergency_contact_phone'] ?? null,
                 'emergency_contact_relationship' => $data['emergency_contact_relationship'] ?? null,
-                'employment_status' => $existing?->employment_status ?? HrProfile::STATUS_ACTIVE,
+                'employment_status' => $status === HrProfile::STATUS_EXITED
+                    ? HrProfile::STATUS_EXITED
+                    : HrProfile::STATUS_ACTIVE,
+                'exit_date' => $status === HrProfile::STATUS_EXITED ? ($data['exit_date'] ?? null) : null,
+                'exit_reason' => $status === HrProfile::STATUS_EXITED ? ($data['exit_reason'] ?? null) : null,
             ],
         );
 
@@ -149,18 +179,38 @@ class HrProfileController extends Controller
             HrDefaults::attachKind($user, ChecklistTemplate::KIND_ONBOARDING, $request->user()->id);
         }
 
+        if ($status === HrProfile::STATUS_EXITED && $existing?->employment_status !== HrProfile::STATUS_EXITED) {
+            HrDefaults::attachKind($user, ChecklistTemplate::KIND_OFFBOARDING, $request->user()->id);
+        }
+
+        if ($status === HrProfile::STATUS_ACTIVE && $existing?->employment_status === HrProfile::STATUS_EXITED) {
+            HrDefaults::attachKind($user, ChecklistTemplate::KIND_ONBOARDING, $request->user()->id);
+        }
+
         ActivityLogger::log(
             action: 'hr.profile_updated',
             summary: "{$request->user()->name} updated the HR profile for {$user->name}.",
-            properties: ['staff_id' => $user->id, 'created' => $existing === null],
+            properties: [
+                'staff_id' => $user->id,
+                'created' => $existing === null,
+                'employment_status' => $profile->employment_status,
+            ],
         );
+
+        $message = $existing ? 'HR profile updated.' : 'HR profile created.';
+        $toast = ['type' => 'success', 'message' => $message];
+
+        if ($status === HrProfile::STATUS_EXITED && $existing?->employment_status !== HrProfile::STATUS_EXITED) {
+            $toast = [
+                'type' => 'success',
+                'message' => "{$user->name} is marked as exited. Remember to revoke their platform access in Access & Roles — the two systems are not synced.",
+                'duration' => 9000,
+            ];
+        }
 
         return redirect()
             ->route('admin.hr.staff.show', $user)
-            ->with('toast', [
-                'type' => 'success',
-                'message' => $existing ? 'HR profile updated.' : 'HR profile created.',
-            ]);
+            ->with('toast', $toast);
     }
 
     public function exit(ExitStaffRequest $request, User $user): RedirectResponse

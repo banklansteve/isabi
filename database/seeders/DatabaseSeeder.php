@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RoleUserSeeder::class,
             StaffRoleSeeder::class,
             AnnouncementTemplateSeeder::class,
+            SupportChatTemplateSeeder::class,
         ]);
     }
 }

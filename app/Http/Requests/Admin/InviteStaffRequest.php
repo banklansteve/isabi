@@ -10,7 +10,9 @@ class InviteStaffRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isSuperAdmin() ?? false;
+        $user = $this->user();
+
+        return ($user?->isSuperAdmin() ?? false) && $user->canDo('admin.staff.invite');
     }
 
     /**

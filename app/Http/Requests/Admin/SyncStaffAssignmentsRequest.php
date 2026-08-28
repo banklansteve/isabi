@@ -9,7 +9,9 @@ class SyncStaffAssignmentsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isSuperAdmin() ?? false;
+        $user = $this->user();
+
+        return ($user?->isSuperAdmin() ?? false) && $user->canDo('admin.staff.manage');
     }
 
     /**
@@ -20,6 +22,14 @@ class SyncStaffAssignmentsRequest extends FormRequest
         return [
             'role_ids' => ['present', 'array'],
             'role_ids.*' => ['integer', Rule::exists('staff_roles', 'id')->where('is_active', true)],
+            'is_super' => ['sometimes', 'boolean'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'role_ids' => array_values(array_unique(array_map('intval', (array) $this->input('role_ids', [])))),
+        ]);
     }
 }

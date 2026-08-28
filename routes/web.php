@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicJobController;
 use App\Http\Controllers\PublicProfileController;
 use App\Http\Controllers\PublicReviewController;
+use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SitemapController;
@@ -186,10 +187,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/referrals', [ReferralController::class, 'index'])->name('referrals.index');
     Route::post('/notifications/{delivery}/read', [NotificationController::class, 'read'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('/realtime/ping', [RealtimeController::class, 'ping'])
+        ->middleware('throttle:60,1')
+        ->name('realtime.ping');
 
     Route::get('/help', [HelpController::class, 'index'])->name('help.index');
     Route::get('/help/chat', [HelpController::class, 'chat'])->name('help.chat');
-    Route::post('/help/chat', [HelpController::class, 'send'])->name('help.chat.send');
+    Route::get('/help/chat/sync', [HelpController::class, 'sync'])->middleware('throttle:60,1')->name('help.chat.sync');
+    Route::post('/help/chat', [HelpController::class, 'send'])->middleware('throttle:support-chat')->name('help.chat.send');
+    Route::post('/help/chat/typing', [HelpController::class, 'typing'])->middleware('throttle:60,1')->name('help.chat.typing');
+    Route::post('/help/chat/messages/{message}/react', [HelpController::class, 'react'])->middleware('throttle:60,1')->name('help.chat.react');
+    Route::post('/help/chat/csat', [HelpController::class, 'csat'])->middleware('throttle:10,1')->name('help.chat.csat');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

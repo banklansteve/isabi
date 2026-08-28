@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\FlagContentRequest;
 use App\Models\Review;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
+use App\Support\Admin\ApprovalService;
 use App\Support\Admin\DashboardMetrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -79,24 +80,103 @@ class ReviewAdminController extends Controller
         ], ['flagged' => false]);
     }
 
-    public function hide(FlagContentRequest $request, Review $review): JsonResponse|RedirectResponse
+    public function hide(FlagContentRequest $request, Review $review, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
         $reason = $request->validated('reason');
-        $review->forceFill(['hidden_at' => now(), 'flag_reason' => $review->flag_reason ?: $reason])->save();
+        $old = ['hidden_at' => $review->hidden_at?->toIso8601String()];
 
-        AdminAudit::record(
-            'reviews.hidden',
-            "{$request->user()->name} hid a review: {$reason}",
+        $result = $approvals->run(
+            $request->user(),
+            'reviews.hide',
             $review,
-            ['hidden_at' => null],
-            ['hidden_at' => now()->toIso8601String(), 'reason' => $reason],
+            $reason,
+            [
+                'review_id' => $review->id,
+                'review_uid' => $review->uid,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['hidden_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($review, $reason, $old, $request) {
+                $review->forceFill([
+                    'hidden_at' => now(),
+                    'flag_reason' => $review->flag_reason ?: $reason,
+                    'hidden_reason' => $reason,
+                ])->save();
+
+                AdminAudit::record(
+                    'reviews.hidden',
+                    "{$request->user()->name} hid a review: {$reason}",
+                    $review,
+                    $old,
+                    ['hidden_at' => $review->hidden_at?->toIso8601String(), 'reason' => $reason],
+                );
+            },
         );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve hiding this review before it takes effect.',
+            ]);
+        }
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'Review hidden',
             'message' => 'It will no longer show on the public page.',
         ], ['hidden' => true]);
+    }
+
+    public function remove(FlagContentRequest $request, Review $review, ApprovalService $approvals): JsonResponse|RedirectResponse
+    {
+        $reason = $request->validated('reason');
+        $old = ['removed_at' => $review->removed_at?->toIso8601String()];
+
+        $result = $approvals->run(
+            $request->user(),
+            'reviews.remove',
+            $review,
+            $reason,
+            [
+                'review_id' => $review->id,
+                'review_uid' => $review->uid,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['removed_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($review, $reason, $old, $request) {
+                $review->forceFill([
+                    'removed_at' => now(),
+                    'hidden_at' => $review->hidden_at ?? now(),
+                    'flag_reason' => $review->flag_reason ?: $reason,
+                    'hidden_reason' => $reason,
+                ])->save();
+
+                AdminAudit::record(
+                    'reviews.removed',
+                    "{$request->user()->name} removed a review: {$reason}",
+                    $review,
+                    $old,
+                    ['removed_at' => $review->removed_at?->toIso8601String(), 'reason' => $reason],
+                );
+            },
+        );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve removing this review.',
+            ]);
+        }
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Review removed',
+            'message' => 'It is no longer available on the public page.',
+        ], ['removed' => true]);
     }
 
     /**

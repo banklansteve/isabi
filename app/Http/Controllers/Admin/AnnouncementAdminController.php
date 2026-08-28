@@ -23,6 +23,8 @@ class AnnouncementAdminController extends Controller
 {
     public function index(Request $request, AnnouncementService $announcements): Response
     {
+        abort_unless($request->user()?->canDo('admin.messaging.manage'), 403);
+
         $audience = (string) $request->query('audience', Announcement::AUDIENCE_USERS);
         if (! in_array($audience, [Announcement::AUDIENCE_USERS, Announcement::AUDIENCE_STAFF], true)) {
             $audience = Announcement::AUDIENCE_USERS;

@@ -115,6 +115,7 @@ class PublicReviewController extends Controller
                     'photo_path' => $photoPath,
                     'photo_url' => $photoUrl,
                     'submitter_ip_hash' => hash('sha256', (string) $request->ip()),
+                    'submitted_ip' => $request->ip(),
                     'user_agent' => $request->userAgent()
                         ? Str::limit($request->userAgent(), 255, '')
                         : null,

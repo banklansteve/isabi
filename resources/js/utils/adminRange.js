@@ -1,5 +1,7 @@
 export const RANGE_PRESETS = [
+    { id: 'today', label: 'Today' },
     { id: 'yesterday', label: 'Yesterday' },
+    { id: 'this_week', label: 'This week' },
     { id: 'last_3', label: 'Last 3 days' },
     { id: 'last_7', label: 'Last 7 days' },
     { id: 'last_30', label: 'Last 30 days' },
@@ -29,10 +31,22 @@ export function rangeBounds(id, customFrom = '', customTo = '') {
         return { from: null, to: null };
     }
 
+    if (id === 'today') {
+        return { from: startOfDay(now), to: endOfDay(now) };
+    }
+
     if (id === 'yesterday') {
         const day = new Date(today);
         day.setDate(day.getDate() - 1);
         return { from: startOfDay(day), to: endOfDay(day) };
+    }
+
+    if (id === 'this_week') {
+        const day = now.getDay();
+        const mondayOffset = day === 0 ? -6 : 1 - day;
+        const from = new Date(today);
+        from.setDate(from.getDate() + mondayOffset);
+        return { from: startOfDay(from), to: endOfDay(now) };
     }
 
     if (id === 'last_3' || id === 'last_7' || id === 'last_30') {

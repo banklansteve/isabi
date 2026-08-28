@@ -113,6 +113,7 @@ const page = usePage();
 const tabGroups = {
     general: ['general', 'mail', 'profiles'],
     features: ['features'],
+    ops: ['ops'],
     payments: ['payments'],
     session: ['session'],
     slugs: ['slugs'],

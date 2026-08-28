@@ -34,6 +34,7 @@ return [
                 'admin.users.view',
                 'admin.support.manage',
                 'admin.messaging.manage',
+                'admin.ops_messages.send',
             ],
         ],
         [
@@ -46,17 +47,39 @@ return [
                 'admin.users.manage',
                 'admin.content.manage',
                 'admin.moderation.manage',
+                'admin.ops_messages.send',
             ],
         ],
         [
             'slug' => 'patrol',
             'name' => 'Patrol',
-            'description' => 'Review public profiles, jobs, and reviews for spam, impersonation, and policy issues.',
+            'description' => 'Investigate flagged artisan job logs. Cannot finalize high-severity dismissals or removals.',
             'icon' => 'ti ti-binoculars',
             'permissions' => [
                 'admin.users.view',
                 'admin.content.manage',
-                'admin.patrol.manage',
+                'patrol.view',
+                'patrol.investigate',
+            ],
+        ],
+        [
+            'slug' => 'growth_ops',
+            'name' => 'Growth / referrals',
+            'description' => 'View referral lists and details. No platform revenue or token sales totals.',
+            'icon' => 'ti ti-gift',
+            'permissions' => [
+                'admin.users.view',
+                'admin.referrals.view',
+            ],
+        ],
+        [
+            'slug' => 'finance_officer',
+            'name' => 'Billing issues',
+            'description' => 'Resolve payment failures, multi-charges, and chargebacks. Cannot view platform revenue.',
+            'icon' => 'ti ti-credit-card',
+            'permissions' => [
+                'admin.users.view',
+                'admin.billing_issues.manage',
             ],
         ],
         [
@@ -69,6 +92,225 @@ return [
                 'hr.manage',
                 'hr.leave.manage',
             ],
+        ],
+        [
+            'slug' => 'people_discipline',
+            'name' => 'Disciplinary cases',
+            'description' => 'Prepare, investigate, and record formal employment matters. Does not include general HR access.',
+            'icon' => 'ti ti-clipboard-text',
+            'permissions' => [
+                'hr.discipline.view',
+                'hr.discipline.manage',
+            ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operations home
+    |--------------------------------------------------------------------------
+    |
+    | Short labels and colours for role pills. Shortcuts are destinations on
+    | the ops home — never shown unless the person has the matching ability.
+    |
+    */
+    'duty_badges' => [
+        'customer_support' => ['short' => 'Support', 'tone' => 'support', 'route' => 'admin.support.index'],
+        'moderation' => ['short' => 'Moderator', 'tone' => 'moderator', 'route' => 'admin.jobs.index'],
+        'trust_safety' => ['short' => 'Moderator', 'tone' => 'moderator', 'route' => 'admin.jobs.index'],
+        'patrol' => ['short' => 'Patrol', 'tone' => 'patrol', 'route' => 'admin.patrol.index'],
+        'verification_officer' => ['short' => 'Verification', 'tone' => 'verify', 'route' => 'admin.users.index'],
+        'people_hr' => ['short' => 'HR', 'tone' => 'hr', 'route' => 'admin.hr.index'],
+        'people_discipline' => ['short' => 'Discipline', 'tone' => 'discipline', 'route' => 'admin.hr.discipline.index'],
+        'finance_officer' => ['short' => 'Billing issues', 'tone' => 'finance', 'route' => 'admin.billing-issues.index'],
+        'growth_ops' => ['short' => 'Growth', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
+        'content_comms' => ['short' => 'Content', 'tone' => 'content', 'route' => 'admin.messaging.index'],
+    ],
+
+    'ops_shortcuts' => [
+        [
+            'key' => 'support',
+            'label' => 'Customer support',
+            'icon' => 'ti ti-headset',
+            'route' => 'admin.support.index',
+            'ability' => 'admin.support.manage',
+            'hint' => 'assigned to you',
+        ],
+        [
+            'key' => 'asap',
+            'label' => 'ASAP',
+            'icon' => 'ti ti-bolt',
+            'route' => 'admin.asap.index',
+            'hint' => 'unread',
+        ],
+        [
+            'key' => 'ops_messages',
+            'label' => 'Warn a user',
+            'icon' => 'ti ti-mail-forward',
+            'route' => 'admin.ops-messages.index',
+            'abilitiesAny' => ['admin.ops_messages.send', 'admin.users.manage', 'admin.messaging.manage'],
+            'hint' => 'templates',
+        ],
+        [
+            'key' => 'billing',
+            'label' => 'Billing issues',
+            'icon' => 'ti ti-credit-card',
+            'route' => 'admin.billing-issues.index',
+            'ability' => 'admin.billing_issues.manage',
+            'hint' => 'open',
+        ],
+        [
+            'key' => 'approvals',
+            'label' => 'Approvals',
+            'icon' => 'ti ti-shield-check',
+            'route' => 'admin.approvals.index',
+            'ability' => 'admin.approvals.manage',
+            'hint' => 'pending',
+        ],
+        [
+            'key' => 'patrol',
+            'label' => 'Patrol',
+            'icon' => 'ti ti-binoculars',
+            'route' => 'admin.patrol.index',
+            'ability' => 'patrol.view',
+            'hint' => 'active',
+        ],
+        [
+            'key' => 'jobs',
+            'label' => 'Job logs',
+            'icon' => 'ti ti-briefcase',
+            'route' => 'admin.jobs.index',
+            'ability' => 'admin.content.manage',
+            'hint' => 'to review',
+        ],
+        [
+            'key' => 'users',
+            'label' => 'Users',
+            'icon' => 'ti ti-users',
+            'route' => 'admin.users.index',
+            'ability' => 'admin.users.view',
+            'hint' => 'to verify',
+        ],
+        [
+            'key' => 'hr',
+            'label' => 'HR',
+            'icon' => 'ti ti-id-badge-2',
+            'route' => 'admin.hr.index',
+            'abilitiesAny' => ['hr.view', 'hr.discipline.view'],
+            'hint' => 'pending',
+        ],
+        [
+            'key' => 'messaging',
+            'label' => 'Announcements',
+            'icon' => 'ti ti-speakerphone',
+            'route' => 'admin.messaging.index',
+            'ability' => 'admin.messaging.manage',
+            'hint' => 'drafts',
+        ],
+        [
+            'key' => 'credits',
+            'label' => 'Credits',
+            'icon' => 'ti ti-coin',
+            'route' => 'admin.credits.index',
+            'ability' => 'admin.credits.view',
+            'hint' => 'open',
+        ],
+        [
+            'key' => 'analytics',
+            'label' => 'Analytics',
+            'icon' => 'ti ti-chart-dots-2',
+            'route' => 'admin.analytics.index',
+            'ability' => 'admin.analytics.view',
+            'hint' => 'live',
+        ],
+        [
+            'key' => 'reviews',
+            'label' => 'Reviews',
+            'icon' => 'ti ti-star',
+            'route' => 'admin.reviews.index',
+            'ability' => 'admin.content.manage',
+            'hint' => 'pending',
+        ],
+        [
+            'key' => 'referrals',
+            'label' => 'Referrals',
+            'icon' => 'ti ti-gift',
+            'route' => 'admin.referrals.index',
+            'ability' => 'admin.referrals.view',
+            'hint' => 'new',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operations insights
+    |--------------------------------------------------------------------------
+    |
+    | Scoring is relative to the team in the selected window. Presence only
+    | counts as "away" while the person should be on duty.
+    |
+    */
+    'ops_insights' => [
+        'idle_after_minutes' => 7,
+        'presence_write_seconds' => 30,
+        'live_poll_ms' => 15000,
+        'queues' => [
+            'support' => [
+                'label' => 'Customer service',
+                'icon' => 'ti ti-headset',
+                'prefixes' => ['support.'],
+            ],
+            'patrol' => [
+                'label' => 'Patrol',
+                'icon' => 'ti ti-binoculars',
+                'prefixes' => ['patrol.'],
+            ],
+            'jobs' => [
+                'label' => 'Job logs',
+                'icon' => 'ti ti-briefcase',
+                'prefixes' => ['jobs.'],
+            ],
+            'users' => [
+                'label' => 'Users',
+                'icon' => 'ti ti-users',
+                'prefixes' => ['users.'],
+            ],
+            'messaging' => [
+                'label' => 'Messaging',
+                'icon' => 'ti ti-speakerphone',
+                'prefixes' => ['messaging.', 'staff.messaged', 'staff.announced'],
+            ],
+            'referrals' => [
+                'label' => 'Referrals',
+                'icon' => 'ti ti-gift',
+                'prefixes' => ['referrals.'],
+            ],
+            'hr' => [
+                'label' => 'HR',
+                'icon' => 'ti ti-id-badge-2',
+                'prefixes' => ['hr.', 'discipline.'],
+            ],
+        ],
+        'completion_actions' => [
+            'support.resolved',
+            'patrol.dismissed',
+            'patrol.removed',
+            'patrol.hidden',
+            'patrol.handoff_suspend',
+            'jobs.flagged',
+            'jobs.unflagged',
+            'jobs.hidden',
+            'jobs.unhidden',
+            'jobs.referred',
+            'users.verified',
+            'users.suspended',
+            'users.reinstated',
+        ],
+        'score_weights' => [
+            'completions' => 40,
+            'responsiveness' => 25,
+            'volume' => 20,
+            'presence' => 15,
         ],
     ],
 
@@ -96,14 +338,19 @@ return [
             'items' => [
                 'admin.content.manage' => 'View and moderate job logs and reviews',
                 'admin.moderation.manage' => 'Handle flagged and policy-violating content',
-                'admin.patrol.manage' => 'Run patrol queues on public profiles',
+                'admin.patrol.manage' => 'Legacy patrol access (prefer patrol.view / investigate / resolve)',
+                'patrol.view' => 'View the Patrol queues (job logs and reviews), case detail, and notes',
+                'patrol.investigate' => 'Add notes, move cases to in review, recommend outcomes, and dismiss low-severity cases',
+                'patrol.resolve' => 'Finalize dismissals, hide or soft-remove content, and hand off to Users',
             ],
         ],
         'money' => [
             'label' => 'Credits & financials',
             'items' => [
-                'admin.credits.view' => 'View credit transactions and purchases',
+                'admin.credits.view' => 'View credit transactions, purchases, and platform revenue (Super Admin / finance only)',
                 'admin.billing.manage' => 'Adjust credits, pricing, and financials',
+                'admin.billing_issues.manage' => 'Work payment failures, multi-charges, and chargebacks for assigned customers',
+                'admin.referrals.view' => 'View referral lists and details (no platform revenue)',
             ],
         ],
         'ops' => [
@@ -111,6 +358,7 @@ return [
             'items' => [
                 'admin.support.manage' => 'Handle artisan support tickets',
                 'admin.messaging.manage' => 'Send announcements to artisans or staff',
+                'admin.ops_messages.send' => 'Send Super Admin templated messages to site users',
                 'admin.analytics.view' => 'View growth and engagement analytics',
             ],
         ],
@@ -121,17 +369,20 @@ return [
                 'admin.staff.manage' => 'Disable, remove, and assign roles to staff',
                 'admin.roles.manage' => 'Create and edit roles and permissions',
                 'admin.activity.view' => 'View the audit log and staff activity',
+                'admin.approvals.manage' => 'Review operations actions awaiting Super Admin approval',
                 'admin.settings.manage' => 'Change platform settings',
             ],
         ],
         'people' => [
             'label' => 'People / HR',
             'items' => [
-                'hr.view' => 'View the staff directory, leave, discipline, and HR profiles',
-                'hr.manage' => 'Edit HR profiles, documents, checklists, performance notes, and disciplinary records',
+                'hr.view' => 'View the staff directory, leave, and HR profiles',
+                'hr.manage' => 'Edit HR profiles, documents, checklists, and performance notes',
                 'hr.leave.manage' => 'Book, approve, reject, cancel, and allocate leave',
                 'hr.payroll.view' => 'View compensation and aggregate payroll reports',
                 'hr.payroll.manage' => 'Edit compensation and generate payslips',
+                'hr.discipline.view' => 'View disciplinary case files, timelines, and aggregate case reports',
+                'hr.discipline.manage' => 'Open cases, record notes, issue formal actions, and manage letter templates',
             ],
         ],
     ],
@@ -168,7 +419,7 @@ return [
             'group' => 'mail',
             'type' => 'string',
             'config' => 'mail.from.address',
-            'description' => 'The address Isabi sends transactional email from.',
+            'description' => 'Must match the SMTP account for Gmail (the Gmail address). Other From addresses are usually dropped.',
         ],
         [
             'key' => 'mail.from.name',
@@ -249,6 +500,20 @@ return [
             'type' => 'integer',
             'config' => 'session.lifetime_super_admin',
             'description' => 'How long the super admin stays signed in after their last activity.',
+        ],
+        [
+            'key' => 'ops.templated_messaging_enabled',
+            'label' => 'Allow operations templated messaging',
+            'group' => 'ops',
+            'type' => 'boolean',
+            'description' => 'When off, operations cannot send templated messages to site users.',
+        ],
+        [
+            'key' => 'ops.templated_messaging_require_approval',
+            'label' => 'Require Super Admin approval for ops messages',
+            'group' => 'ops',
+            'type' => 'boolean',
+            'description' => 'When on, every outbound templated message from operations waits for Super Admin approval.',
         ],
     ],
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Hr;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Hr\ReissuePayslipRequest;
 use App\Http\Requests\Admin\Hr\StorePayslipRequest;
 use App\Http\Requests\Admin\Hr\UpdateCompensationRequest;
 use App\Models\CompensationRecord;
@@ -150,6 +151,55 @@ class HrPayrollController extends Controller
         );
 
         return back()->with('toast', ['type' => 'success', 'message' => "Payslip marked as {$data['status']}."]);
+    }
+
+    public function reissue(ReissuePayslipRequest $request, Payslip $payslip): RedirectResponse
+    {
+        abort_unless(in_array($payslip->status, [Payslip::STATUS_ISSUED, Payslip::STATUS_PAID], true), 422, 'Only issued payslips can be reissued.');
+
+        $payslip->load('items');
+        $user = $payslip->user;
+        $reason = $request->validated('reason');
+
+        $copy = Payslip::query()->create([
+            'user_id' => $payslip->user_id,
+            'period_label' => $payslip->period_label,
+            'period_start' => $payslip->period_start,
+            'period_end' => $payslip->period_end,
+            'currency' => $payslip->currency,
+            'base_pay' => $payslip->base_pay,
+            'allowances_total' => $payslip->allowances_total,
+            'deductions_total' => $payslip->deductions_total,
+            'gross_pay' => $payslip->gross_pay,
+            'net_pay' => $payslip->net_pay,
+            'status' => Payslip::STATUS_ISSUED,
+            'issued_at' => now(),
+            'notes' => trim(($payslip->notes ? $payslip->notes."\n" : '').'Reissued. '.$reason),
+            'generated_by' => $request->user()->id,
+        ]);
+
+        foreach ($payslip->items as $item) {
+            $copy->items()->create([
+                'kind' => $item->kind,
+                'label' => $item->label,
+                'amount' => $item->amount,
+                'sort_order' => $item->sort_order,
+            ]);
+        }
+
+        ActivityLogger::log(
+            action: 'hr.payslip_reissued',
+            summary: "{$request->user()->name} reissued a payslip for {$user->name} ({$payslip->period_label}).",
+            properties: [
+                'staff_id' => $user->id,
+                'source_payslip_id' => $payslip->id,
+                'payslip_id' => $copy->id,
+            ],
+        );
+
+        return redirect()
+            ->route('admin.hr.staff.show', ['user' => $user, 'tab' => 'payroll'])
+            ->with('toast', ['type' => 'success', 'message' => 'Payslip reissued. The original record stays on file.']);
     }
 
     public function destroyPayslip(Request $request, Payslip $payslip): RedirectResponse

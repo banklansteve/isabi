@@ -27,6 +27,7 @@ class HrPresenter
 
         return [
             'id' => $user->id,
+            'uid' => $user->uid,
             'name' => $user->name ?: $user->email,
             'email' => $user->email,
             'initials' => self::initials($user),
@@ -41,6 +42,7 @@ class HrPresenter
             'start_date_label' => $profile?->start_date?->format('j M Y'),
             'has_profile' => $profile !== null,
             'is_super_admin' => $user->isSuperAdmin(),
+            'has_open_matter' => (bool) ($user->has_open_matter ?? false),
         ];
     }
 
@@ -56,6 +58,7 @@ class HrPresenter
 
         return [
             'id' => $user->id,
+            'uid' => $user->uid,
             'name' => $user->name ?: $user->email,
             'email' => $user->email,
             'whatsapp' => $user->whatsapp,

@@ -19,30 +19,30 @@
             :class="{ 'shadow-nav': scrolled }"
             style="padding-top: env(safe-area-inset-top)"
         >
-            <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
-                <div class="flex min-w-0 items-center gap-8 lg:gap-14 xl:gap-16">
-                    <Link
-                        :href="route('dashboard')"
-                        class="shrink-0 text-[1.45rem] font-extrabold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
-                    >
-                        Isabi
-                    </Link>
+            <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-10">
+                <Link
+                    :href="route('dashboard')"
+                    class="shrink-0 text-[1.45rem] font-extrabold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
+                >
+                    Isabi
+                </Link>
 
-                    <nav
-                        class="hidden items-center md:flex md:gap-1 lg:gap-2"
-                        aria-label="Primary"
+                <div class="min-w-0 flex-1" />
+
+                <nav
+                    class="hidden items-center md:flex md:gap-1 lg:gap-2"
+                    aria-label="Primary"
+                >
+                    <Link
+                        v-for="item in primaryNav"
+                        :key="item.href"
+                        :href="item.href"
+                        class="nav-link"
+                        :class="isActive(item.match) ? 'nav-link--active' : ''"
                     >
-                        <Link
-                            v-for="item in primaryNav"
-                            :key="item.href"
-                            :href="item.href"
-                            class="nav-link"
-                            :class="isActive(item.match) ? 'nav-link--active' : ''"
-                        >
-                            {{ item.label }}
-                        </Link>
-                    </nav>
-                </div>
+                        {{ item.label }}
+                    </Link>
+                </nav>
 
                 <div class="flex items-center gap-2 sm:gap-3">
                     <Link
@@ -120,15 +120,18 @@
 
         <main
             :class="
-                fullBleed
-                    ? 'pb-28 sm:pb-14'
-                    : 'mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10'
+                flush
+                    ? 'overflow-hidden'
+                    : fullBleed
+                      ? 'pb-28 sm:pb-14'
+                      : 'mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10'
             "
         >
             <slot />
         </main>
 
         <nav
+            v-if="!flush"
             class="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-white/95 backdrop-blur-xl md:hidden"
             style="padding-bottom: env(safe-area-inset-bottom)"
             aria-label="Bottom navigation"
@@ -160,6 +163,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 defineProps({
     /** Edge-to-edge content (e.g. public profile preview) — keeps app nav, drops main padding. */
     fullBleed: { type: Boolean, default: false },
+    /** Fill the viewport below the header with no extra page padding (chat). */
+    flush: { type: Boolean, default: false },
 });
 
 const page = usePage();

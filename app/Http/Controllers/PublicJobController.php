@@ -32,6 +32,13 @@ class PublicJobController extends Controller
             ->with(['media', 'review'])
             ->firstOrFail();
 
+        $viewer = $request->user();
+        $viewerIsOwner = $viewer !== null && (int) $viewer->id === (int) $artisan->id;
+
+        if (! $log->isPubliclyVisible() && ! $viewerIsOwner) {
+            abort(404);
+        }
+
         if (filled($log->slug) && $log->slug !== $job) {
             return redirect()->route('public.job', [$artisan->slug, $log->slug], 301);
         }
@@ -66,8 +73,6 @@ class PublicJobController extends Controller
                 ['name' => $log->description, 'url' => $url],
             ]));
 
-        $viewer = $request->user();
-
         return Inertia::render('Public/Job', [
             'profile' => [
                 'business_name' => $artisan->displayBusinessName(),
@@ -101,7 +106,7 @@ class PublicJobController extends Controller
                     'kind' => $m->kind,
                     'original_name' => $m->original_name,
                 ])->values(),
-                'review' => $log->review ? [
+                'review' => ($log->review && $log->review->isPubliclyVisible()) ? [
                     'rating' => (float) $log->review->rating,
                     'would_recommend' => $log->review->would_recommend,
                     'comment' => $log->review->comment,

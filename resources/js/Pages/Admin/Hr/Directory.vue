@@ -83,6 +83,12 @@
                                 >
                                     On leave
                                 </span>
+                                <span
+                                    v-if="can.discipline_view && member.has_open_matter"
+                                    class="hidden shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 sm:inline"
+                                >
+                                    Open matter
+                                </span>
                             </div>
                             <p class="truncate text-xs font-medium text-ink/45">
                                 {{ member.position || member.role_label }}

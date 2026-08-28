@@ -1,9 +1,24 @@
 <template>
     <Head :title="profile.name" />
 
-    <AdminChrome :title="profile.name" :eyebrow="profileEyebrow" />
+    <AdminChrome
+        :title="profile.name"
+        :eyebrow="profileEyebrow"
+        :back-href="route('admin.hr.index')"
+        back-label="Back to directory"
+    />
         <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
             <div class="flex items-start gap-3.5">
+                <Link
+                    :href="route('admin.hr.index')"
+                    prefetch
+                    cache-for="5m"
+                    :show-progress="false"
+                    class="tap-target mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-ink/50 shadow-premium ring-1 ring-ink/[0.06] transition-colors hover:bg-pale hover:text-ink"
+                    aria-label="Back to directory"
+                >
+                    <i class="ti ti-arrow-left text-lg" aria-hidden="true" />
+                </Link>
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-tint text-sm font-bold text-deep">
                     <img v-if="profile.avatar_url" :src="profile.avatar_url" :alt="profile.name" class="h-full w-full object-cover" />
                     <template v-else>{{ profile.initials }}</template>
@@ -23,6 +38,11 @@
                         View platform access record
                     </Link>
                 </div>
+            </div>
+            <div v-if="profile.has_profile" class="flex flex-wrap gap-2">
+                <FormButton v-if="can.manage" variant="secondary" icon-left="ti ti-pencil" label="Edit employment" @click="openProfileModal" />
+                <FormButton v-if="can.manage && profile.employment_status !== 'exited'" variant="secondary" icon-left="ti ti-door-exit" label="Mark as exited" @click="exitOpen = true" />
+                <FormButton v-if="can.discipline_manage" variant="primary" icon-left="ti ti-clipboard-plus" label="Open a case" @click="openCreateCase" />
             </div>
         </div>
 
@@ -75,6 +95,7 @@
                                 <div class="flex justify-between gap-4"><dt class="text-ink/45">Position</dt><dd class="text-right font-semibold text-ink">{{ profile.position || '—' }}</dd></div>
                                 <div class="flex justify-between gap-4"><dt class="text-ink/45">Department</dt><dd class="text-right font-semibold text-ink">{{ profile.department || '—' }}</dd></div>
                                 <div class="flex justify-between gap-4"><dt class="text-ink/45">Employment type</dt><dd class="text-right font-semibold text-ink">{{ profile.employment_type || '—' }}</dd></div>
+                                <div class="flex justify-between gap-4"><dt class="text-ink/45">Employment status</dt><dd class="text-right font-semibold text-ink">{{ statusMeta.label }}</dd></div>
                                 <div class="flex justify-between gap-4"><dt class="text-ink/45">Start date</dt><dd class="text-right font-semibold text-ink">{{ profile.start_date_label || '—' }}</dd></div>
                                 <div class="flex justify-between gap-4"><dt class="text-ink/45">Platform role</dt><dd class="text-right font-semibold text-ink">{{ profile.role_label }}</dd></div>
                             </dl>
@@ -101,7 +122,7 @@
                                     <option value="">Start a checklist…</option>
                                     <option v-for="tpl in checklistTemplates" :key="tpl.id" :value="tpl.id">{{ tpl.name }}</option>
                                 </select>
-                                <button type="button" class="tap-target rounded-xl bg-tint px-3 py-2 text-xs font-semibold text-deep disabled:opacity-40" :disabled="!checklistTemplateId" @click="attachChecklist">Add</button>
+                                <button type="button" class="tap-target rounded-xl bg-tint px-3 py-2 text-xs font-semibold text-deep disabled:opacity-40" :disabled="!checklistTemplateId || busyKey === 'checklist'" @click="attachChecklist">{{ busyKey === 'checklist' ? 'Adding…' : 'Add' }}</button>
                             </div>
                         </div>
 
@@ -136,7 +157,7 @@
 
                     <div v-if="can.manage" class="flex flex-wrap gap-2">
                         <FormButton v-if="profile.employment_status !== 'exited'" variant="secondary" icon-left="ti ti-door-exit" label="Mark as exited" @click="exitOpen = true" />
-                        <FormButton v-else variant="secondary" icon-left="ti ti-arrow-back-up" label="Reactivate" @click="reactivate" />
+                        <FormButton v-else variant="secondary" icon-left="ti ti-arrow-back-up" label="Reactivate" :loading="reactivateBusy" loading-label="Saving…" @click="reactivate" />
                     </div>
                 </template>
             </section>
@@ -160,7 +181,7 @@
 
                 <div class="flex flex-wrap gap-2">
                     <FormButton v-if="can.manage || can.leave" variant="primary" icon-left="ti ti-plus" label="Log leave" @click="openLeaveModal" />
-                    <FormButton v-if="can.leave" variant="secondary" icon-left="ti ti-adjustments" label="Adjust allowance" @click="openAllocateModal" />
+                    <FormButton v-if="can.leave" variant="secondary" icon-left="ti ti-adjustments" label="Adjust balance" @click="openAllocateModal" />
                 </div>
 
                 <div class="overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.06]">
@@ -186,10 +207,10 @@
                                 </div>
                                 <div v-if="can.leave" class="flex shrink-0 gap-1.5">
                                     <template v-if="req.status === 'pending'">
-                                        <button type="button" class="tap-target rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" @click="openDecision(req, 'approve')">Approve</button>
-                                        <button type="button" class="tap-target rounded-lg bg-coral-tint px-3 py-1.5 text-xs font-semibold text-coral-deep hover:bg-coral-tint/70" @click="openDecision(req, 'reject')">Reject</button>
+                                        <button type="button" class="tap-target rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50" :disabled="decisionForm.processing" @click="openDecision(req, 'approve')">Approve</button>
+                                        <button type="button" class="tap-target rounded-lg bg-coral-tint px-3 py-1.5 text-xs font-semibold text-coral-deep hover:bg-coral-tint/70 disabled:opacity-50" :disabled="decisionForm.processing" @click="openDecision(req, 'reject')">Reject</button>
                                     </template>
-                                    <button v-else-if="req.status === 'approved'" type="button" class="tap-target rounded-lg bg-pale px-3 py-1.5 text-xs font-semibold text-ink/60 hover:bg-tint" @click="cancelLeave(req)">Cancel</button>
+                                    <button v-else-if="req.status === 'approved'" type="button" class="tap-target rounded-lg bg-pale px-3 py-1.5 text-xs font-semibold text-ink/60 hover:bg-tint disabled:opacity-50" :disabled="busyKey === `cancel-${req.id}`" @click="cancelLeave(req)">{{ busyKey === `cancel-${req.id}` ? 'Working…' : 'Cancel' }}</button>
                                 </div>
                             </div>
                         </li>
@@ -216,6 +237,7 @@
                                 <dt class="text-ink/45">{{ a.label }}</dt>
                                 <dd class="flex items-center gap-2 font-semibold text-ink">
                                     {{ money(a.amount, payroll.compensation.currency) }}
+                                    <button v-if="can.payroll_manage" type="button" class="text-xs font-semibold text-base-action hover:text-base-hover" @click="openAllowanceDrawer(a)">Edit</button>
                                     <button v-if="can.payroll_manage" type="button" class="text-xs font-semibold text-ink/40 hover:text-coral-deep" @click="openEndAllowance(a)">End</button>
                                 </dd>
                             </div>
@@ -247,11 +269,11 @@
                 <div class="rounded-[1.5rem] bg-white p-6 shadow-premium ring-1 ring-ink/[0.06]">
                     <div class="flex items-center justify-between">
                         <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-ink/40">Payslips</h2>
-                        <FormButton v-if="can.payroll_manage" variant="secondary" icon-left="ti ti-plus" label="Record" @click="openPayslipModal" />
+                        <FormButton v-if="can.payroll_manage" variant="secondary" icon-left="ti ti-plus" label="Generate" @click="openPayslipModal" />
                     </div>
                     <div v-if="!payroll?.payslips?.length" class="mt-6 rounded-2xl border border-dashed border-ink/15 px-6 py-10 text-center">
                         <p class="text-sm font-semibold text-ink">No payslips yet</p>
-                        <p class="mt-1 text-sm font-medium text-ink/45">Record what is owed for a period. This does not move money.</p>
+                        <p class="mt-1 text-sm font-medium text-ink/45">Generate what is owed for a period. This does not move money.</p>
                     </div>
                     <ul v-else class="mt-4 divide-y divide-ink/10">
                         <li v-for="slip in payroll.payslips" :key="slip.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -264,8 +286,9 @@
                             </button>
                             <div class="flex shrink-0 items-center gap-1.5">
                                 <a :href="route('admin.hr.payslips.pdf', slip.id)" class="tap-target rounded-lg bg-pale px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-tint">PDF</a>
-                                <button v-if="can.payroll_manage && slip.status === 'draft'" type="button" class="tap-target rounded-lg bg-tint px-3 py-1.5 text-xs font-semibold text-deep" @click="setPayslipStatus(slip, 'issued')">Issue</button>
-                                <button v-if="can.payroll_manage && slip.status === 'issued'" type="button" class="tap-target rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700" @click="setPayslipStatus(slip, 'paid')">Mark paid</button>
+                                <button v-if="can.payroll_manage && slip.status === 'issued'" type="button" class="tap-target rounded-lg bg-tint px-3 py-1.5 text-xs font-semibold text-deep disabled:opacity-50" :disabled="busyKey === `reissue-${slip.id}`" @click="openReissue(slip)">{{ busyKey === `reissue-${slip.id}` ? 'Working…' : 'Reissue' }}</button>
+                                <button v-if="can.payroll_manage && slip.status === 'draft'" type="button" class="tap-target rounded-lg bg-tint px-3 py-1.5 text-xs font-semibold text-deep disabled:opacity-50" :disabled="busyKey === `issue-${slip.id}`" @click="setPayslipStatus(slip, 'issued')">{{ busyKey === `issue-${slip.id}` ? 'Working…' : 'Issue' }}</button>
+                                <button v-if="can.payroll_manage && slip.status === 'issued'" type="button" class="tap-target rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-50" :disabled="busyKey === `paid-${slip.id}`" @click="setPayslipStatus(slip, 'paid')">{{ busyKey === `paid-${slip.id}` ? 'Working…' : 'Mark paid' }}</button>
                                 <button v-if="can.payroll_manage && slip.status === 'draft'" type="button" class="tap-target rounded-lg px-2 py-1.5 text-xs font-semibold text-ink/40 hover:text-coral-deep" aria-label="Delete draft" @click="deletePayslip(slip)"><i class="ti ti-trash" aria-hidden="true" /></button>
                             </div>
                         </li>
@@ -273,34 +296,36 @@
                 </div>
             </section>
 
-            <!-- DISCIPLINE -->
+            <!-- CASES -->
             <section v-else-if="activeTab === 'discipline'" class="space-y-6">
-                <div class="flex justify-between">
-                    <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-ink/40">Disciplinary file</h2>
-                    <FormButton v-if="can.manage" variant="primary" icon-left="ti ti-plus" label="Add record" @click="openDisciplineCreate()" />
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-ink/40">Cases</h2>
+                        <p class="mt-1 text-sm font-medium text-ink/50">
+                            {{ caseHistoryHint }}
+                        </p>
+                    </div>
+                    <FormButton v-if="can.discipline_manage" variant="primary" icon-left="ti ti-plus" label="Open a case" @click="openCreateCase" />
                 </div>
-                <div v-if="!discipline.records.length" class="rounded-[1.5rem] border border-dashed border-ink/15 bg-white px-6 py-12 text-center shadow-premium">
-                    <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-pale text-2xl text-ink/35"><i class="ti ti-gavel" aria-hidden="true" /></span>
-                    <p class="mt-4 text-base font-semibold text-ink">No disciplinary records</p>
-                    <p class="mx-auto mt-1 max-w-sm text-sm font-medium text-ink/45">Warnings, suspensions, and improvement plans stay on this file — including after exit.</p>
-                    <FormButton v-if="can.manage" class="mx-auto mt-6" variant="primary" icon-left="ti ti-plus" label="Add the first record" @click="openDisciplineCreate()" />
+
+                <div v-if="!(discipline?.cases || []).length" class="rounded-[1.5rem] border border-dashed border-ink/15 bg-white px-6 py-12 text-center shadow-premium">
+                    <p class="text-base font-semibold text-ink">No cases on this file</p>
+                    <p class="mx-auto mt-1 max-w-sm text-sm font-medium text-ink/45">A case is a permanent record. Open one only when an incident needs documenting.</p>
+                    <FormButton v-if="can.discipline_manage" class="mx-auto mt-6" variant="primary" icon-left="ti ti-plus" label="Open a case" @click="openCreateCase" />
                 </div>
                 <ul v-else class="overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.06] divide-y divide-ink/10">
-                    <li v-for="record in discipline.records" :key="record.id">
-                        <button type="button" class="flex w-full items-start justify-between gap-3 px-5 py-4 text-left sm:px-6" @click="openDisciplineEdit(record)">
-                            <div class="min-w-0">
+                    <li v-for="item in discipline.cases" :key="item.id">
+                        <button type="button" class="flex w-full items-start gap-3.5 px-5 py-4 text-left hover:bg-pale/70" @click="openProfileCase(item)">
+                            <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <p class="text-sm font-semibold text-ink">{{ record.type_label }}</p>
-                                    <span :class="[pillBase, disciplineStatus(record.status).class]">{{ record.status_label }}</span>
+                                    <p class="text-sm font-semibold text-ink">{{ item.reference }}</p>
+                                    <span :class="[pillBase, disciplineStatus(item.status).class]">{{ item.status_label }}</span>
+                                    <span :class="[pillBase, disciplineSeverity(item.severity).class]">{{ item.severity_label }}</span>
                                 </div>
-                                <p class="mt-1 text-sm font-medium text-ink/70">{{ record.summary }}</p>
-                                <p class="mt-1 text-xs font-medium text-ink/45">
-                                    {{ record.occurred_label }}
-                                    <span v-if="record.issued_by_name"> · {{ record.issued_by_name }}</span>
-                                    <span v-if="record.follow_up_label"> · Follow-up {{ record.follow_up_label }}</span>
-                                </p>
+                                <p class="mt-0.5 text-sm font-medium text-ink/55">{{ item.category_label }} · Incident {{ item.incident_label }}</p>
+                                <p class="mt-1 text-xs font-medium text-ink/40">Updated {{ item.updated_label }}</p>
                             </div>
-                            <i class="ti ti-chevron-right mt-1 shrink-0 text-ink/25" aria-hidden="true" />
+                            <i class="ti ti-chevron-right mt-2 shrink-0 text-ink/25" aria-hidden="true" />
                         </button>
                     </li>
                 </ul>
@@ -363,6 +388,7 @@
                         <div class="flex shrink-0 items-center gap-2">
                             <span v-if="expiryBadge(doc.expiry_state)" :class="[pillBase, expiryBadge(doc.expiry_state).class]">{{ expiryBadge(doc.expiry_state).label }}</span>
                             <a :href="route('admin.hr.documents.download', doc.id)" class="tap-target rounded-lg bg-pale px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-tint">Download</a>
+                            <button v-if="can.manage" type="button" class="tap-target rounded-lg bg-tint px-3 py-1.5 text-xs font-semibold text-deep" @click="openDocEdit(doc)">Expiry</button>
                             <button v-if="can.manage" type="button" class="tap-target rounded-lg px-2 py-1.5 text-xs text-ink/40 hover:text-coral-deep" aria-label="Delete document" @click="deleteDoc(doc)"><i class="ti ti-trash" aria-hidden="true" /></button>
                         </div>
                     </li>
@@ -376,6 +402,7 @@
                     <FormTextInput id="hp-position" v-model="profileForm.position" label="Position" icon="ti ti-briefcase" :error="profileForm.errors.position" />
                     <FormTextInput id="hp-department" v-model="profileForm.department" label="Department" icon="ti ti-building" :error="profileForm.errors.department" />
                     <FormSelect id="hp-type" v-model="profileForm.employment_type" label="Employment type" icon="ti ti-clock" :options="employmentTypes" :error="profileForm.errors.employment_type" />
+                    <FormSelect id="hp-status" v-model="profileForm.employment_status" label="Employment status" icon="ti ti-status-change" :options="employmentStatuses" :error="profileForm.errors.employment_status" />
                     <FormTextInput id="hp-start" v-model="profileForm.start_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="profileForm.errors.start_date" />
                     <FormTextInput id="hp-pemail" v-model="profileForm.personal_email" type="email" label="Personal email" icon="ti ti-mail" :error="profileForm.errors.personal_email" />
                     <FormTextInput id="hp-pphone" v-model="profileForm.personal_phone" label="Personal phone" icon="ti ti-phone" :error="profileForm.errors.personal_phone" />
@@ -384,6 +411,13 @@
                     <FormTextInput id="hp-ecn" v-model="profileForm.emergency_contact_name" label="Emergency contact" icon="ti ti-user" :error="profileForm.errors.emergency_contact_name" />
                     <FormTextInput id="hp-ecp" v-model="profileForm.emergency_contact_phone" label="Emergency phone" icon="ti ti-phone" :error="profileForm.errors.emergency_contact_phone" />
                     <FormTextInput id="hp-ecr" v-model="profileForm.emergency_contact_relationship" label="Relationship" icon="ti ti-heart" :error="profileForm.errors.emergency_contact_relationship" />
+                </div>
+                <div v-if="profileForm.employment_status === 'exited'" class="rounded-2xl bg-amber-50 px-4 py-3">
+                    <p class="text-sm font-medium text-amber-900">History stays on file. Also revoke platform access in Access &amp; staff — the two systems are not synced.</p>
+                    <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                        <FormTextInput id="hp-exit-date" v-model="profileForm.exit_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Exit date" icon="ti ti-calendar" :error="profileForm.errors.exit_date" required />
+                        <FormTextarea id="hp-exit-reason" v-model="profileForm.exit_reason" label="Reason" :error="profileForm.errors.exit_reason" required />
+                    </div>
                 </div>
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="profileOpen = false" />
@@ -431,13 +465,15 @@
         </AppModal>
 
         <!-- Allocation modal -->
-        <AppModal :show="allocateOpen" title="Adjust leave allowance" description="Override this staff member's allowance for the current year." icon="ti ti-adjustments" @close="allocateOpen = false">
+        <AppModal :show="allocateOpen" title="Adjust leave balance" description="This changes remaining days for the year. Used leave is not rewritten. A reason is required." icon="ti ti-adjustments" @close="allocateOpen = false">
             <form class="space-y-4" @submit.prevent="submitAllocation">
                 <FormSelect id="al-type" v-model="allocateForm.leave_type_id" label="Leave type" icon="ti ti-category" :options="leaveTypeOptions" :error="allocateForm.errors.leave_type_id" />
                 <div class="grid gap-4 sm:grid-cols-2">
                     <FormTextInput id="al-year" v-model="allocateForm.year" type="number" label="Year" icon="ti ti-calendar" :error="allocateForm.errors.year" required />
-                    <FormTextInput id="al-days" v-model="allocateForm.allowance_days" type="number" label="Allowance (days)" icon="ti ti-hash" :error="allocateForm.errors.allowance_days" required />
+                    <FormTextInput id="al-remain" v-model="allocateForm.remaining_days" type="number" label="Remaining days" icon="ti ti-hash" :error="allocateForm.errors.remaining_days" required />
                 </div>
+                <p v-if="allocatePreview" class="text-xs font-medium text-ink/50">{{ allocatePreview }}</p>
+                <FormTextarea id="al-reason" v-model="allocateForm.reason" label="Reason" placeholder="Correction, carry-over, goodwill adjustment…" :error="allocateForm.errors.reason" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="allocateOpen = false" />
                     <FormButton type="submit" variant="primary" label="Save" :loading="allocateForm.processing" loading-label="Saving…" />
@@ -462,7 +498,7 @@
                 <p v-if="decisionForm.errors.leave" class="text-sm font-medium text-coral-deep">{{ decisionForm.errors.leave }}</p>
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="decisionOpen = false" />
-                    <FormButton type="submit" :variant="decisionMode === 'approve' ? 'primary' : 'accent'" :label="decisionMode === 'approve' ? 'Approve' : 'Reject'" :loading="decisionForm.processing" />
+                    <FormButton type="submit" :variant="decisionMode === 'approve' ? 'primary' : 'accent'" :label="decisionMode === 'approve' ? 'Approve' : 'Reject'" :loading="decisionForm.processing" :loading-label="decisionMode === 'approve' ? 'Approving…' : 'Rejecting…'" />
                 </div>
             </form>
         </AppModal>
@@ -495,7 +531,7 @@
             </form>
         </AdminDrawer>
 
-        <AdminDrawer :open="allowanceOpen" :title="endingAllowance ? `End ${endingAllowance.label}` : 'Add allowance'" eyebrow="New dated compensation record" @close="allowanceOpen = false">
+        <AdminDrawer :open="allowanceOpen" :title="allowanceDrawerTitle" eyebrow="New dated compensation record" @close="allowanceOpen = false">
             <form class="space-y-4" @submit.prevent="submitAllowanceChange">
                 <template v-if="!endingAllowance">
                     <FormTextInput id="alw-label" v-model="allowanceForm.label" label="Allowance" icon="ti ti-home" placeholder="Housing, transport, data…" :error="allowanceForm.errors.label" required />
@@ -506,7 +542,7 @@
                 <FormTextarea id="alw-reason" v-model="allowanceForm.reason" label="Reason" :error="allowanceForm.errors.reason" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="allowanceOpen = false" />
-                    <FormButton type="submit" variant="primary" :label="endingAllowance ? 'End allowance' : 'Add allowance'" :loading="compForm.processing" loading-label="Saving…" />
+                    <FormButton type="submit" variant="primary" :label="allowanceSubmitLabel" :loading="compForm.processing" loading-label="Saving…" />
                 </div>
             </form>
         </AdminDrawer>
@@ -531,25 +567,13 @@
                     <div class="flex justify-between gap-4 border-t border-ink/10 pt-2"><dt class="text-ink/45">Gross</dt><dd class="font-semibold text-ink">{{ money(viewingPayslip.gross_pay, viewingPayslip.currency) }}</dd></div>
                 </dl>
                 <p v-if="viewingPayslip.notes" class="text-sm font-medium text-ink/55">{{ viewingPayslip.notes }}</p>
-                <a :href="route('admin.hr.payslips.pdf', viewingPayslip.id)" class="inline-flex items-center gap-1.5 text-sm font-semibold text-base-action hover:text-base-hover">Download PDF</a>
-            </div>
-        </AdminDrawer>
-
-        <AdminDrawer :open="disciplineOpen" :title="editingDiscipline ? 'Update record' : 'Add disciplinary record'" eyebrow="Stays on the HR file" @close="disciplineOpen = false">
-            <form class="space-y-4" @submit.prevent="submitDiscipline">
-                <FormSelect id="pd-type" v-model="disciplineForm.type" label="Type" icon="ti ti-alert-triangle" :options="discipline.types" :error="disciplineForm.errors.type" />
-                <FormSelect id="pd-status" v-model="disciplineForm.status" label="Status" icon="ti ti-flag" :options="discipline.statuses" :error="disciplineForm.errors.status" />
-                <FormTextInput id="pd-date" v-model="disciplineForm.occurred_on" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Occurred / issued" icon="ti ti-calendar" :error="disciplineForm.errors.occurred_on" required />
-                <FormTextInput id="pd-summary" v-model="disciplineForm.summary" label="Summary" icon="ti ti-text-caption" :error="disciplineForm.errors.summary" required />
-                <FormTextarea id="pd-details" v-model="disciplineForm.details" label="Details (optional)" :error="disciplineForm.errors.details" />
-                <FormTextInput id="pd-follow" v-model="disciplineForm.follow_up_on" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Follow-up date (optional)" icon="ti ti-calendar-event" :error="disciplineForm.errors.follow_up_on" />
-                <FormSelect v-if="documentOptions.length" id="pd-doc" v-model="disciplineForm.staff_document_id" label="Linked document (optional)" icon="ti ti-file" :options="documentOptions" placeholder="None" :error="disciplineForm.errors.staff_document_id" />
-                <FormTextarea id="pd-outcome" v-model="disciplineForm.outcome" :label="disciplineForm.status === 'closed' ? 'Outcome' : 'Outcome (optional)'" :error="disciplineForm.errors.outcome" />
-                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <FormButton type="button" variant="secondary" label="Cancel" @click="disciplineOpen = false" />
-                    <FormButton type="submit" variant="primary" :label="editingDiscipline ? 'Save' : 'Add record'" :loading="disciplineForm.processing" loading-label="Saving…" />
+                <div class="flex flex-wrap gap-2">
+                    <a :href="route('admin.hr.payslips.pdf', viewingPayslip.id)" class="inline-flex items-center gap-1.5 text-sm font-semibold text-base-action hover:text-base-hover">Download PDF</a>
+                    <FormButton v-if="can.payroll_manage && viewingPayslip.status === 'issued'" variant="secondary" label="Reissue" @click="openReissue(viewingPayslip)" />
+                    <FormButton v-if="can.payroll_manage && viewingPayslip.status === 'draft'" variant="primary" label="Issue" :loading="busyKey === `issue-${viewingPayslip.id}`" loading-label="Working…" @click="setPayslipStatus(viewingPayslip, 'issued')" />
+                    <FormButton v-if="can.payroll_manage && viewingPayslip.status === 'issued'" variant="secondary" label="Mark paid" :loading="busyKey === `paid-${viewingPayslip.id}`" loading-label="Working…" @click="setPayslipStatus(viewingPayslip, 'paid')" />
                 </div>
-            </form>
+            </div>
         </AdminDrawer>
 
         <!-- Payslip modal -->
@@ -607,25 +631,64 @@
         </AppModal>
 
         <!-- Document modal -->
-        <AppModal :show="docOpen" title="Upload document" icon="ti ti-upload" @close="docOpen = false">
+        <AppModal :show="docOpen" :title="editingDoc ? 'Update document' : 'Upload document'" icon="ti ti-upload" @close="docOpen = false">
             <form class="space-y-4" @submit.prevent="submitDoc">
                 <FormTextInput id="dc-title" v-model="docForm.title" label="Title" icon="ti ti-file" placeholder="Signed contract 2026" :error="docForm.errors.title" required />
                 <FormSelect id="dc-type" v-model="docForm.type" label="Type" icon="ti ti-category" :options="documentTypes" value-key="value" label-key="label" :error="docForm.errors.type" />
                 <FormTextInput id="dc-exp" v-model="docForm.expiry_date" type="date" label="Expiry date (optional)" icon="ti ti-calendar" :error="docForm.errors.expiry_date" />
                 <div>
-                    <label class="mb-1.5 block text-sm font-semibold text-ink">File</label>
+                    <label class="mb-1.5 block text-sm font-semibold text-ink">{{ editingDoc ? 'Replace file (optional)' : 'File' }}</label>
                     <input type="file" class="block w-full text-sm text-ink/70 file:mr-3 file:rounded-xl file:border-0 file:bg-tint file:px-4 file:py-2 file:text-sm file:font-semibold file:text-deep" @change="docForm.file = $event.target.files[0]" />
                     <p v-if="docForm.errors.file" class="mt-1 text-sm font-medium text-coral-deep">{{ docForm.errors.file }}</p>
                     <p class="mt-1 text-xs font-medium text-ink/40">PDF, image, or Word up to 10MB.</p>
                 </div>
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="docOpen = false" />
-                    <FormButton type="submit" variant="primary" label="Upload" :loading="docForm.processing" loading-label="Uploading…" />
+                    <FormButton type="submit" variant="primary" :label="editingDoc ? 'Save' : 'Upload'" :loading="docForm.processing" :loading-label="editingDoc ? 'Saving…' : 'Uploading…'" />
                 </div>
             </form>
         </AppModal>
+
+        <AppModal :show="reissueOpen" title="Reissue payslip?" description="Creates a new issued copy. The original record stays on file." icon="ti ti-refresh" @close="reissueOpen = false">
+            <form class="space-y-4" @submit.prevent="submitReissue">
+                <p v-if="reissueTarget" class="text-sm font-medium text-ink/60">{{ reissueTarget.period_label }} · {{ money(reissueTarget.net_pay, reissueTarget.currency) }}</p>
+                <FormTextarea id="ri-reason" v-model="reissueForm.reason" label="Reason" :error="reissueForm.errors.reason" required />
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <FormButton type="button" variant="secondary" label="Cancel" @click="reissueOpen = false" />
+                    <FormButton type="submit" variant="primary" label="Reissue" :loading="reissueForm.processing" loading-label="Reissuing…" />
+                </div>
+            </form>
+        </AppModal>
+
+        <AdminDrawer :open="createCaseOpen" title="Open a case" eyebrow="Incident report" @close="createCaseOpen = false">
+            <form class="space-y-4" @submit.prevent="submitCase">
+                <p class="text-[13px] font-medium leading-relaxed text-ink/50">
+                    Opening a case starts a formal record for {{ profile.name }}. Describe the incident as it is known now.
+                </p>
+                <FormSelect id="pc-owner" v-model="createCaseForm.owner_id" label="Case owner" icon="ti ti-user-check" :options="ownerOptions" searchable :error="createCaseForm.errors.owner_id" />
+                <FormSelect id="pc-category" v-model="createCaseForm.category" label="Category" icon="ti ti-tag" :options="discipline.options?.categories || []" :error="createCaseForm.errors.category" />
+                <FormTextInput v-if="createCaseForm.category === 'other'" id="pc-category-label" v-model="createCaseForm.category_label" label="Custom category" icon="ti ti-text-caption" :error="createCaseForm.errors.category_label" required />
+                <FormSelect id="pc-severity" v-model="createCaseForm.severity" label="Initial severity" icon="ti ti-scale" :options="discipline.options?.severities || []" :error="createCaseForm.errors.severity" />
+                <FormTextInput id="pc-incident" v-model="createCaseForm.incident_on" type="date" :max="today()" label="Date of incident" icon="ti ti-calendar" :error="createCaseForm.errors.incident_on" required />
+                <FormTextarea id="pc-desc" v-model="createCaseForm.description" label="Incident description" :error="createCaseForm.errors.description" required />
+                <FormTextarea id="pc-reason" v-model="createCaseForm.reason" label="Reason for opening this case" :error="createCaseForm.errors.reason" required />
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <FormButton type="button" variant="secondary" label="Cancel" @click="createCaseOpen = false" />
+                    <FormButton type="submit" variant="primary" label="Open case" :loading="createCaseForm.processing" loading-label="Opening…" />
+                </div>
+            </form>
+        </AdminDrawer>
+
+        <DisciplinaryCaseDrawer
+            :open="!!openCaseId"
+            :row="openCaseRow"
+            :panel="casePanel"
+            @close="closeProfileCase"
+            @refresh="refreshProfileCase"
+            @updated="onCaseUpdated"
+        />
         </div>
-</template>
+    </template>
 
 <script setup>
 import AppModal from '@/Components/App/AppModal.vue';
@@ -635,7 +698,9 @@ import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
+import DisciplinaryCaseDrawer from '@/Components/Admin/DisciplinaryCaseDrawer.vue';
 import {
+    disciplineSeverityMeta,
     disciplineStatusMeta,
     documentExpiryMeta,
     employmentStatusMeta,
@@ -646,8 +711,9 @@ import {
     pillBase,
     ratingMeta,
 } from '@/utils/hrStatus';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed, onMounted, ref } from 'vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     profile: { type: Object, required: true },
@@ -658,7 +724,7 @@ const props = defineProps({
     checklists: { type: Array, default: () => [] },
     checklistTemplates: { type: Array, default: () => [] },
     payroll: { type: Object, default: null },
-    discipline: { type: Object, default: () => ({ records: [], types: [], statuses: [] }) },
+    discipline: { type: Object, default: null },
     can: { type: Object, required: true },
 });
 
@@ -672,7 +738,9 @@ const visibleTabs = computed(() => {
     if (props.can.payroll_view) {
         tabs.push({ key: 'payroll', label: 'Payroll', icon: 'ti ti-cash' });
     }
-    tabs.push({ key: 'discipline', label: 'Discipline', icon: 'ti ti-gavel' });
+    if (props.can.discipline_view) {
+        tabs.push({ key: 'discipline', label: 'Cases', icon: 'ti ti-clipboard-text' });
+    }
     tabs.push({ key: 'performance', label: 'Performance', icon: 'ti ti-notes' });
     tabs.push({ key: 'documents', label: 'Documents', icon: 'ti ti-files' });
     return tabs;
@@ -701,6 +769,20 @@ const leaveDot = (token) => leaveDotClass(token);
 const leaveStatus = (status) => leaveStatusMeta(status);
 const payslipStatus = (status) => payslipStatusMeta(status);
 const disciplineStatus = (status) => disciplineStatusMeta(status);
+const disciplineSeverity = (severity) => disciplineSeverityMeta(severity);
+const caseHistoryHint = computed(() => {
+    const cases = props.discipline?.cases || [];
+    if (!cases.length) {
+        return 'Open a case when an incident needs a permanent record.';
+    }
+    const openCount = cases.filter((item) => item.is_open).length;
+    if (openCount) {
+        return `${openCount} open · ${cases.length} on file. Open a row to record an action or decide an appeal.`;
+    }
+    return `${cases.length} on file. History is kept even after cases close.`;
+});
+const page = usePage();
+const busyKey = ref('');
 const compensationHistory = computed(() => props.payroll?.history || []);
 const documentOptions = computed(() => [
     { value: '', label: 'None' },
@@ -715,6 +797,10 @@ const employmentTypes = [
     { value: 'Part-time', label: 'Part-time' },
     { value: 'Contract', label: 'Contract' },
     { value: 'Intern', label: 'Intern' },
+];
+const employmentStatuses = [
+    { value: 'active', label: 'Active' },
+    { value: 'exited', label: 'Exited' },
 ];
 const payFrequencies = [
     { value: 'monthly', label: 'Monthly' },
@@ -743,7 +829,8 @@ const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && value 
 // Profile
 const profileOpen = ref(false);
 const profileForm = useForm({
-    position: '', department: '', employment_type: '', start_date: '',
+    position: '', department: '', employment_type: '', employment_status: 'active',
+    exit_date: '', exit_reason: '', start_date: '',
     personal_email: '', personal_phone: '', home_address: '', date_of_birth: '',
     emergency_contact_name: '', emergency_contact_phone: '', emergency_contact_relationship: '',
 });
@@ -753,6 +840,9 @@ const openProfileModal = () => {
     profileForm.position = p.position || '';
     profileForm.department = p.department || '';
     profileForm.employment_type = p.employment_type || '';
+    profileForm.employment_status = p.employment_status === 'exited' ? 'exited' : 'active';
+    profileForm.exit_date = p.exit_date || today();
+    profileForm.exit_reason = p.exit_reason || '';
     profileForm.start_date = p.start_date || '';
     profileForm.personal_email = p.personal_email || '';
     profileForm.personal_phone = p.personal_phone || '';
@@ -775,20 +865,33 @@ const submitExit = () => exitForm.post(route('admin.hr.staff.exit', props.profil
     preserveScroll: true,
     onSuccess: () => { exitOpen.value = false; },
 });
-const reactivate = () => router.post(route('admin.hr.staff.reactivate', props.profile.id), {}, { preserveScroll: true });
+const reactivateBusy = ref(false);
+const reactivate = () => {
+    reactivateBusy.value = true;
+    router.post(route('admin.hr.staff.reactivate', props.profile.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { reactivateBusy.value = false; },
+    });
+};
 
 // Checklists
 const checklistTemplateId = ref('');
 const attachChecklist = () => {
-    if (!checklistTemplateId.value) return;
+    if (!checklistTemplateId.value || busyKey.value === 'checklist') return;
+    busyKey.value = 'checklist';
     router.post(route('admin.hr.checklists.attach', props.profile.id), { checklist_template_id: checklistTemplateId.value }, {
         preserveScroll: true,
         onSuccess: () => { checklistTemplateId.value = ''; },
+        onFinish: () => { busyKey.value = ''; },
     });
 };
 const toggleChecklistItem = (item) => {
-    if (!props.can.manage) return;
-    router.post(route('admin.hr.checklists.toggle', item.id), {}, { preserveScroll: true });
+    if (!props.can.manage || busyKey.value === `check-${item.id}`) return;
+    busyKey.value = `check-${item.id}`;
+    router.post(route('admin.hr.checklists.toggle', item.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { busyKey.value = ''; },
+    });
 };
 
 // Leave
@@ -816,14 +919,29 @@ const submitLeave = () => leaveForm.post(route('admin.hr.leave.store', props.pro
 
 // Allocation
 const allocateOpen = ref(false);
-const allocateForm = useForm({ leave_type_id: '', allowance_days: 20, year: props.leave.year });
+const allocateForm = useForm({ leave_type_id: '', remaining_days: 0, year: props.leave.year, reason: '' });
 const openAllocateModal = () => {
     allocateForm.reset();
     allocateForm.clearErrors();
     allocateForm.year = props.leave.year;
-    allocateForm.allowance_days = 20;
+    allocateForm.remaining_days = props.leave.balances?.[0]?.remaining_days ?? 0;
+    allocateForm.leave_type_id = props.leave.balances?.[0]?.leave_type_id || '';
+    allocateForm.reason = '';
     allocateOpen.value = true;
 };
+const allocatePreview = computed(() => {
+    const balance = props.leave.balances.find((row) => String(row.leave_type_id) === String(allocateForm.leave_type_id));
+    if (!balance) return '';
+    const remaining = Number(allocateForm.remaining_days || 0);
+    const allowance = balance.used_days + remaining;
+    return `Currently ${balance.remaining_days} remaining of ${balance.allowance_days}. Saving sets remaining to ${remaining} (allowance ${allowance}, ${balance.used_days} already used).`;
+});
+watch(() => allocateForm.leave_type_id, (id) => {
+    const balance = props.leave.balances.find((row) => String(row.leave_type_id) === String(id));
+    if (balance) {
+        allocateForm.remaining_days = balance.remaining_days;
+    }
+});
 const submitAllocation = () => allocateForm.post(route('admin.hr.leave.allocate', props.profile.id), {
     preserveScroll: true,
     onSuccess: () => { allocateOpen.value = false; },
@@ -848,7 +966,14 @@ const submitDecision = () => {
         onSuccess: () => { decisionOpen.value = false; },
     });
 };
-const cancelLeave = (req) => router.post(route('admin.hr.leave.cancel', req.id), {}, { preserveScroll: true });
+const cancelLeave = (req) => {
+    if (busyKey.value === `cancel-${req.id}`) return;
+    busyKey.value = `cancel-${req.id}`;
+    router.post(route('admin.hr.leave.cancel', req.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { busyKey.value = ''; },
+    });
+};
 
 // Compensation
 const compOpen = ref(false);
@@ -868,21 +993,56 @@ const openCompModal = () => {
 
 const allowanceOpen = ref(false);
 const endingAllowance = ref(null);
+const editingAllowance = ref(null);
 const allowanceForm = useForm({ label: '', amount: 0, effective_from: today(), reason: '' });
-const openAllowanceDrawer = () => {
+const allowanceDrawerTitle = computed(() => {
+    if (endingAllowance.value) return `End ${endingAllowance.value.label}`;
+    if (editingAllowance.value) return `Edit ${editingAllowance.value.label}`;
+    return 'Add allowance';
+});
+const allowanceSubmitLabel = computed(() => {
+    if (endingAllowance.value) return 'End allowance';
+    if (editingAllowance.value) return 'Save allowance';
+    return 'Add allowance';
+});
+const openAllowanceDrawer = (existing = null) => {
     endingAllowance.value = null;
+    editingAllowance.value = existing;
     allowanceForm.reset();
     allowanceForm.clearErrors();
     allowanceForm.effective_from = today();
+    if (existing) {
+        allowanceForm.label = existing.label;
+        allowanceForm.amount = existing.amount;
+        allowanceForm.reason = `Updated ${existing.label}`;
+    }
     allowanceOpen.value = true;
 };
 const openEndAllowance = (allowance) => {
     endingAllowance.value = allowance;
+    editingAllowance.value = null;
     allowanceForm.reset();
     allowanceForm.clearErrors();
     allowanceForm.effective_from = today();
     allowanceForm.reason = `Ended ${allowance.label}`;
     allowanceOpen.value = true;
+};
+const nextAllowances = () => {
+    const current = props.payroll?.compensation;
+    if (!current) return [];
+    if (endingAllowance.value) {
+        return current.allowances
+            .filter((item) => item.id !== endingAllowance.value.id)
+            .map((item) => ({ label: item.label, amount: item.amount }));
+    }
+    if (editingAllowance.value) {
+        return current.allowances.map((item) => (
+            item.id === editingAllowance.value.id
+                ? { label: allowanceForm.label, amount: allowanceForm.amount }
+                : { label: item.label, amount: item.amount }
+        ));
+    }
+    return [...current.allowances.map((item) => ({ label: item.label, amount: item.amount })), { label: allowanceForm.label, amount: allowanceForm.amount }];
 };
 const submitAllowanceChange = () => {
     const current = props.payroll?.compensation;
@@ -890,16 +1050,12 @@ const submitAllowanceChange = () => {
         allowanceForm.setError('reason', 'Set a salary before managing allowances.');
         return;
     }
-    const nextAllowances = endingAllowance.value
-        ? current.allowances.filter((item) => item.id !== endingAllowance.value.id).map((item) => ({ label: item.label, amount: item.amount }))
-        : [...current.allowances.map((item) => ({ label: item.label, amount: item.amount })), { label: allowanceForm.label, amount: allowanceForm.amount }];
-
     compForm.base_salary = current.base_salary;
     compForm.pay_frequency = current.pay_frequency;
     compForm.currency = current.currency;
     compForm.effective_from = allowanceForm.effective_from;
     compForm.reason = allowanceForm.reason;
-    compForm.allowances = nextAllowances;
+    compForm.allowances = nextAllowances();
     compForm.post(route('admin.hr.compensation.update', props.profile.id), {
         preserveScroll: true,
         onSuccess: () => { allowanceOpen.value = false; },
@@ -941,7 +1097,33 @@ const submitPayslip = () => payslipForm.post(route('admin.hr.payslips.store', pr
     preserveScroll: true,
     onSuccess: () => { payslipOpen.value = false; },
 });
-const setPayslipStatus = (slip, status) => router.post(route('admin.hr.payslips.status', slip.id), { status }, { preserveScroll: true });
+const setPayslipStatus = (slip, status) => {
+    const key = status === 'paid' ? `paid-${slip.id}` : `issue-${slip.id}`;
+    if (busyKey.value === key) return;
+    busyKey.value = key;
+    router.post(route('admin.hr.payslips.status', slip.id), { status }, {
+        preserveScroll: true,
+        onFinish: () => { busyKey.value = ''; },
+    });
+};
+const reissueOpen = ref(false);
+const reissueTarget = ref(null);
+const reissueForm = useForm({ reason: '' });
+const openReissue = (slip) => {
+    viewingPayslip.value = null;
+    reissueTarget.value = slip;
+    reissueForm.reset();
+    reissueForm.clearErrors();
+    reissueForm.reason = '';
+    reissueOpen.value = true;
+};
+const submitReissue = () => {
+    if (!reissueTarget.value) return;
+    reissueForm.post(route('admin.hr.payslips.reissue', reissueTarget.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { reissueOpen.value = false; },
+    });
+};
 const deletePayslip = (slip) => {
     if (confirm('Delete this draft payslip?')) {
         router.delete(route('admin.hr.payslips.destroy', slip.id), { preserveScroll: true });
@@ -964,65 +1146,130 @@ const deleteNote = (note) => {
 
 // Documents
 const docOpen = ref(false);
+const editingDoc = ref(null);
 const docForm = useForm({ title: '', type: 'contract', expiry_date: '', file: null });
-const openDocModal = () => { docForm.reset(); docForm.clearErrors(); docForm.type = 'contract'; docOpen.value = true; };
-const submitDoc = () => docForm.post(route('admin.hr.documents.store', props.profile.id), {
-    preserveScroll: true,
-    forceFormData: true,
-    onSuccess: () => { docOpen.value = false; },
-});
+const openDocModal = () => {
+    editingDoc.value = null;
+    docForm.reset();
+    docForm.clearErrors();
+    docForm.type = 'contract';
+    docForm.expiry_date = '';
+    docOpen.value = true;
+};
+const openDocEdit = (doc) => {
+    editingDoc.value = doc;
+    docForm.clearErrors();
+    docForm.title = doc.title;
+    docForm.type = doc.type;
+    docForm.expiry_date = doc.expiry_date || '';
+    docForm.file = null;
+    docOpen.value = true;
+};
+const submitDoc = () => {
+    if (editingDoc.value) {
+        docForm.patch(route('admin.hr.documents.update', editingDoc.value.id), {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => { docOpen.value = false; editingDoc.value = null; },
+        });
+        return;
+    }
+    docForm.post(route('admin.hr.documents.store', props.profile.id), {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: () => { docOpen.value = false; },
+    });
+};
 const deleteDoc = (doc) => {
     if (confirm('Remove this document?')) {
         router.delete(route('admin.hr.documents.destroy', doc.id), { preserveScroll: true });
     }
 };
 
-const disciplineOpen = ref(false);
-const editingDiscipline = ref(null);
-const disciplineForm = useForm({
-    type: 'verbal_warning',
-    status: 'open',
-    occurred_on: today(),
-    summary: '',
-    details: '',
-    follow_up_on: '',
-    outcome: '',
-    staff_document_id: '',
+const ownerOptions = computed(() => (props.discipline?.owners || []).map((person) => ({ value: person.id, label: person.name })));
+const createCaseOpen = ref(false);
+const createCaseForm = useForm({
+    user_id: props.profile.id,
+    owner_id: page.props.auth?.user?.id || '',
+    category: 'conduct',
+    category_label: '',
+    severity: 'moderate',
+    incident_on: today(),
+    description: '',
+    reason: '',
+    return: 'profile',
 });
-const openDisciplineCreate = () => {
-    editingDiscipline.value = null;
-    disciplineForm.reset();
-    disciplineForm.clearErrors();
-    disciplineForm.type = 'verbal_warning';
-    disciplineForm.status = 'open';
-    disciplineForm.occurred_on = today();
-    disciplineOpen.value = true;
+const openCreateCase = () => {
+    createCaseForm.reset();
+    createCaseForm.clearErrors();
+    createCaseForm.user_id = props.profile.id;
+    createCaseForm.owner_id = page.props.auth?.user?.id || '';
+    createCaseForm.incident_on = today();
+    createCaseForm.return = 'profile';
+    createCaseOpen.value = true;
 };
-const openDisciplineEdit = (record) => {
-    if (!props.can.manage) return;
-    editingDiscipline.value = record;
-    disciplineForm.clearErrors();
-    disciplineForm.type = record.type;
-    disciplineForm.status = record.status;
-    disciplineForm.occurred_on = record.occurred_on;
-    disciplineForm.summary = record.summary;
-    disciplineForm.details = record.details || '';
-    disciplineForm.follow_up_on = record.follow_up_on || '';
-    disciplineForm.outcome = record.outcome || '';
-    disciplineForm.staff_document_id = record.staff_document_id || '';
-    disciplineOpen.value = true;
-};
-const submitDiscipline = () => {
-    if (editingDiscipline.value) {
-        disciplineForm.patch(route('admin.hr.discipline.update', editingDiscipline.value.id), {
-            preserveScroll: true,
-            onSuccess: () => { disciplineOpen.value = false; },
-        });
-        return;
+const submitCase = () => createCaseForm.post(route('admin.hr.discipline.store'), {
+    preserveScroll: true,
+    onSuccess: () => { createCaseOpen.value = false; },
+});
+
+const openCaseId = ref(null);
+const openCaseRow = ref(null);
+const casePanel = ref(null);
+const caseCache = new Map();
+
+const fetchCasePanel = async (id) => {
+    if (caseCache.has(id)) {
+        casePanel.value = caseCache.get(id);
     }
-    disciplineForm.post(route('admin.hr.discipline.store', props.profile.id), {
-        preserveScroll: true,
-        onSuccess: () => { disciplineOpen.value = false; },
+    const { data } = await axios.get(route('admin.hr.discipline.show', id), {
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     });
+    caseCache.set(id, data);
+    if (openCaseId.value === id) {
+        casePanel.value = data;
+    }
 };
+
+const openProfileCase = (item) => {
+    openCaseId.value = item.id;
+    openCaseRow.value = item;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'discipline');
+    url.searchParams.set('case', String(item.id));
+    window.history.replaceState({}, '', url);
+    fetchCasePanel(item.id).catch(() => {});
+};
+
+const closeProfileCase = () => {
+    openCaseId.value = null;
+    openCaseRow.value = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('case');
+    window.history.replaceState({}, '', url);
+};
+
+const refreshProfileCase = () => {
+    if (openCaseId.value) {
+        caseCache.delete(openCaseId.value);
+        fetchCasePanel(openCaseId.value).catch(() => {});
+    }
+};
+
+const onCaseUpdated = (record) => {
+    if (record?.id && openCaseRow.value?.id === record.id) {
+        openCaseRow.value = { ...openCaseRow.value, ...record };
+    }
+};
+
+onMounted(() => {
+    const caseId = Number(new URLSearchParams(window.location.search).get('case') || props.discipline?.opened_id || 0);
+    if (caseId) {
+        const row = (props.discipline?.cases || []).find((item) => item.id === caseId);
+        if (row) {
+            openProfileCase(row);
+        }
+    }
+});
+
 </script>

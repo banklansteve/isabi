@@ -4,22 +4,29 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\StaffStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\AdminReasonRequest;
+use App\Http\Requests\Admin\BulkMessageStaffRequest;
 use App\Http\Requests\Admin\DestroyStaffRequest;
 use App\Http\Requests\Admin\InviteStaffRequest;
-use App\Models\ActivityLog;
-use App\Models\AdminAuditLog;
+use App\Http\Requests\Admin\MessageStaffRequest;
+use App\Http\Requests\Admin\ResetStaffPasswordRequest;
+use App\Http\Requests\Admin\SendStaffAnnouncementRequest;
+use App\Http\Requests\Admin\StaffReasonRequest;
+use App\Http\Requests\Admin\UpdateStaffShiftRequest;
 use App\Models\LeaveRequest;
 use App\Models\StaffRole;
 use App\Models\User;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
+use App\Support\Admin\AnnouncementService;
 use App\Support\Staff\AdminPermissions;
 use App\Support\Staff\StaffInvitationService;
+use App\Support\Staff\StaffPresenter;
+use App\Support\Staff\StaffShift;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,10 +40,16 @@ class StaffController extends Controller
     public function show(Request $request, User $staff): Response|JsonResponse
     {
         abort_unless($staff->isStaff(), 404);
-        $staff->load(['staffRoles', 'invitedBy:id,name,email', 'latestStaffInvitation.suggestedRole']);
+        $staff->load(['staffRoles', 'invitedBy:id,name,email', 'latestStaffInvitation.suggestedRole', 'hrProfile']);
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
-            return response()->json($this->panel($staff));
+            $actor = $request->user();
+
+            return response()->json(StaffPresenter::panel(
+                $staff,
+                (bool) ($actor?->canDo('hr.view')),
+                (bool) ($actor?->canDo('hr.discipline.view')),
+            ));
         }
 
         return Inertia::render('Admin/Staff/Index', [
@@ -60,22 +73,23 @@ class StaffController extends Controller
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'Invite sent',
-            'message' => "They have {$hours} hours to set up their account.",
-        ], ['staff' => $this->listPayload($payload['user']->load(['staffRoles', 'latestStaffInvitation']))]);
+            'message' => "They have {$hours} hours to open the link and set up their account.",
+        ], ['staff' => StaffPresenter::listPayload($payload['user']->load(['staffRoles', 'latestStaffInvitation']))]);
     }
 
     public function resend(Request $request, User $staff, StaffInvitationService $invitations): JsonResponse|RedirectResponse
     {
+        $this->assertCanManage($request->user());
         $invitations->resend($staff, $request->user());
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'Invite resent',
             'message' => 'The previous link no longer works. A new one is on its way.',
-        ], ['staff' => $this->listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation']))]);
+        ], ['staff' => StaffPresenter::listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation']))]);
     }
 
-    public function revoke(AdminReasonRequest $request, User $staff, StaffInvitationService $invitations): JsonResponse|RedirectResponse
+    public function revoke(StaffReasonRequest $request, User $staff, StaffInvitationService $invitations): JsonResponse|RedirectResponse
     {
         $id = $staff->id;
         $invitations->revoke($staff, $request->user(), $request->validated('reason'));
@@ -87,7 +101,7 @@ class StaffController extends Controller
         ], ['deleted_id' => $id]);
     }
 
-    public function disable(AdminReasonRequest $request, User $staff): JsonResponse|RedirectResponse
+    public function disable(StaffReasonRequest $request, User $staff): JsonResponse|RedirectResponse
     {
         $this->guardSensitive($request->user(), $staff);
 
@@ -114,10 +128,10 @@ class StaffController extends Controller
             'type' => 'success',
             'title' => 'Access disabled',
             'message' => $staff->name.' is signed out everywhere and cannot sign in.',
-        ], ['staff' => $this->listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation']))]);
+        ], ['staff' => StaffPresenter::listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation', 'hrProfile']))]);
     }
 
-    public function reinstate(AdminReasonRequest $request, User $staff): JsonResponse|RedirectResponse
+    public function reinstate(StaffReasonRequest $request, User $staff): JsonResponse|RedirectResponse
     {
         $this->guardSensitive($request->user(), $staff, allowLastSuper: true);
 
@@ -142,7 +156,211 @@ class StaffController extends Controller
             'type' => 'success',
             'title' => 'Access restored',
             'message' => $staff->name.' can sign in again.',
-        ], ['staff' => $this->listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation']))]);
+        ], ['staff' => StaffPresenter::listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation', 'hrProfile']))]);
+    }
+
+    public function forceLogout(StaffReasonRequest $request, User $staff): JsonResponse|RedirectResponse
+    {
+        $this->guardSensitive($request->user(), $staff, allowLastSuper: true);
+
+        if (! $staff->hasSetPassword()) {
+            throw ValidationException::withMessages([
+                'reason' => 'They have not signed in yet. Revoke or resend the invite instead.',
+            ]);
+        }
+
+        $reason = $request->validated('reason');
+        $staff->invalidateSessions();
+        $staff->forceFill(['last_logout_at' => now()])->save();
+
+        AdminAudit::record(
+            'staff.force_logout',
+            "{$request->user()->name} signed {$staff->email} out of every session: {$reason}",
+            $staff,
+            null,
+            ['reason' => $reason],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Sessions signed out',
+            'message' => $staff->name.' will need to sign in again on every device.',
+        ], ['staff' => StaffPresenter::listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation', 'hrProfile']))]);
+    }
+
+    public function updateShift(UpdateStaffShiftRequest $request, User $staff): JsonResponse|RedirectResponse
+    {
+        abort_unless($staff->isStaff(), 404);
+
+        $old = [
+            'shift_days' => $staff->shift_days,
+            'shift_starts_at' => $staff->shift_starts_at,
+            'shift_ends_at' => $staff->shift_ends_at,
+        ];
+        $shift = $request->shift();
+        $staff->forceFill($shift)->save();
+
+        AdminAudit::record(
+            'staff.shift_updated',
+            "{$request->user()->name} set {$staff->email}'s shift to {$shift['shift_starts_at']}–{$shift['shift_ends_at']}.",
+            $staff,
+            $old,
+            $shift,
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Shift saved',
+            'message' => $staff->name."'s working hours are updated.",
+        ], ['staff' => StaffPresenter::listPayload($staff->fresh(['staffRoles', 'latestStaffInvitation', 'hrProfile']))]);
+    }
+
+    public function sendPasswordReset(ResetStaffPasswordRequest $request, User $staff): JsonResponse|RedirectResponse
+    {
+        $this->guardSensitive($request->user(), $staff, allowLastSuper: true);
+
+        if (! $staff->hasSetPassword()) {
+            throw ValidationException::withMessages([
+                'reason' => 'They have not set a password yet. Resend their invite instead.',
+            ]);
+        }
+
+        if ($staff->isSuspended()) {
+            throw ValidationException::withMessages([
+                'reason' => 'Reinstate this account before sending a password reset.',
+            ]);
+        }
+
+        $reason = $request->validated('reason');
+        $status = Password::broker()->sendResetLink(['email' => $staff->email]);
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            throw ValidationException::withMessages([
+                'email' => 'Could not send a reset link right now. Try again shortly.',
+            ]);
+        }
+
+        AdminAudit::record(
+            'staff.password_reset',
+            "{$request->user()->name} sent a password reset to {$staff->email}: {$reason}",
+            $staff,
+            null,
+            ['reason' => $reason],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Reset email sent',
+            'message' => 'A password reset link is on its way to '.$staff->email.'.',
+        ]);
+    }
+
+    public function message(
+        MessageStaffRequest $request,
+        User $staff,
+        AnnouncementService $announcements,
+    ): JsonResponse|RedirectResponse {
+        abort_unless($staff->isStaff(), 404);
+
+        $data = $request->validated();
+        $announcement = $announcements->sendToStaff(
+            $request->user(),
+            [$staff->id],
+            $data['subject'],
+            $data['body'],
+            $data['channels'],
+        );
+
+        AdminAudit::record(
+            'staff.messaged',
+            "{$request->user()->name} messaged {$staff->email}.",
+            $staff,
+            null,
+            ['announcement_id' => $announcement->id, 'channels' => $data['channels']],
+        );
+
+        $count = (int) ($announcement->recipient_count ?? 1);
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Message sent',
+            'message' => $this->sentToast($count, $data['channels']),
+        ], ['count' => $count]);
+    }
+
+    public function sendAnnouncement(
+        SendStaffAnnouncementRequest $request,
+        User $staff,
+        AnnouncementService $announcements,
+    ): JsonResponse|RedirectResponse {
+        abort_unless($staff->isStaff(), 404);
+
+        $data = $request->validated();
+        $announcement = $announcements->sendToStaff(
+            $request->user(),
+            [$staff->id],
+            $data['subject'],
+            $data['body'],
+            $data['channels'],
+            (int) $data['template_id'],
+        );
+
+        AdminAudit::record(
+            'staff.announcement_sent',
+            "{$request->user()->name} sent a notice to {$staff->email}.",
+            $staff,
+            null,
+            ['announcement_id' => $announcement->id, 'template_id' => $data['template_id']],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Notice sent',
+            'message' => 'Delivered to '.$staff->name.' only.',
+        ], ['count' => 1]);
+    }
+
+    public function bulkMessage(
+        BulkMessageStaffRequest $request,
+        AnnouncementService $announcements,
+    ): JsonResponse|RedirectResponse {
+        $data = $request->validated();
+
+        $ids = User::query()
+            ->staff()
+            ->whereIn('id', $data['ids'])
+            ->pluck('id')
+            ->all();
+
+        if ($ids === []) {
+            throw ValidationException::withMessages([
+                'ids' => 'None of the selected people are staff accounts.',
+            ]);
+        }
+
+        $announcement = $announcements->sendToStaff(
+            $request->user(),
+            $ids,
+            $data['subject'],
+            $data['body'],
+            $data['channels'],
+        );
+
+        AdminAudit::record(
+            'staff.bulk_messaged',
+            "{$request->user()->name} messaged ".count($ids).' staff: '.$data['reason'],
+            $announcement,
+            null,
+            ['reason' => $data['reason'], 'user_ids' => $ids, 'channels' => $data['channels']],
+        );
+
+        $count = (int) ($announcement->recipient_count ?? count($ids));
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Message sent',
+            'message' => $this->sentToast($count, $data['channels']),
+        ], ['count' => $count]);
     }
 
     public function destroy(DestroyStaffRequest $request, User $staff): JsonResponse|RedirectResponse
@@ -168,7 +386,7 @@ class StaffController extends Controller
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'Staff removed',
-            'message' => $name.' no longer has access. The account is recoverable from the database if this was a mistake.',
+            'message' => $name.' no longer has admin access. HR and case history are kept.',
         ], ['deleted_id' => $id]);
     }
 
@@ -191,145 +409,59 @@ class StaffController extends Controller
             ->orderBy('name')
             ->get();
 
-        $lastLogins = ActivityLog::query()
-            ->selectRaw('user_id, MAX(created_at) as last_at')
-            ->whereIn('user_id', $staff->pluck('id'))
-            ->whereIn('action', ['auth.admin_login', 'auth.login'])
-            ->groupBy('user_id')
-            ->pluck('last_at', 'user_id');
-
         return [
-            'staff' => $staff->map(fn (User $user) => $this->listPayload($user, $lastLogins->get($user->id)))->values(),
+            'staff' => $staff->map(fn (User $user) => StaffPresenter::listPayload($user))->values(),
             'roles' => StaffRole::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get()
                 ->map(fn (StaffRole $role) => $role->toAdminArray()),
+            'templates' => StaffPresenter::templates(),
             'invite_ttl_hours' => AdminPermissions::ttlHours(),
+            'shift_weekdays' => StaffShift::weekdays(),
             'opened_id' => null,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function panel(User $staff): array
-    {
-        $tz = config('app.display_timezone');
-
-        $adminActions = AdminAuditLog::query()
-            ->with('actor:id,name,email')
-            ->where(function ($query) use ($staff) {
-                $query->where(function ($inner) use ($staff) {
-                    $inner->where('subject_type', $staff->getMorphClass())
-                        ->where('subject_id', $staff->id);
-                })->orWhere('summary', 'like', '%'.$staff->email.'%');
-            })
-            ->latest('id')
-            ->limit(80)
-            ->get()
-            ->map(fn (AdminAuditLog $log) => [
-                'id' => $log->id,
-                'action' => $log->action,
-                'summary' => $log->summary,
-                'actor' => $log->actor?->name,
-                'when' => $log->created_at?->timezone($tz)->format('j M Y · g:ia'),
-            ]);
-
-        $logins = ActivityLog::query()
-            ->where('user_id', $staff->id)
-            ->whereIn('action', ['auth.admin_login', 'auth.admin_logout', 'auth.login'])
-            ->latest('created_at')
-            ->limit(40)
-            ->get()
-            ->map(fn (ActivityLog $log) => [
-                'id' => $log->id,
-                'title' => $log->titleFromAction(),
-                'ip' => $log->ip_address,
-                'when' => $log->created_at?->timezone($tz)->format('j M Y · g:ia'),
-            ]);
-
-        return [
-            'staff' => $this->detailPayload($staff),
-            'activity' => [
-                'admin_actions' => $adminActions,
-                'logins' => $logins,
-            ],
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function listPayload(User $user, mixed $lastLogin = null): array
-    {
-        $tz = config('app.display_timezone');
-        $invite = $user->relationLoaded('latestStaffInvitation') ? $user->latestStaffInvitation : $user->latestStaffInvitation()->first();
-        $active = $lastLogin ? Carbon::parse($lastLogin) : null;
-
-        $roles = $user->staffRoles->map(fn (StaffRole $role) => [
-            'id' => $role->id,
-            'key' => $role->slug,
-            'name' => $role->name,
-            'system' => false,
-        ])->values()->all();
-
-        if ($user->isSuperAdmin()) {
-            array_unshift($roles, [
-                'id' => AdminPermissions::SUPER_KEY,
-                'key' => AdminPermissions::SUPER_KEY,
-                'name' => 'Super Admin',
-                'system' => true,
-            ]);
-        }
-
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'email' => $user->email,
-            'initials' => strtoupper(mb_substr((string) $user->first_name, 0, 1).mb_substr((string) $user->last_name, 0, 1)) ?: strtoupper(mb_substr($user->name, 0, 2)),
-            'is_super' => $user->isSuperAdmin(),
-            'status' => $user->staff_status?->value,
-            'status_label' => $user->staff_status?->label(),
-            'roles' => $roles,
-            'last_login' => $active?->timezone($tz)->format('j M Y · g:ia'),
-            'last_login_iso' => $active?->toIso8601String(),
-            'joined' => $user->created_at?->timezone($tz)->format('j M Y'),
-            'joined_iso' => $user->created_at?->toIso8601String(),
-            'invite_expires_at' => $invite?->expires_at?->timezone($tz)->format('j M Y · g:ia'),
-            'invite_expires_iso' => $invite?->expires_at?->toIso8601String(),
-            'invite_expired' => $invite?->isExpired() ?? false,
-            'password_set' => $user->hasSetPassword(),
-            'on_leave' => ! ($user->hrProfile?->isExited() ?? false)
-                && (bool) ($user->on_approved_leave ?? $user->isOnLeaveOn()),
-            'exited' => $user->hrProfile?->isExited() ?? false,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function detailPayload(User $user): array
-    {
-        return [
-            ...$this->listPayload($user),
-            'suspension_reason' => $user->suspension_reason,
-            'invited_by' => $user->invitedBy
-                ? ['id' => $user->invitedBy->id, 'name' => $user->invitedBy->name]
-                : null,
-            'suggested_role' => $user->latestStaffInvitation?->suggestedRole?->name,
         ];
     }
 
     private function guardSensitive(User $actor, User $staff, bool $allowLastSuper = false): void
     {
-        abort_if($staff->is($actor), 422, 'You cannot change your own access this way.');
+        if ($staff->is($actor)) {
+            throw ValidationException::withMessages([
+                'reason' => 'You cannot change your own access this way.',
+            ]);
+        }
 
         if ($staff->isSuperAdmin() && ! $allowLastSuper && User::activeSuperAdminCount() <= 1) {
-            abort(422, 'You cannot disable or remove the last Super Admin.');
+            throw ValidationException::withMessages([
+                'reason' => 'You cannot disable or remove the last Super Admin.',
+            ]);
         }
+    }
+
+    private function assertCanManage(?User $actor): void
+    {
+        abort_unless($actor?->isSuperAdmin() && $actor->canDo('admin.staff.manage'), 403);
+    }
+
+    /**
+     * @param  list<string>  $channels
+     */
+    private function sentToast(int $count, array $channels): string
+    {
+        $via = collect($channels)
+            ->map(fn (string $channel) => $channel === 'email' ? 'email' : 'in-app')
+            ->unique()
+            ->values()
+            ->all();
+
+        $channelLabel = match (count($via)) {
+            0, 1 => $via[0] ?? 'in-app',
+            default => implode(' and ', $via),
+        };
+
+        return $count === 1
+            ? "Sent to 1 person via {$channelLabel}."
+            : "Sent to {$count} people via {$channelLabel}.";
     }
 }

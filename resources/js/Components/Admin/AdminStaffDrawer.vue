@@ -26,62 +26,6 @@
                         </span>
                     </div>
                 </div>
-                <div ref="menuRoot" class="relative shrink-0">
-                    <button
-                        type="button"
-                        class="tap-target flex h-10 w-10 items-center justify-center rounded-xl text-ink/40 hover:bg-pale hover:text-ink"
-                        aria-label="More actions"
-                        :aria-expanded="menu"
-                        @click="menu = !menu"
-                    >
-                        <i class="ti ti-dots text-lg" aria-hidden="true" />
-                    </button>
-                    <AdminSlideMenu :open="menu">
-                        <button
-                            v-if="shown.status === 'invited'"
-                            type="button"
-                            class="menu-item"
-                            @click="menu = false; $emit('resend', shown)"
-                        >
-                            Resend invite
-                        </button>
-                        <button
-                            v-if="shown.status === 'invited'"
-                            type="button"
-                            class="menu-item text-red-600"
-                            @click="ask('revoke')"
-                        >
-                            Revoke invite
-                        </button>
-                        <button
-                            v-if="shown.status === 'active' && !isSelf"
-                            type="button"
-                            class="menu-item text-red-600"
-                            @click="ask('disable')"
-                        >
-                            Disable access
-                        </button>
-                        <button
-                            v-if="shown.status === 'suspended' && !isSelf"
-                            type="button"
-                            class="menu-item"
-                            @click="ask('reinstate')"
-                        >
-                            Reinstate
-                        </button>
-                        <button
-                            v-if="shown.status !== 'invited' && !isSelf"
-                            type="button"
-                            class="menu-item text-red-600"
-                            @click="ask('remove')"
-                        >
-                            Remove account
-                        </button>
-                        <p v-if="isSelf" class="px-3 py-2 text-[12px] font-medium text-ink/40">
-                            You cannot change your own access here.
-                        </p>
-                    </AdminSlideMenu>
-                </div>
                 <button
                     type="button"
                     class="tap-target flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink/40 hover:bg-pale hover:text-ink"
@@ -118,64 +62,22 @@
                 <section>
                     <div class="flex items-center justify-between gap-3">
                         <h3 class="text-[13px] font-bold text-ink">Roles</h3>
-                        <div ref="assignRoot" class="relative">
-                            <button
-                                type="button"
-                                class="inline-flex items-center gap-1.5 rounded-lg bg-base-action px-2.5 py-1.5 text-[12px] font-bold text-white shadow-[0_8px_18px_-8px_rgba(26,79,181,0.55)] transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
-                                :aria-expanded="assignOpen"
-                                :disabled="assigning"
-                                @click="assignOpen = !assignOpen"
-                            >
-                                <i class="ti ti-plus text-sm" aria-hidden="true" />
-                                Assign role
-                            </button>
-                            <AdminSlideMenu :open="assignOpen" width-class="mt-1.5 w-72" role="listbox">
-                                <div class="border-b border-ink/[0.06] p-2">
-                                    <input
-                                        v-model="roleQuery"
-                                        type="search"
-                                        placeholder="Search roles…"
-                                        class="w-full rounded-lg border border-ink/10 px-2.5 py-2 text-[13px] font-medium outline-none focus:border-base"
-                                        aria-label="Search roles"
-                                    />
-                                </div>
-                                <ul class="max-h-64 overflow-y-auto py-1">
-                                    <li v-if="!assignable.length" class="px-3 py-3 text-[13px] font-medium text-ink/40">
-                                        No matching roles.
-                                    </li>
-                                    <li v-for="role in assignable" :key="role.id">
-                                        <button
-                                            type="button"
-                                            class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] font-semibold text-ink/75 transition-colors duration-150 hover:bg-pale"
-                                            @click="assignRole(role)"
-                                        >
-                                            <span>{{ role.name }}</span>
-                                            <span v-if="role.system" class="text-[10px] font-bold uppercase tracking-wide text-ink/35">
-                                                System
-                                            </span>
-                                        </button>
-                                    </li>
-                                </ul>
-                            </AdminSlideMenu>
-                        </div>
+                        <FormButton
+                            variant="primary"
+                            class="!rounded-xl !px-3 !py-2 !text-[12px]"
+                            label="Change roles"
+                            icon-left="ti ti-shield"
+                            @click="openRoles"
+                        />
                     </div>
 
                     <div v-if="currentRoles.length" class="mt-3 flex flex-wrap gap-1.5">
                         <span
                             v-for="role in currentRoles"
                             :key="role.id"
-                            class="inline-flex items-center gap-1 rounded-full bg-tint px-2.5 py-1 text-[12px] font-semibold text-deep"
+                            class="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[12px] font-semibold text-deep"
                         >
                             {{ role.name }}
-                            <button
-                                type="button"
-                                class="flex h-4 w-4 items-center justify-center rounded-full text-deep/50 hover:bg-white hover:text-deep"
-                                :aria-label="`Remove ${role.name}`"
-                                :disabled="assigning || (isSelf && role.id === 'super_admin')"
-                                @click="removeRole(role)"
-                            >
-                                <i class="ti ti-x text-[11px]" aria-hidden="true" />
-                            </button>
                         </span>
                     </div>
                     <p v-else class="mt-3 rounded-xl bg-pale px-3 py-3 text-[13px] font-medium text-ink/50">
@@ -192,6 +94,10 @@
                         <dd class="mt-0.5 font-medium text-ink">{{ shown.last_login || 'Never' }}</dd>
                     </div>
                     <div>
+                        <dt class="font-semibold text-ink/40">Last logout</dt>
+                        <dd class="mt-0.5 font-medium text-ink">{{ shown.last_logout || '—' }}</dd>
+                    </div>
+                    <div>
                         <dt class="font-semibold text-ink/40">Invite expiry</dt>
                         <dd class="mt-0.5 font-medium text-ink">
                             <template v-if="shown.status === 'invited'">
@@ -199,6 +105,10 @@
                             </template>
                             <template v-else>—</template>
                         </dd>
+                    </div>
+                    <div v-if="shown.attendance">
+                        <dt class="font-semibold text-ink/40">Idle</dt>
+                        <dd class="mt-0.5 font-medium text-ink">{{ shown.attendance.idle_label }} without interaction</dd>
                     </div>
                     <div v-if="detail.invited_by">
                         <dt class="font-semibold text-ink/40">Invited by</dt>
@@ -208,57 +118,104 @@
                         <dt class="font-semibold text-ink/40">Suggested role</dt>
                         <dd class="mt-0.5 font-medium text-ink">{{ detail.suggested_role }}</dd>
                     </div>
+                    <div v-if="shown.attendance" class="sm:col-span-2 rounded-xl bg-pale px-3 py-3">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Today vs shift</p>
+                        <p class="mt-1.5 text-[13px] font-medium text-ink">
+                            Should sign in {{ shown.attendance.expected_in }} · signed in {{ shown.attendance.logged_in }}
+                            <span v-if="shown.attendance.late" class="ms-1 font-bold text-amber-700">Late</span>
+                            <span v-if="shown.attendance.missed" class="ms-1 font-bold text-coral-deep">Not signed in</span>
+                        </p>
+                        <p class="mt-0.5 text-[13px] font-medium text-ink/50">
+                            {{ shown.attendance.shift_label }} · signed out {{ shown.attendance.logged_out }}
+                        </p>
+                    </div>
                     <div v-if="detail.suspension_reason" class="sm:col-span-2">
                         <dt class="font-semibold text-ink/40">Disabled because</dt>
                         <dd class="mt-0.5 font-medium text-ink">{{ detail.suspension_reason }}</dd>
                     </div>
                 </dl>
 
-                <Link
-                    v-if="canSeeHr"
-                    :href="route('admin.hr.staff.show', shown.id)"
-                    class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-base-action hover:text-base-hover"
-                >
-                    <i class="ti ti-id-badge-2" aria-hidden="true" />
-                    Open HR profile
-                </Link>
-
-                <section v-if="!isSelf && shown.status !== 'invited'" class="rounded-2xl border border-red-100 bg-red-50/40 p-4">
-                    <h3 class="text-[13px] font-bold text-red-700">Danger zone</h3>
-                    <p class="mt-1 text-[13px] font-medium text-ink/50">
-                        Disable immediately signs them out. Removing the account requires typing their name.
-                    </p>
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        <button
-                            v-if="shown.status === 'active'"
-                            type="button"
-                            class="rounded-xl border border-red-200 bg-white px-3 py-2 text-[12px] font-bold text-red-600"
-                            @click="ask('disable')"
-                        >
-                            Disable account
-                        </button>
-                        <button
-                            v-else
-                            type="button"
-                            class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[12px] font-bold text-emerald-700"
-                            @click="ask('reinstate')"
-                        >
-                            Reinstate account
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-xl bg-red-600 px-3 py-2 text-[12px] font-bold text-white"
-                            @click="ask('remove')"
-                        >
-                            Remove account
-                        </button>
-                    </div>
-                </section>
+                <div class="flex flex-wrap gap-x-4 gap-y-2">
+                    <Link
+                        v-if="canSeeHr"
+                        :href="route('admin.hr.staff.show', shown.id)"
+                        :show-progress="false"
+                        class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-base-action hover:text-base-hover"
+                    >
+                        <i class="ti ti-id-badge-2" aria-hidden="true" />
+                        Open HR profile
+                    </Link>
+                    <Link
+                        v-if="canSeeDiscipline"
+                        :href="route('admin.hr.discipline.index', { q: shown.name })"
+                        :show-progress="false"
+                        class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-base-action hover:text-base-hover"
+                    >
+                        <i class="ti ti-gavel" aria-hidden="true" />
+                        Disciplinary cases
+                    </Link>
+                </div>
             </div>
 
-            <div v-else key="activity" class="space-y-5">
+            <div v-else-if="tab === 'shift'" key="shift" class="space-y-5">
+                <p class="text-[13px] font-medium text-ink/50">
+                    Set the days and hours this person should be on duty. Insights then compare that with when they actually sign in, sign out, and go idle.
+                </p>
                 <div>
-                    <h3 class="text-[13px] font-bold text-ink">What they’ve done</h3>
+                    <p class="text-[12px] font-semibold text-ink/50">Working days</p>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                            v-for="day in dayOptions"
+                            :key="day.id"
+                            type="button"
+                            class="rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                            :class="shiftForm.days.includes(day.id) ? 'bg-base-action text-white' : 'bg-pale text-ink/55 hover:bg-tint'"
+                            @click="toggleShiftDay(day.id)"
+                        >
+                            {{ day.short }}
+                        </button>
+                    </div>
+                    <p v-if="shiftForm.errors.shift_days" class="mt-1.5 text-[12px] font-medium text-coral-deep">
+                        {{ shiftForm.errors.shift_days }}
+                    </p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-[12px] font-semibold text-ink/50">Shift starts</span>
+                        <input
+                            v-model="shiftForm.start"
+                            type="time"
+                            class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                        />
+                        <p v-if="shiftForm.errors.shift_starts_at" class="mt-1 text-[12px] font-medium text-coral-deep">
+                            {{ shiftForm.errors.shift_starts_at }}
+                        </p>
+                    </label>
+                    <label class="block">
+                        <span class="text-[12px] font-semibold text-ink/50">Shift ends</span>
+                        <input
+                            v-model="shiftForm.end"
+                            type="time"
+                            class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                        />
+                        <p v-if="shiftForm.errors.shift_ends_at" class="mt-1 text-[12px] font-medium text-coral-deep">
+                            {{ shiftForm.errors.shift_ends_at }}
+                        </p>
+                    </label>
+                </div>
+                <FormButton
+                    variant="primary"
+                    class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
+                    label="Save shift"
+                    :loading="busy === 'shift'"
+                    loading-label="Saving…"
+                    @click="saveShift"
+                />
+            </div>
+
+            <div v-else key="activity" class="space-y-6">
+                <section>
+                    <h3 class="text-[13px] font-bold text-ink">Login history</h3>
                     <ul v-if="panel?.activity?.logins?.length" class="mt-2 divide-y divide-ink/[0.06]">
                         <li v-for="row in panel.activity.logins" :key="row.id" class="py-2.5 text-[13px]">
                             <p class="font-semibold text-ink">{{ row.title }}</p>
@@ -266,20 +223,235 @@
                         </li>
                     </ul>
                     <p v-else class="mt-2 text-sm text-ink/40">No sign-ins recorded yet.</p>
-                </div>
-                <div>
-                    <h3 class="text-[13px] font-bold text-ink">What was done to this account</h3>
-                    <ul v-if="panel?.activity?.admin_actions?.length" class="mt-2 divide-y divide-ink/[0.06]">
-                        <li v-for="row in panel.activity.admin_actions" :key="row.id" class="py-2.5 text-[13px]">
-                            <p class="font-semibold text-ink">{{ row.summary }}</p>
-                            <p class="text-ink/40">{{ row.actor || 'System' }} · {{ row.when }}</p>
+                </section>
+
+                <section>
+                    <h3 class="text-[13px] font-bold text-ink">Admin activity</h3>
+                    <p class="mt-0.5 text-[12px] font-medium text-ink/40">What they did in the admin panel.</p>
+                    <ul v-if="panel?.activity?.actor_log?.length" class="mt-2 divide-y divide-ink/[0.06]">
+                        <li v-for="row in panel.activity.actor_log" :key="row.id" class="py-2.5 text-[13px]">
+                            <p class="font-semibold text-ink">{{ row.title }}</p>
+                            <p class="text-ink/40">{{ row.when }}</p>
                         </li>
                     </ul>
-                    <p v-else class="mt-2 text-sm text-ink/40">No access changes logged yet.</p>
-                </div>
+                    <p v-else class="mt-2 text-sm text-ink/40">No admin actions recorded yet.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-[13px] font-bold text-ink">Account timeline</h3>
+                    <p class="mt-0.5 text-[12px] font-medium text-ink/40">Access, HR, and case events for this person.</p>
+                    <ul v-if="panel?.activity?.feed?.length" class="mt-2 divide-y divide-ink/[0.06]">
+                        <li v-for="row in panel.activity.feed" :key="row.id" class="py-2.5 text-[13px]">
+                            <p class="font-semibold text-ink">{{ row.title }}</p>
+                            <p v-if="row.body" class="mt-0.5 font-medium text-ink/55">{{ row.body }}</p>
+                            <p class="text-ink/40">
+                                <span v-if="row.actor">{{ row.actor }} · </span>{{ row.when }}
+                            </p>
+                            <Link
+                                v-if="row.href"
+                                :href="row.href"
+                                :show-progress="false"
+                                class="mt-1 inline-flex text-[12px] font-semibold text-base-action hover:text-base-hover"
+                            >
+                                {{ row.href_label || 'Open' }}
+                            </Link>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-2 text-sm text-ink/40">Nothing on this timeline yet.</p>
+                </section>
             </div>
             </Transition>
         </div>
+
+        <template v-if="shown" #footer>
+            <div class="grid grid-cols-2 gap-2">
+                <FormButton
+                    variant="primary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Message"
+                    :loading="busy === 'message'"
+                    @click="openMessage"
+                />
+                <FormButton
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Send notice"
+                    :loading="busy === 'announce'"
+                    @click="openAnnounce"
+                />
+                <FormButton
+                    v-if="shown.password_set && !isSelf"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Force logout"
+                    :loading="busy === 'logout'"
+                    @click="ask('logout')"
+                />
+                <FormButton
+                    v-if="shown.password_set && !isSelf && shown.status !== 'suspended'"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Reset password"
+                    :loading="busy === 'reset'"
+                    @click="ask('reset')"
+                />
+                <FormButton
+                    v-if="shown.status === 'invited'"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Resend invite"
+                    :loading="busy === 'resend'"
+                    @click="resendInvite"
+                />
+                <FormButton
+                    v-if="shown.status === 'invited'"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px] !border-red-200 !text-red-600"
+                    label="Revoke invite"
+                    :loading="busy === 'revoke'"
+                    @click="ask('revoke')"
+                />
+                <FormButton
+                    v-if="shown.status === 'active' && !isSelf"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px] !border-red-200 !text-red-600"
+                    label="Disable"
+                    :loading="busy === 'disable'"
+                    @click="ask('disable')"
+                />
+                <FormButton
+                    v-if="shown.status === 'suspended' && !isSelf"
+                    variant="secondary"
+                    class="w-full !rounded-xl !px-3 !py-2.5 !text-[13px]"
+                    label="Reinstate"
+                    :loading="busy === 'reinstate'"
+                    @click="ask('reinstate')"
+                />
+                <FormButton
+                    v-if="shown.status !== 'invited' && !isSelf"
+                    variant="secondary"
+                    class="col-span-2 w-full !rounded-xl !px-3 !py-2.5 !text-[13px] !border-red-200 !text-red-600"
+                    label="Remove account"
+                    :loading="busy === 'remove'"
+                    @click="ask('remove')"
+                />
+            </div>
+            <p v-if="isSelf" class="mt-2 text-center text-[12px] font-medium text-ink/40">
+                You cannot change your own access here.
+            </p>
+        </template>
+    </AdminDrawer>
+
+    <AdminDrawer :open="rolesOpen" title="Change roles" eyebrow="Access" @close="rolesOpen = false">
+        <div class="space-y-3">
+            <p class="text-[13px] font-medium text-ink/50">Select every role this person should have. Changes apply immediately.</p>
+            <label class="flex items-center gap-3 rounded-xl bg-pale px-3 py-2.5">
+                <input
+                    v-model="roleDraft.super"
+                    type="checkbox"
+                    class="rounded border-ink/20 text-base-action"
+                    :disabled="isSelf"
+                />
+                <span class="text-[13px] font-semibold text-ink">Super Admin</span>
+            </label>
+            <label
+                v-for="role in roles"
+                :key="role.id"
+                class="flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 ring-ink/[0.06]"
+            >
+                <input v-model="roleDraft.ids" type="checkbox" :value="role.id" class="rounded border-ink/20 text-base-action" />
+                <span class="text-[13px] font-semibold text-ink">{{ role.name }}</span>
+            </label>
+        </div>
+        <template #footer>
+            <div class="flex justify-end gap-2">
+                <FormButton variant="secondary" class="!rounded-xl !px-4 !py-2.5 !text-[13px]" label="Cancel" @click="rolesOpen = false" />
+                <FormButton
+                    variant="primary"
+                    class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
+                    label="Save roles"
+                    :loading="busy === 'roles'"
+                    loading-label="Saving…"
+                    @click="saveRoles"
+                />
+            </div>
+        </template>
+    </AdminDrawer>
+
+    <AdminDrawer :open="messageOpen" title="Message" eyebrow="Email and in-app" @close="messageOpen = false">
+        <form class="space-y-4" @submit.prevent="submitMessage">
+            <div class="flex flex-wrap gap-1.5">
+                <button
+                    v-for="item in channelOptions"
+                    :key="item.value"
+                    type="button"
+                    class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150"
+                    :class="messageForm.channels.includes(item.value) ? 'bg-base-action text-white' : 'bg-pale text-ink/55 hover:bg-tint'"
+                    @click="toggleChannel(messageForm, item.value)"
+                >
+                    {{ item.label }}
+                </button>
+            </div>
+            <FormTextInput id="staff-message-subject" v-model="messageForm.subject" label="Subject" :error="messageForm.errors.subject" />
+            <FormTextarea id="staff-message-body" v-model="messageForm.body" label="Message" :error="messageForm.errors.body" required />
+        </form>
+        <template #footer>
+            <div class="flex justify-end gap-2">
+                <FormButton variant="secondary" class="!rounded-xl !px-4 !py-2.5 !text-[13px]" label="Cancel" @click="messageOpen = false" />
+                <FormButton
+                    variant="primary"
+                    class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
+                    label="Send"
+                    :loading="busy === 'message'"
+                    loading-label="Sending…"
+                    @click="submitMessage"
+                />
+            </div>
+        </template>
+    </AdminDrawer>
+
+    <AdminDrawer :open="announceOpen" title="Send a notice" eyebrow="Template" @close="announceOpen = false">
+        <form class="space-y-4" @submit.prevent="submitAnnounce">
+            <label class="block">
+                <span class="text-[12px] font-semibold text-ink/50">Template</span>
+                <select
+                    v-model="announceForm.template_id"
+                    class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base"
+                    @change="applyTemplate"
+                >
+                    <option value="">Pick a template…</option>
+                    <option v-for="item in catalog" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
+                </select>
+            </label>
+            <div class="flex flex-wrap gap-1.5">
+                <button
+                    v-for="item in channelOptions"
+                    :key="item.value"
+                    type="button"
+                    class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150"
+                    :class="announceForm.channels.includes(item.value) ? 'bg-base-action text-white' : 'bg-pale text-ink/55 hover:bg-tint'"
+                    @click="toggleChannel(announceForm, item.value)"
+                >
+                    {{ item.label }}
+                </button>
+            </div>
+            <FormTextInput id="staff-notice-subject" v-model="announceForm.subject" label="Subject" :error="announceForm.errors.subject" />
+            <FormTextarea id="staff-notice-body" v-model="announceForm.body" label="Message" :error="announceForm.errors.body" required />
+        </form>
+        <template #footer>
+            <div class="flex justify-end gap-2">
+                <FormButton variant="secondary" class="!rounded-xl !px-4 !py-2.5 !text-[13px]" label="Cancel" @click="announceOpen = false" />
+                <FormButton
+                    variant="primary"
+                    class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
+                    label="Send to this person"
+                    :loading="busy === 'announce'"
+                    loading-label="Sending…"
+                    :disabled="!announceForm.template_id"
+                    @click="submitAnnounce"
+                />
+            </div>
+        </template>
     </AdminDrawer>
 
     <AdminConfirmDialog
@@ -288,76 +460,118 @@
         :description="dialogMeta.description"
         :confirm-label="dialogMeta.confirmLabel"
         :tone="dialogMeta.tone"
-        :require-reason="true"
-        :confirm-phrase="dialog === 'remove' ? shown?.name : ''"
-        :processing="busy"
+        :require-reason="dialogMeta.requireReason"
+        :processing="!!busy"
         @close="dialog = null"
         @confirm="runDialog"
-    />
+    >
+        <label v-if="dialog === 'remove'" class="mt-4 block">
+            <span class="text-[12px] font-semibold text-ink/50">
+                Type <span class="font-bold text-ink">{{ shown?.name }}</span> or their email to confirm
+            </span>
+            <input
+                v-model="typedConfirm"
+                type="text"
+                required
+                class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+            />
+        </label>
+    </AdminConfirmDialog>
 </template>
 
 <script setup>
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
-import AdminSlideMenu from '@/Components/Admin/AdminSlideMenu.vue';
+import FormButton from '@/Components/Form/FormButton.vue';
+import FormTextInput from '@/Components/Form/FormTextInput.vue';
+import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { toast } from '@/utils/adminRange';
 import { Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     person: { type: Object, default: null },
     panel: { type: Object, default: null },
     loading: { type: Boolean, default: false },
     roles: { type: Array, default: () => [] },
+    templates: { type: Array, default: () => [] },
+    weekdays: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['close', 'updated', 'deleted', 'refresh', 'resend']);
 
 const page = usePage();
 const tab = ref('overview');
-const menu = ref(false);
-const menuRoot = ref(null);
-const assignRoot = ref(null);
-const assignOpen = ref(false);
-const roleQuery = ref('');
-const assigning = ref(false);
+const busy = ref('');
 const dialog = ref(null);
-const busy = ref(false);
+const typedConfirm = ref('');
 const lastPerson = ref(null);
+const rolesOpen = ref(false);
+const messageOpen = ref(false);
+const announceOpen = ref(false);
+const roleDraft = reactive({ ids: [], super: false });
+const messageForm = reactive({
+    subject: '',
+    body: '',
+    channels: ['in_app', 'email'],
+    errors: {},
+});
+const announceForm = reactive({
+    template_id: '',
+    subject: '',
+    body: '',
+    channels: ['in_app', 'email'],
+    errors: {},
+});
 
 const shown = computed(() => props.person || lastPerson.value);
 const detail = computed(() => props.panel?.staff || shown.value || {});
 const meId = computed(() => page.props.auth?.user?.id);
 const isSelf = computed(() => !!shown.value && shown.value.id === meId.value);
+const abilities = computed(() => page.props.auth?.user?.abilities || []);
 const canSeeHr = computed(() => {
     const user = page.props.auth?.user;
-    return !!user?.is_super_admin || (user?.abilities || []).includes('hr.view');
+    return !!user?.is_super_admin || abilities.value.includes('hr.view');
+});
+const canSeeDiscipline = computed(() => {
+    const user = page.props.auth?.user;
+    return !!user?.is_super_admin || abilities.value.includes('hr.discipline.view');
 });
 
 const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'shift', label: 'Shift' },
     { id: 'activity', label: 'Activity' },
 ];
 
-const currentRoles = computed(() => shown.value?.roles || []);
+const dayOptions = computed(() =>
+    props.weekdays.length
+        ? props.weekdays
+        : [
+            { id: 1, label: 'Monday', short: 'Mon' },
+            { id: 2, label: 'Tuesday', short: 'Tue' },
+            { id: 3, label: 'Wednesday', short: 'Wed' },
+            { id: 4, label: 'Thursday', short: 'Thu' },
+            { id: 5, label: 'Friday', short: 'Fri' },
+            { id: 6, label: 'Saturday', short: 'Sat' },
+            { id: 7, label: 'Sunday', short: 'Sun' },
+        ],
+);
 
-const assignable = computed(() => {
-    const assigned = new Set(currentRoles.value.map((role) => String(role.id)));
-    const extras = [{ id: 'super_admin', name: 'Super Admin', system: true }];
-    const catalog = [...extras, ...props.roles.filter((role) => role.is_active !== false)];
-    const q = roleQuery.value.trim().toLowerCase();
-
-    return catalog.filter((role) => {
-        if (assigned.has(String(role.id))) {
-            return false;
-        }
-        if (q && !String(role.name).toLowerCase().includes(q)) {
-            return false;
-        }
-        return true;
-    });
+const shiftForm = reactive({
+    days: [1, 2, 3, 4, 5, 6],
+    start: '08:00',
+    end: '18:00',
+    errors: {},
 });
+
+const currentRoles = computed(() => shown.value?.roles || []);
+const catalog = computed(() => props.panel?.templates?.length ? props.panel.templates : props.templates);
+const channelOptions = [
+    { value: 'in_app', label: 'In-app' },
+    { value: 'email', label: 'Email' },
+];
 
 const dialogMeta = computed(() => {
     const map = {
@@ -368,28 +582,54 @@ const dialogMeta = computed(() => {
                 : 'They will be signed out everywhere and cannot sign in until reinstated.',
             confirmLabel: 'Disable',
             tone: 'danger',
+            requireReason: true,
         },
         reinstate: {
             title: 'Reinstate access',
             description: 'They can sign in again with their existing password.',
             confirmLabel: 'Reinstate',
             tone: 'default',
+            requireReason: true,
         },
         revoke: {
             title: 'Revoke invite',
             description: 'The pending invite is removed. They never become active staff.',
             confirmLabel: 'Revoke',
             tone: 'danger',
+            requireReason: true,
+        },
+        logout: {
+            title: 'Sign them out everywhere?',
+            description: 'Active sessions and remember-me tokens are cleared. The account stays enabled.',
+            confirmLabel: 'Force logout',
+            tone: 'danger',
+            requireReason: true,
+        },
+        reset: {
+            title: 'Send a password reset?',
+            description: `A branded reset email goes to ${shown.value?.email}.`,
+            confirmLabel: 'Send reset',
+            tone: 'default',
+            requireReason: false,
         },
         remove: {
             title: 'Remove this staff account',
-            description: 'Type their name to confirm. Sessions are invalidated immediately.',
+            description: 'This removes admin access only. HR and disciplinary history are kept. Type their name or email to confirm.',
             confirmLabel: 'Remove',
             tone: 'danger',
+            requireReason: true,
         },
     };
-    return map[dialog.value] || { title: 'Confirm', description: '', confirmLabel: 'Confirm' };
+    return map[dialog.value] || { title: 'Confirm', description: '', confirmLabel: 'Confirm', requireReason: true };
 });
+
+const hydrateShift = (person) => {
+    const shift = person?.shift || person?.attendance;
+    shiftForm.days = [...(shift?.days || [1, 2, 3, 4, 5, 6])];
+    shiftForm.start = shift?.start || '08:00';
+    shiftForm.end = shift?.end || '18:00';
+    shiftForm.errors = {};
+};
 
 watch(
     () => props.person?.id,
@@ -401,10 +641,13 @@ watch(
             return;
         }
         tab.value = 'overview';
-        menu.value = false;
-        assignOpen.value = false;
-        roleQuery.value = '';
         dialog.value = null;
+        rolesOpen.value = false;
+        messageOpen.value = false;
+        announceOpen.value = false;
+        typedConfirm.value = '';
+        busy.value = '';
+        hydrateShift(props.person);
     },
 );
 
@@ -413,84 +656,205 @@ watch(
     (person) => {
         if (person) {
             lastPerson.value = person;
+            hydrateShift(person);
         }
     },
+    { immediate: true },
 );
 
-const ask = (type) => {
-    menu.value = false;
-    dialog.value = type;
+const toggleShiftDay = (id) => {
+    if (shiftForm.days.includes(id)) {
+        if (shiftForm.days.length === 1) {
+            return;
+        }
+        shiftForm.days = shiftForm.days.filter((day) => day !== id);
+        return;
+    }
+    shiftForm.days = [...shiftForm.days, id].sort((a, b) => a - b);
 };
 
-const assignRole = async (role) => {
+const saveShift = async () => {
     if (!shown.value) {
         return;
     }
-    const person = shown.value;
-    const previousRoles = [...(person.roles || [])];
-    assignOpen.value = false;
-    roleQuery.value = '';
-    assigning.value = true;
-
-    emit('updated', {
-        ...person,
-        roles: [...previousRoles, { id: role.id, key: role.slug || role.id, name: role.name, system: !!role.system }],
-        is_super: role.id === 'super_admin' ? true : person.is_super,
-    });
-
+    busy.value = 'shift';
+    shiftForm.errors = {};
     try {
-        const payload = role.id === 'super_admin' ? { role: 'super_admin' } : { role_id: role.id };
-        const { data } = await axios.post(route('admin.staff.roles.store', person.id), payload);
+        const { data } = await axios.post(route('admin.staff.shift', shown.value.id), {
+            shift_days: shiftForm.days,
+            shift_starts_at: shiftForm.start,
+            shift_ends_at: shiftForm.end,
+        });
         toast(data.toast);
         if (data.staff) {
-            emit('updated', { ...person, ...data.staff });
+            emit('updated', data.staff);
+            hydrateShift(data.staff);
         }
-        emit('refresh');
     } catch (error) {
-        emit('updated', { ...person, roles: previousRoles, is_super: previousRoles.some((item) => item.id === 'super_admin') });
+        shiftForm.errors = error.response?.data?.errors || {};
         toast({
             type: 'error',
-            title: 'Couldn’t assign',
-            message: error.response?.data?.message || error.response?.data?.errors?.role?.[0] || 'Try again.',
+            title: 'Couldn’t save shift',
+            message: error.response?.data?.message || 'Check the days and times and try again.',
         });
     } finally {
-        assigning.value = false;
+        busy.value = '';
     }
 };
 
-const removeRole = async (role) => {
-    if (!shown.value || (isSelf.value && role.id === 'super_admin')) {
+const ask = (type) => {
+    typedConfirm.value = '';
+    dialog.value = type;
+};
+
+const openRoles = () => {
+    roleDraft.ids = currentRoles.value
+        .filter((role) => role.id !== 'super_admin')
+        .map((role) => role.id);
+    roleDraft.super = !!shown.value?.is_super;
+    rolesOpen.value = true;
+};
+
+const openMessage = () => {
+    messageForm.subject = 'A note from Isabi';
+    messageForm.body = `Hi {{first_name}}, `;
+    messageForm.channels = ['in_app', 'email'];
+    messageForm.errors = {};
+    messageOpen.value = true;
+};
+
+const openAnnounce = () => {
+    announceForm.template_id = '';
+    announceForm.subject = '';
+    announceForm.body = '';
+    announceForm.channels = ['in_app', 'email'];
+    announceForm.errors = {};
+    announceOpen.value = true;
+};
+
+const applyTemplate = () => {
+    const template = catalog.value.find((item) => String(item.id) === String(announceForm.template_id));
+    if (!template) {
         return;
     }
-    const person = shown.value;
-    const previousRoles = [...(person.roles || [])];
-    assigning.value = true;
-    emit('updated', {
-        ...person,
-        roles: previousRoles.filter((item) => String(item.id) !== String(role.id)),
-        is_super: role.id === 'super_admin' ? false : person.is_super,
-    });
+    announceForm.subject = template.subject || '';
+    announceForm.body = template.body || '';
+    announceForm.channels = (template.channels || []).filter((item) => item === 'in_app' || item === 'email');
+    if (!announceForm.channels.length) {
+        announceForm.channels = ['in_app', 'email'];
+    }
+};
 
+const toggleChannel = (form, value) => {
+    if (form.channels.includes(value)) {
+        if (form.channels.length === 1) {
+            return;
+        }
+        form.channels = form.channels.filter((item) => item !== value);
+        return;
+    }
+    form.channels = [...form.channels, value];
+};
+
+const saveRoles = async () => {
+    if (!shown.value) {
+        return;
+    }
+    busy.value = 'roles';
     try {
-        const { data } = await axios.delete(route('admin.staff.roles.destroy', [person.id, role.id]));
+        const { data } = await axios.put(route('admin.staff.roles.sync', shown.value.id), {
+            role_ids: roleDraft.ids,
+            is_super: roleDraft.super,
+        });
         toast(data.toast);
         if (data.staff) {
-            emit('updated', { ...person, ...data.staff });
+            emit('updated', { ...shown.value, ...data.staff });
         }
         emit('refresh');
+        rolesOpen.value = false;
     } catch (error) {
-        emit('updated', {
-            ...person,
-            roles: previousRoles,
-            is_super: previousRoles.some((item) => item.id === 'super_admin'),
-        });
         toast({
             type: 'error',
-            title: 'Couldn’t remove',
+            title: 'Couldn’t update roles',
             message: error.response?.data?.message || error.response?.data?.errors?.role?.[0] || 'Try again.',
         });
     } finally {
-        assigning.value = false;
+        busy.value = '';
+    }
+};
+
+const submitMessage = async () => {
+    if (!shown.value) {
+        return;
+    }
+    busy.value = 'message';
+    messageForm.errors = {};
+    try {
+        const { data } = await axios.post(route('admin.staff.message', shown.value.id), {
+            subject: messageForm.subject,
+            body: messageForm.body,
+            channels: messageForm.channels,
+        });
+        toast(data.toast);
+        messageOpen.value = false;
+    } catch (error) {
+        messageForm.errors = error.response?.data?.errors || {};
+        toast({
+            type: 'error',
+            title: 'Couldn’t send',
+            message: error.response?.data?.message || error.response?.data?.errors?.body?.[0] || 'Try again.',
+        });
+    } finally {
+        busy.value = '';
+    }
+};
+
+const submitAnnounce = async () => {
+    if (!shown.value || !announceForm.template_id) {
+        return;
+    }
+    busy.value = 'announce';
+    announceForm.errors = {};
+    try {
+        const { data } = await axios.post(route('admin.staff.announce', shown.value.id), {
+            template_id: Number(announceForm.template_id),
+            subject: announceForm.subject,
+            body: announceForm.body,
+            channels: announceForm.channels,
+        });
+        toast(data.toast);
+        announceOpen.value = false;
+    } catch (error) {
+        announceForm.errors = error.response?.data?.errors || {};
+        toast({
+            type: 'error',
+            title: 'Couldn’t send',
+            message: error.response?.data?.message || error.response?.data?.errors?.template_id?.[0] || 'Try again.',
+        });
+    } finally {
+        busy.value = '';
+    }
+};
+
+const resendInvite = async () => {
+    if (!shown.value) {
+        return;
+    }
+    busy.value = 'resend';
+    try {
+        const { data } = await axios.post(route('admin.staff.resend', shown.value.id));
+        toast(data.toast);
+        if (data.staff) {
+            emit('updated', { ...shown.value, ...data.staff });
+        }
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t resend',
+            message: error.response?.data?.message || error.response?.data?.errors?.email?.[0] || 'Try again shortly.',
+        });
+    } finally {
+        busy.value = '';
     }
 };
 
@@ -498,16 +862,23 @@ const runDialog = async ({ reason, confirmation }) => {
     if (!shown.value || !dialog.value) {
         return;
     }
-    busy.value = true;
+    const type = dialog.value;
+    busy.value = type;
     const id = shown.value.id;
     try {
-        const routes = {
+        const payload = {
+            reason,
+            confirmation: type === 'remove' ? typedConfirm.value : confirmation,
+        };
+        const urls = {
             disable: route('admin.staff.disable', id),
             reinstate: route('admin.staff.reinstate', id),
             revoke: route('admin.staff.revoke', id),
+            logout: route('admin.staff.logout', id),
+            reset: route('admin.staff.password-reset', id),
             remove: route('admin.staff.destroy', id),
         };
-        const { data } = await axios.post(routes[dialog.value], { reason, confirmation });
+        const { data } = await axios.post(urls[type], payload);
         toast(data.toast);
         if (data.deleted_id) {
             emit('deleted', data.deleted_id);
@@ -520,24 +891,15 @@ const runDialog = async ({ reason, confirmation }) => {
         toast({
             type: 'error',
             title: 'Couldn’t complete',
-            message: error.response?.data?.message || error.response?.data?.errors?.confirmation?.[0] || 'Try again.',
+            message: error.response?.data?.message
+                || error.response?.data?.errors?.confirmation?.[0]
+                || error.response?.data?.errors?.reason?.[0]
+                || 'Try again.',
         });
     } finally {
-        busy.value = false;
+        busy.value = '';
     }
 };
-
-const onDocClick = (event) => {
-    if (menu.value && menuRoot.value && !menuRoot.value.contains(event.target)) {
-        menu.value = false;
-    }
-    if (assignOpen.value && assignRoot.value && !assignRoot.value.contains(event.target)) {
-        assignOpen.value = false;
-    }
-};
-
-onMounted(() => document.addEventListener('click', onDocClick));
-onUnmounted(() => document.removeEventListener('click', onDocClick));
 
 const initials = (name) =>
     String(name || 'I')
@@ -553,19 +915,6 @@ const statusClass = (status) => {
     return 'bg-pale text-ink/50';
 };
 </script>
-
-<style scoped>
-.menu-item {
-    @apply block w-full px-3 py-2 text-left text-[13px] font-semibold text-ink/70 hover:bg-pale;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-</style>
 
 <style>
 .admin-pane-enter-active,

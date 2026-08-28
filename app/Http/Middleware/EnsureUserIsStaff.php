@@ -30,12 +30,29 @@ class EnsureUserIsStaff
                 ->withErrors(['email' => 'This staff account has been suspended.']);
         }
 
+        $epoch = (int) $user->session_epoch;
+        $sessionEpoch = $request->session()->get('auth.staff_epoch');
+
+        if ($sessionEpoch === null) {
+            $request->session()->put('auth.staff_epoch', $epoch);
+        } elseif ((int) $sessionEpoch !== $epoch) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('admin.login')
+                ->withErrors(['email' => 'Your session was signed out. Please sign in again.']);
+        }
+
         if (! $user->hasSetPassword()) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('admin.invite.verify');
+            return redirect()
+                ->route('admin.login')
+                ->withErrors(['email' => 'Open the invite link from your email to set up your account.']);
         }
 
         return $next($request);

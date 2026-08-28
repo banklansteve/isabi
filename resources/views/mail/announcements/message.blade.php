@@ -1,8 +1,14 @@
-@component('mail::message')
+<x-mail::message>
+**Isabi**
+
 # {{ $subjectLine }}
 
-{!! nl2br(e($bodyText)) !!}
+{!! \Illuminate\Support\Str::markdown($bodyText) !!}
 
-Thanks,<br>
-The Isabi team
-@endcomponent
+Thanks for being with us,<br>
+**The Isabi team**
+
+<x-slot:subcopy>
+You're receiving this because you're part of Isabi. If this doesn't look right, reply to this email and we'll help.
+</x-slot:subcopy>
+</x-mail::message>

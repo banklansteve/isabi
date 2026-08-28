@@ -22,6 +22,13 @@ export default {
                 },
                 tint: '#E3ECFC',
                 pale: '#F5F8FE',
+                sand: {
+                    DEFAULT: '#F6F1E6',
+                    line: '#E4D8C4',
+                    mark: '#C4A36A',
+                    muted: '#8B7355',
+                    wash: '#F3EADF',
+                },
                 coral: {
                     DEFAULT: '#FF6A3D',
                     deep: '#C94C24',

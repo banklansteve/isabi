@@ -3,11 +3,12 @@ import './bootstrap';
 
 import CookieConsent from './Components/CookieConsent.vue';
 import AppNavigationProgress from './Components/App/AppNavigationProgress.vue';
+import RealtimeBridge from './Components/App/RealtimeBridge.vue';
 import SupportFab from './Components/App/SupportFab.vue';
 import ToastHost from './Components/ToastHost.vue';
 import { applySeo } from './utils/applySeo';
 import { rememberCurrentUrl } from './utils/backNavigation';
-import AdminLayout from './Layouts/AdminLayout.vue';
+import AdminShell from './Layouts/AdminShell.vue';
 import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
@@ -32,7 +33,7 @@ createInertiaApp({
         );
 
         if (name.startsWith('Admin/') && !name.startsWith('Admin/Auth/')) {
-            page.default.layout ??= AdminLayout;
+            page.default.layout ??= AdminShell;
         }
 
         return page;
@@ -46,6 +47,7 @@ createInertiaApp({
                     h(App, props),
                     h(CookieConsent),
                     h(ToastHost),
+                    h(RealtimeBridge),
                     h(SupportFab),
                     h(AppNavigationProgress),
                 ]),

@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Help\SendChatMessageRequest;
-use App\Models\SupportTicket;
-use App\Models\SupportTicketMessage;
+use App\Http\Requests\Help\SubmitSupportCsatRequest;
 use App\Support\ActivityLogger;
+use App\Support\Realtime\Realtime;
+use App\Support\SupportChat\SupportConversationService;
+use App\Support\SupportChat\SupportPresence;
+use App\Support\SupportChat\SupportPresenter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,6 +17,12 @@ use Inertia\Response;
 
 class HelpController extends Controller
 {
+    public function __construct(
+        private readonly SupportConversationService $conversations,
+        private readonly SupportPresenter $presenter,
+        private readonly SupportPresence $presence,
+    ) {}
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -36,58 +46,106 @@ class HelpController extends Controller
             user: $user,
         );
 
-        $ticket = SupportTicket::query()
-            ->where('user_id', $user->id)
-            ->whereIn('status', [SupportTicket::STATUS_OPEN, SupportTicket::STATUS_PENDING])
-            ->latest('id')
-            ->with('messages')
-            ->first();
+        $this->presence->heartbeat($user);
+        $ticket = $this->conversations->latestForCustomer($user);
 
-        $messages = $ticket?->messages->map(fn (SupportTicketMessage $message) => [
-            'id' => $message->id,
-            'role' => $message->is_staff ? 'support' : 'user',
-            'body' => $message->body,
-            'time' => $message->created_at?->timezone(config('app.display_timezone'))->format('g:ia'),
-        ])->all() ?? [];
+        if ($ticket) {
+            if ($ticket->isOpen()) {
+                $this->conversations->refreshRouting($ticket);
+            }
+            $this->conversations->markCustomerRead($ticket);
+        }
 
         return Inertia::render('Help/Chat', [
-            'messages' => $messages,
+            'conversation' => $this->presenter->customer($ticket?->fresh(), $user),
         ]);
     }
 
-    public function send(SendChatMessageRequest $request): RedirectResponse
+    public function sync(Request $request): JsonResponse
     {
-        $data = $request->validated();
-
         $user = $request->user();
+        $this->presence->heartbeat($user);
 
-        $ticket = SupportTicket::query()
-            ->where('user_id', $user->id)
-            ->whereIn('status', [SupportTicket::STATUS_OPEN, SupportTicket::STATUS_PENDING])
-            ->latest('id')
-            ->first();
+        $ticket = $this->conversations->latestForCustomer($user);
 
-        if (! $ticket) {
-            $ticket = SupportTicket::query()->create([
-                'user_id' => $user->id,
-                'subject' => str($data['body'])->limit(80)->toString(),
-                'status' => SupportTicket::STATUS_OPEN,
-                'last_reply_at' => now(),
-            ]);
+        if ($ticket) {
+            if ($ticket->isOpen()) {
+                $this->conversations->refreshRouting($ticket);
+            }
+            $this->conversations->markCustomerRead($ticket);
         }
 
-        SupportTicketMessage::query()->create([
-            'support_ticket_id' => $ticket->id,
-            'user_id' => $user->id,
-            'is_staff' => false,
-            'body' => $data['body'],
+        return response()->json($this->presenter->customer($ticket?->fresh(), $user));
+    }
+
+    public function send(SendChatMessageRequest $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        $this->presence->heartbeat($user);
+
+        $ticket = $this->conversations->customerMessage($user, [
+            'body' => $request->validated('body'),
+            'topic_key' => $request->validated('topic_key'),
+            'attachment' => $request->file('attachment'),
         ]);
 
-        $ticket->forceFill([
-            'status' => SupportTicket::STATUS_OPEN,
-            'last_reply_at' => now(),
-            'resolved_at' => null,
-        ])->save();
+        $this->conversations->markCustomerRead($ticket);
+
+        $payload = $this->presenter->customer($ticket->fresh(), $user);
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json($payload);
+        }
+
+        return back();
+    }
+
+    public function typing(Request $request): JsonResponse
+    {
+        $ticket = $this->conversations->latestForCustomer($request->user());
+
+        if ($ticket) {
+            $this->presence->markTyping($ticket->id, 'customer');
+            app(Realtime::class)->typing($ticket, 'customer');
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function react(
+        \App\Http\Requests\Chat\ToggleMessageReactionRequest $request,
+        \App\Models\SupportTicketMessage $message,
+        \App\Support\Chat\MessageReactionService $reactions,
+    ): JsonResponse {
+        $user = $request->user();
+        $ticket = $this->conversations->latestForCustomer($user);
+
+        abort_unless($ticket && (int) $message->support_ticket_id === (int) $ticket->id, 404);
+        abort_unless($message->kind === \App\Models\SupportTicketMessage::KIND_MESSAGE, 422);
+
+        return response()->json([
+            'reactions' => $reactions->toggle($user, $message, (string) $request->validated('emoji')),
+        ]);
+    }
+
+    public function csat(SubmitSupportCsatRequest $request): JsonResponse|RedirectResponse
+    {
+        $ticket = $this->conversations->latestForCustomer($request->user());
+
+        abort_unless($ticket, 404);
+
+        $this->conversations->submitCsat(
+            $ticket,
+            $request->validated('score'),
+            $request->validated('comment'),
+            (bool) $request->boolean('dismiss'),
+        );
+
+        $payload = $this->presenter->customer($ticket->fresh(), $request->user());
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json($payload);
+        }
 
         return back();
     }

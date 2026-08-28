@@ -4,17 +4,18 @@ namespace Tests\Feature\Admin;
 
 use App\Models\ChecklistTemplate;
 use App\Models\CompensationRecord;
-use App\Models\DisciplinaryRecord;
 use App\Models\HrProfile;
 use App\Models\LeaveAllocation;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Payslip;
+use App\Models\StaffDocument;
 use App\Models\StaffRole;
 use App\Models\User;
 use App\Support\Hr\HrDefaults;
 use App\Support\Hr\LeaveManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class HrModuleTest extends TestCase
@@ -345,6 +346,7 @@ class HrModuleTest extends TestCase
                 'leave_type_id' => $type->id,
                 'allowance_days' => 12,
                 'year' => 2026,
+                'reason' => 'Opening balance correction',
             ])
             ->assertRedirect();
 
@@ -374,82 +376,13 @@ class HrModuleTest extends TestCase
         $this->assertInstanceOf(LeaveAllocation::class, $staff->leaveAllocations()->first());
     }
 
-    public function test_disciplinary_record_can_be_created_and_closed(): void
-    {
-        $admin = $this->superAdmin();
-        $staff = $this->staffMember();
-
-        $this->actingAs($admin)
-            ->post(route('admin.hr.discipline.store', $staff), [
-                'type' => DisciplinaryRecord::TYPE_WRITTEN,
-                'occurred_on' => '2026-08-10',
-                'summary' => 'Missed two scheduled shifts',
-                'details' => 'No notice given.',
-                'follow_up_on' => '2026-08-24',
-            ])
-            ->assertRedirect();
-
-        $record = DisciplinaryRecord::where('user_id', $staff->id)->first();
-        $this->assertNotNull($record);
-        $this->assertSame(DisciplinaryRecord::STATUS_OPEN, $record->status);
-
-        $this->actingAs($admin)
-            ->patch(route('admin.hr.discipline.update', $record), [
-                'type' => DisciplinaryRecord::TYPE_WRITTEN,
-                'status' => DisciplinaryRecord::STATUS_CLOSED,
-                'occurred_on' => '2026-08-10',
-                'summary' => 'Missed two scheduled shifts',
-                'outcome' => 'Acknowledged. Monitoring for 30 days.',
-            ])
-            ->assertRedirect();
-
-        $this->assertSame(DisciplinaryRecord::STATUS_CLOSED, $record->fresh()->status);
-        $this->assertDatabaseHas('activity_logs', ['action' => 'hr.discipline_recorded']);
-    }
-
-    public function test_discipline_write_requires_manage_permission(): void
+    public function test_general_hr_cannot_open_the_case_list(): void
     {
         $viewer = $this->hrViewer();
-        $staff = $this->staffMember();
 
         $this->actingAs($viewer)
             ->get(route('admin.hr.discipline.index'))
-            ->assertOk();
-
-        $this->actingAs($viewer)
-            ->post(route('admin.hr.discipline.store', $staff), [
-                'type' => DisciplinaryRecord::TYPE_VERBAL,
-                'occurred_on' => '2026-08-10',
-                'summary' => 'Late to standup',
-            ])
             ->assertForbidden();
-    }
-
-    public function test_exit_preserves_disciplinary_records(): void
-    {
-        $admin = $this->superAdmin();
-        $staff = $this->staffMember();
-        HrProfile::create(['user_id' => $staff->id, 'employment_status' => 'active', 'start_date' => '2026-01-01']);
-
-        DisciplinaryRecord::create([
-            'user_id' => $staff->id,
-            'type' => DisciplinaryRecord::TYPE_FINAL,
-            'status' => DisciplinaryRecord::STATUS_MONITORING,
-            'occurred_on' => '2026-03-01',
-            'summary' => 'Policy breach',
-        ]);
-
-        $this->actingAs($admin)
-            ->post(route('admin.hr.staff.exit', $staff), [
-                'exit_date' => '2026-08-01',
-                'exit_reason' => 'Resigned',
-            ])
-            ->assertRedirect();
-
-        $this->assertDatabaseHas('disciplinary_records', [
-            'user_id' => $staff->id,
-            'summary' => 'Policy breach',
-        ]);
     }
 
     public function test_payslip_generation_computes_net(): void
@@ -495,5 +428,124 @@ class HrModuleTest extends TestCase
                 'staff',
                 fn ($staffList) => collect($staffList)->firstWhere('id', $staff->id)['on_leave'] === true,
             ));
+    }
+
+    public function test_super_admin_can_adjust_remaining_leave_with_a_reason(): void
+    {
+        $admin = $this->superAdmin();
+        $staff = $this->staffMember();
+        $type = LeaveType::where('key', 'annual')->first();
+
+        LeaveRequest::create([
+            'user_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-02',
+            'days' => 2,
+            'status' => LeaveRequest::STATUS_APPROVED,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.hr.leave.allocate', $staff), [
+                'leave_type_id' => $type->id,
+                'remaining_days' => 10,
+                'year' => 2026,
+                'reason' => 'Carry-over from 2025',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leave_allocations', [
+            'user_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'year' => 2026,
+            'allowance_days' => 12,
+            'reason' => 'Carry-over from 2025',
+        ]);
+        $balance = collect(LeaveManager::balances($staff, 2026))->firstWhere('leave_type_id', $type->id);
+        $this->assertSame(12, $balance['allowance_days']);
+        $this->assertSame(10, $balance['remaining_days']);
+    }
+
+    public function test_super_admin_can_update_document_expiry(): void
+    {
+        $admin = $this->superAdmin();
+        $staff = $this->staffMember();
+
+        Storage::fake('local');
+        $path = Storage::disk('local')->put("hr/documents/{$staff->id}/id.pdf", 'id');
+
+        $document = StaffDocument::query()->create([
+            'user_id' => $staff->id,
+            'type' => 'id',
+            'title' => 'National ID',
+            'disk' => 'local',
+            'path' => $path,
+            'original_name' => 'id.pdf',
+            'mime' => 'application/pdf',
+            'size' => 12,
+            'uploaded_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.hr.documents.update', $document), [
+                'title' => 'National ID',
+                'type' => 'id',
+                'expiry_date' => '2027-06-01',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('staff_documents', [
+            'id' => $document->id,
+            'expiry_date' => '2027-06-01',
+        ]);
+    }
+
+    public function test_super_admin_can_reissue_an_issued_payslip(): void
+    {
+        $admin = $this->superAdmin();
+        $staff = $this->staffMember();
+
+        $payslip = Payslip::create([
+            'user_id' => $staff->id,
+            'period_label' => 'July 2026',
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'base_pay' => 100,
+            'allowances_total' => 0,
+            'deductions_total' => 0,
+            'gross_pay' => 100,
+            'net_pay' => 100,
+            'status' => Payslip::STATUS_ISSUED,
+            'issued_at' => now(),
+            'generated_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.hr.payslips.reissue', $payslip), [
+                'reason' => 'Staff requested another copy',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(2, Payslip::query()->where('user_id', $staff->id)->count());
+        $this->assertDatabaseHas('payslips', [
+            'user_id' => $staff->id,
+            'period_label' => 'July 2026',
+            'status' => Payslip::STATUS_ISSUED,
+            'generated_by' => $admin->id,
+        ]);
+    }
+
+    public function test_hr_profile_exposes_case_history_to_super_admin(): void
+    {
+        $admin = $this->superAdmin();
+        $staff = $this->staffMember();
+
+        $this->actingAs($admin)
+            ->get(route('admin.hr.staff.show', $staff))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Hr/Profile')
+                ->has('discipline.cases')
+                ->where('can.discipline_manage', true));
     }
 }

@@ -2,11 +2,11 @@
     <AuthLayout
         tone="admin"
         headline="Set up your account."
-        support="You’ve been invited to the Isabi operations team. Choose a password to continue."
+        :support="`You’ve been added to the ${app_name} operations team. Opening this page confirms your email — add your name, choose a password, and you’re in.`"
         :points="[
-            'This invite expires soon — don’t wait',
+            'This invite is personal to you — don’t forward it',
+            'Add your name and choose a password',
             'You’ll be signed in right after',
-            'A Super Admin can change your roles anytime',
         ]"
     >
         <Head title="Set up your account" />
@@ -21,22 +21,31 @@
                 This invite expires {{ expires_at ? `on ${expires_at}` : 'soon' }}.
             </p>
             <p v-if="suggested_role" class="mt-2 text-center text-[13px] font-medium text-ink/40">
-                Suggested role: {{ suggested_role }} — applied when you accept.
+                Suggested role: {{ suggested_role }} — applied when you finish.
             </p>
 
             <form class="mt-8 space-y-5" @submit.prevent="submit">
-                <FormTextInput
-                    v-if="needs_name"
-                    id="name"
-                    v-model="form.name"
-                    label="Your name"
-                    icon="ti ti-user"
-                    placeholder="First and last name"
-                    autocomplete="name"
-                    required
-                    autofocus
-                    :error="form.errors.name"
-                />
+                <div class="grid gap-5 sm:grid-cols-2">
+                    <FormTextInput
+                        id="first_name"
+                        v-model="form.first_name"
+                        label="First name"
+                        placeholder="First name"
+                        autocomplete="given-name"
+                        required
+                        autofocus
+                        :error="form.errors.first_name"
+                    />
+                    <FormTextInput
+                        id="last_name"
+                        v-model="form.last_name"
+                        label="Last name"
+                        placeholder="Last name"
+                        autocomplete="family-name"
+                        required
+                        :error="form.errors.last_name"
+                    />
+                </div>
 
                 <FormPasswordInput
                     id="password"
@@ -45,7 +54,6 @@
                     placeholder="At least 8 characters"
                     autocomplete="new-password"
                     required
-                    :autofocus="!needs_name"
                     :error="form.errors.password"
                 />
 
@@ -66,7 +74,7 @@
                     icon-right="ti ti-arrow-right"
                     :loading="form.processing"
                     loading-label="Saving…"
-                    label="Create account"
+                    label="Finish setup"
                 />
             </form>
         </div>
@@ -83,14 +91,16 @@ import { Head, useForm } from '@inertiajs/vue3';
 const props = defineProps({
     token: { type: String, required: true },
     email: { type: String, default: '' },
-    name: { type: String, default: '' },
-    needs_name: { type: Boolean, default: false },
+    first_name: { type: String, default: '' },
+    last_name: { type: String, default: '' },
     expires_at: { type: String, default: '' },
     suggested_role: { type: String, default: '' },
+    app_name: { type: String, default: 'Isabi' },
 });
 
 const form = useForm({
-    name: props.name || '',
+    first_name: props.first_name || '',
+    last_name: props.last_name || '',
     password: '',
     password_confirmation: '',
 });

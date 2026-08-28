@@ -97,6 +97,7 @@ class HrDefaults
     {
         self::ensureLeaveTypes();
         self::ensureChecklistTemplates();
+        DisciplinaryLetter::ensureTemplates();
     }
 
     /**

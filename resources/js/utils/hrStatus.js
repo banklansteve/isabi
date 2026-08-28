@@ -44,23 +44,41 @@ export const documentExpiryMeta = (state) => {
 
 export const disciplineStatusMeta = (status) => {
     const map = {
-        open: { label: 'Open', class: 'bg-coral-tint text-coral-deep' },
-        monitoring: { label: 'Monitoring', class: 'bg-amber-50 text-amber-800' },
+        reported: { label: 'Reported', class: 'bg-slate-100 text-slate-600' },
+        investigating: { label: 'Under investigation', class: 'bg-tint text-deep' },
+        decision_pending: { label: 'Decision pending', class: 'bg-amber-50 text-amber-800' },
+        action_issued: { label: 'Action issued', class: 'bg-base/10 text-base-action' },
+        appealed: { label: 'Appealed', class: 'bg-violet-50 text-violet-700' },
+        resolved: { label: 'Resolved', class: 'bg-emerald-50 text-emerald-700' },
         closed: { label: 'Closed', class: 'bg-slate-100 text-slate-500' },
+        open: { label: 'Open', class: 'bg-slate-100 text-slate-600' },
+        monitoring: { label: 'Monitoring', class: 'bg-amber-50 text-amber-800' },
     };
-    return map[status] || map.open;
+    return map[status] || { label: status || 'Reported', class: 'bg-slate-100 text-slate-600' };
+};
+
+export const disciplineSeverityMeta = (severity) => {
+    const map = {
+        minor: { label: 'Minor', class: 'bg-slate-100 text-slate-600' },
+        moderate: { label: 'Moderate', class: 'bg-amber-50 text-amber-800' },
+        serious: { label: 'Serious', class: 'bg-coral-tint text-coral-deep' },
+    };
+    return map[severity] || map.moderate;
 };
 
 export const disciplineTypeMeta = (type) => {
     const map = {
         verbal_warning: { label: 'Verbal warning' },
         written_warning: { label: 'Written warning' },
-        final_warning: { label: 'Final warning' },
+        final_warning: { label: 'Final written warning' },
+        final_written_warning: { label: 'Final written warning' },
         suspension: { label: 'Suspension' },
+        termination: { label: 'Termination of employment' },
+        no_action: { label: 'No action taken' },
         improvement_plan: { label: 'Improvement plan' },
         other: { label: 'Other' },
     };
-    return map[type] || map.other;
+    return map[type] || { label: type || 'Notice' };
 };
 
 export const ratingMeta = (rating) => {

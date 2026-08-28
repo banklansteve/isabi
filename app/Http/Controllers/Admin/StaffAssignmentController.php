@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AssignStaffRoleRequest;
+use App\Http\Requests\Admin\SyncStaffAssignmentsRequest;
 use App\Models\StaffRole;
 use App\Models\User;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Staff\AdminPermissions;
 use App\Support\Staff\StaffAssignmentService;
+use App\Support\Staff\StaffPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,7 +39,34 @@ class StaffAssignmentController extends Controller
             'type' => 'success',
             'title' => 'Role assigned',
             'message' => $role->name.' now applies immediately.',
-        ], ['staff' => $this->rolesPayload($fresh)]);
+        ], ['staff' => StaffPresenter::rolesPayload($fresh)]);
+    }
+
+    public function sync(
+        SyncStaffAssignmentsRequest $request,
+        User $staff,
+        StaffAssignmentService $assignments,
+    ): JsonResponse|RedirectResponse {
+        abort_unless($staff->isStaff(), 404);
+
+        $data = $request->validated();
+        $fresh = $assignments->sync($staff->load('staffRoles'), $data['role_ids'] ?? [], $request->user());
+
+        if ($request->has('is_super')) {
+            $wantSuper = (bool) $data['is_super'];
+            if ($wantSuper && ! $fresh->isSuperAdmin()) {
+                return $this->promote($request, $fresh);
+            }
+            if (! $wantSuper && $fresh->isSuperAdmin()) {
+                return $this->demote($request, $fresh);
+            }
+        }
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Roles updated',
+            'message' => 'Access changes apply on the next request.',
+        ], ['staff' => StaffPresenter::rolesPayload($fresh)]);
     }
 
     public function destroy(
@@ -47,7 +76,7 @@ class StaffAssignmentController extends Controller
         StaffAssignmentService $assignments,
     ): JsonResponse|RedirectResponse {
         abort_unless($staff->isStaff(), 404);
-        abort_unless($request->user()?->isSuperAdmin(), 403);
+        abort_unless($request->user()?->isSuperAdmin() && $request->user()->canDo('admin.staff.manage'), 403);
 
         if ($role === AdminPermissions::SUPER_KEY) {
             return $this->demote($request, $staff);
@@ -60,7 +89,7 @@ class StaffAssignmentController extends Controller
             'type' => 'success',
             'title' => 'Role removed',
             'message' => $model->name.' no longer applies.',
-        ], ['staff' => $this->rolesPayload($fresh)]);
+        ], ['staff' => StaffPresenter::rolesPayload($fresh)]);
     }
 
     private function promote(Request $request, User $staff): JsonResponse|RedirectResponse
@@ -70,7 +99,7 @@ class StaffAssignmentController extends Controller
                 'type' => 'success',
                 'title' => 'Already Super Admin',
                 'message' => $staff->name.' already has full access.',
-            ], ['staff' => $this->rolesPayload($staff)]);
+            ], ['staff' => StaffPresenter::rolesPayload($staff)]);
         }
 
         $old = $staff->role?->value;
@@ -89,19 +118,23 @@ class StaffAssignmentController extends Controller
             'type' => 'success',
             'title' => 'Super Admin granted',
             'message' => $staff->name.' now has full platform access. This is logged.',
-        ], ['staff' => $this->rolesPayload($staff->fresh(['staffRoles']))]);
+        ], ['staff' => StaffPresenter::rolesPayload($staff->fresh(['staffRoles']))]);
     }
 
     private function demote(Request $request, User $staff): JsonResponse|RedirectResponse
     {
-        abort_if($staff->is($request->user()), 422, 'You cannot remove your own Super Admin role.');
+        if ($staff->is($request->user())) {
+            throw ValidationException::withMessages([
+                'role' => 'You cannot remove your own Super Admin role.',
+            ]);
+        }
 
         if (! $staff->isSuperAdmin()) {
             return AdminResponse::mutation($request, [
                 'type' => 'success',
                 'title' => 'Updated',
                 'message' => $staff->name.' is not a Super Admin.',
-            ], ['staff' => $this->rolesPayload($staff)]);
+            ], ['staff' => StaffPresenter::rolesPayload($staff)]);
         }
 
         if (User::activeSuperAdminCount() <= 1) {
@@ -125,34 +158,6 @@ class StaffAssignmentController extends Controller
             'type' => 'success',
             'title' => 'Super Admin removed',
             'message' => $staff->name.' is now operations staff. This is logged.',
-        ], ['staff' => $this->rolesPayload($staff->fresh(['staffRoles']))]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function rolesPayload(User $staff): array
-    {
-        $roles = $staff->staffRoles->map(fn (StaffRole $role) => [
-            'id' => $role->id,
-            'key' => $role->slug,
-            'name' => $role->name,
-            'system' => false,
-        ])->values()->all();
-
-        if ($staff->isSuperAdmin()) {
-            array_unshift($roles, [
-                'id' => AdminPermissions::SUPER_KEY,
-                'key' => AdminPermissions::SUPER_KEY,
-                'name' => 'Super Admin',
-                'system' => true,
-            ]);
-        }
-
-        return [
-            'id' => $staff->id,
-            'is_super' => $staff->isSuperAdmin(),
-            'roles' => $roles,
-        ];
+        ], ['staff' => StaffPresenter::rolesPayload($staff->fresh(['staffRoles']))]);
     }
 }

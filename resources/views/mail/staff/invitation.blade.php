@@ -1,18 +1,29 @@
-@component('mail::message')
-# You're invited to Isabi operations
+<x-mail::message>
+@if ($invitee->first_name)
+Hi {{ $invitee->first_name }},
+@else
+Hi,
+@endif
 
-Hi{{ $invitee->first_name ? ' '.$invitee->first_name : '' }},
+You've officially been added as part of the **{{ $appName }}** operations team — welcome aboard.
 
-You've been invited to the Isabi admin team@if($invitedBy) by **{{ $invitedBy->name }}**@endif. Use the button below to set up your account.
+{{ $appName }} helps Nigerian artisans and freelancers build a page clients can actually trust, and you'll be part of what keeps that trust real behind the scenes.
 
-This invite **expires in {{ $expiresHours }} hours**. After that you’ll need a Super Admin to send a new one.
+To get started, click below to set up your account.
 
-@component('mail::button', ['url' => $acceptUrl])
+<x-mail::button :url="$acceptUrl">
 Set up your account
-@endcomponent
+</x-mail::button>
 
-If you weren’t expecting this, ignore the email — nobody can reach the admin area until you finish setup.
+This link is personal to you and expires in {{ $expiresHours }} hours, so don't forward it along. If it expires before you get to it, just reach out and we'll send a fresh one.
 
-Thanks,<br>
-The Isabi team
-@endcomponent
+On the next screen you'll add your name, set a password, and you're ready to go.
+
+Welcome to the team — glad to have you.
+
+— The {{ $appName }} Team
+
+<x-slot:subcopy>
+If the button doesn't open, paste this link in your browser: [{{ $acceptUrl }}]({{ $acceptUrl }})
+</x-slot:subcopy>
+</x-mail::message>
