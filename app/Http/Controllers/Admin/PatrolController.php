@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Patrol\PatrolCaseService;
+use App\Support\Admin\JobAdminPresenter;
 use App\Support\Patrol\PatrolPresenter;
 use App\Support\Patrol\PatrolSeverity;
 use Illuminate\Http\JsonResponse;
@@ -29,11 +30,18 @@ class PatrolController extends Controller
 {
     public function __construct(private readonly PatrolCaseService $cases) {}
 
-    public function index(Request $request): Response
+    public function jobs(Request $request): Response
     {
         abort_unless($request->user()?->canDo('patrol.view'), 403);
 
-        return Inertia::render('Admin/Patrol/Index', $this->indexProps($request));
+        return Inertia::render('Admin/Patrol/Jobs', $this->indexProps($request, 'jobs'));
+    }
+
+    public function reviews(Request $request): Response
+    {
+        abort_unless($request->user()?->canDo('patrol.view'), 403);
+
+        return Inertia::render('Admin/Patrol/Reviews', $this->indexProps($request, 'reviews'));
     }
 
     public function show(Request $request, PatrolCase $patrolCase): Response|JsonResponse
@@ -41,9 +49,10 @@ class PatrolController extends Controller
         abort_unless($request->user()?->canDo('patrol.view'), 403);
 
         if ($request->user()?->isOperationsAdmin()) {
+            $prefix = $patrolCase->isReview() ? 'patrol:review:' : 'patrol:job:';
             app(OpsAttentionFeed::class)->markOpened(
                 $request->user(),
-                'patrol:'.$patrolCase->id,
+                $prefix.$patrolCase->id,
             );
         }
 
@@ -51,8 +60,11 @@ class PatrolController extends Controller
             return response()->json($this->panel($patrolCase, $request->user()));
         }
 
-        return Inertia::render('Admin/Patrol/Index', [
-            ...$this->indexProps($request),
+        $queue = $patrolCase->isReview() ? 'reviews' : 'jobs';
+        $page = $queue === 'reviews' ? 'Admin/Patrol/Reviews' : 'Admin/Patrol/Jobs';
+
+        return Inertia::render($page, [
+            ...$this->indexProps($request, $queue),
             'opened_id' => $patrolCase->id,
         ]);
     }
@@ -165,7 +177,7 @@ class PatrolController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function indexProps(Request $request): array
+    private function indexProps(Request $request, string $queue = 'jobs'): array
     {
         $search = trim((string) $request->query('q', ''));
         $status = (string) $request->query('status', '');
@@ -174,7 +186,7 @@ class PatrolController extends Controller
         $from = (string) $request->query('from', '');
         $to = (string) $request->query('to', '');
         $sort = (string) $request->query('sort', 'severity');
-        $tab = $request->query('tab') === 'reviews' ? 'reviews' : 'jobs';
+        $tab = $queue === 'reviews' ? 'reviews' : 'jobs';
         $openedId = $request->query('case') ? (int) $request->query('case') : null;
         $openedReviewId = $request->query('review') ? (int) $request->query('review') : null;
 
@@ -188,6 +200,7 @@ class PatrolController extends Controller
         $reviewRows = $this->queueRows('reviews', $search, $status, $severity, $rule, $from, $to, $sort);
 
         return [
+            'queue' => $tab,
             'tab' => $tab,
             'cases' => $tab === 'reviews' ? $reviewRows : $jobRows,
             'job_cases' => $jobRows,
@@ -200,13 +213,13 @@ class PatrolController extends Controller
                 'from' => $from,
                 'to' => $to,
                 'sort' => $sort === 'flagged' ? 'flagged' : 'severity',
-                'tab' => $tab,
             ],
-            'stats' => $this->queueStats($tab === 'reviews' ? 'reviews' : 'jobs'),
+            'stats' => $this->queueStats($tab),
             'job_stats' => $this->queueStats('jobs'),
             'review_stats' => $this->queueStats('reviews'),
             'options' => PatrolPresenter::options(),
             'can' => $this->abilities($request->user()),
+            'staff' => JobAdminPresenter::staffOptions(),
             'opened_id' => $openedId,
         ];
     }
@@ -325,6 +338,7 @@ class PatrolController extends Controller
             'view' => $actor->canDo('patrol.view'),
             'investigate' => $investigate,
             'resolve' => $resolve,
+            'refer' => $actor->canDo('patrol.view') || $investigate,
             'dismiss_low' => $investigate && $case && PatrolSeverity::isLow($case->severity),
             'dismiss_any' => $resolve,
             'users_view' => $actor->canDo('admin.users.view'),

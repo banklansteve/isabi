@@ -1,17 +1,21 @@
 <template>
-    <nav
-        class="mb-4 flex flex-wrap items-center gap-2"
-        aria-label="Support workspace"
-    >
+    <nav class="mb-4 flex flex-wrap items-center gap-2" aria-label="Support inbox">
         <div class="flex min-w-0 flex-1 gap-1 rounded-xl bg-white p-1 shadow-premium ring-1 ring-ink/[0.05]">
             <Link
                 v-for="item in primary"
                 :key="item.key"
                 :href="item.href"
-                class="min-w-0 flex-1 rounded-lg px-3 py-2.5 text-center text-[13px] font-semibold transition-colors"
+                class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors"
                 :class="item.active ? 'bg-base-action text-white shadow-sm' : 'text-ink/45 hover:bg-pale hover:text-ink'"
             >
-                {{ item.label }}
+                <span>{{ item.label }}</span>
+                <span
+                    v-if="item.count"
+                    class="rounded-full px-1.5 py-0.5 text-[10px] font-extrabold leading-none"
+                    :class="item.active ? 'bg-white/20 text-white' : 'bg-pale text-ink/50'"
+                >
+                    {{ item.count }}
+                </span>
             </Link>
         </div>
         <Link
@@ -30,6 +34,10 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
+const props = defineProps({
+    counts: { type: Object, default: () => ({ active: 0, resolved: 0 }) },
+});
+
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
 const isSuper = computed(() => !!user.value?.is_super_admin);
@@ -44,34 +52,29 @@ const current = computed(() => {
 
 const status = computed(() => {
     try {
-        return new URL(page.url, window.location.origin).searchParams.get('status') || '';
+        return new URL(page.url, window.location.origin).searchParams.get('status') || 'open';
     } catch {
-        return '';
+        return 'open';
     }
 });
 
 const onInbox = computed(() => current.value === 'admin.support.index' || current.value === 'admin.support.show');
-const onReports = computed(() => current.value === 'admin.support.reports');
 const onTemplates = computed(() => current.value === 'admin.support.templates');
 
 const primary = computed(() => [
     {
-        key: 'inbox',
-        label: 'Inbox',
-        href: route('admin.support.index'),
+        key: 'active',
+        label: 'Active',
+        href: route('admin.support.index', { status: 'open' }),
         active: onInbox.value && status.value !== 'resolved',
+        count: props.counts.active ?? 0,
     },
     {
         key: 'resolved',
         label: 'Resolved',
         href: route('admin.support.index', { status: 'resolved' }),
         active: onInbox.value && status.value === 'resolved',
-    },
-    {
-        key: 'reports',
-        label: 'Reports',
-        href: route('admin.support.reports'),
-        active: onReports.value,
+        count: props.counts.resolved ?? 0,
     },
 ]);
 

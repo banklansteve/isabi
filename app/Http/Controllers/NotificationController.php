@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Announcement;
 use App\Models\AnnouncementDelivery;
 use App\Support\Admin\AnnouncementService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    public function read(Request $request, AnnouncementDelivery $delivery, AnnouncementService $announcements): RedirectResponse
+    public function read(Request $request, AnnouncementDelivery $delivery, AnnouncementService $announcements): RedirectResponse|JsonResponse
     {
         abort_unless($delivery->user_id === $request->user()->id, 403);
 
@@ -25,10 +26,16 @@ class NotificationController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'notifications' => $announcements->inboxPayloadFor($request->user()),
+            ]);
+        }
+
         return back();
     }
 
-    public function readAll(Request $request, AnnouncementService $announcements): RedirectResponse
+    public function readAll(Request $request, AnnouncementService $announcements): RedirectResponse|JsonResponse
     {
         $ids = AnnouncementDelivery::query()
             ->where('user_id', $request->user()->id)
@@ -49,6 +56,12 @@ class NotificationController extends Controller
         Announcement::query()
             ->whereIn('id', $ids)
             ->each(fn (Announcement $announcement) => $announcements->refreshCounts($announcement));
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'notifications' => $announcements->inboxPayloadFor($request->user()),
+            ]);
+        }
 
         return back();
     }

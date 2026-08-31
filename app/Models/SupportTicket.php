@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'uid',
     'user_id',
     'assigned_to_user_id',
     'assigned_at',
@@ -35,6 +36,20 @@ class SupportTicket extends Model
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_RESOLVED = 'resolved';
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $ticket) {
+            if (! filled($ticket->uid)) {
+                $ticket->uid = \App\Support\SupportChat\SupportTicketUid::unique();
+            }
+        });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'uid';
+    }
 
     /**
      * @return array<string, string>
@@ -74,5 +89,14 @@ class SupportTicket extends Model
     public function isOpen(): bool
     {
         return in_array($this->status, [self::STATUS_NEW, self::STATUS_OPEN, self::STATUS_PENDING], true);
+    }
+
+    public function adminShowUrl(): string
+    {
+        if (! filled($this->uid)) {
+            return route('admin.support.index');
+        }
+
+        return route('admin.support.show', ['ticket' => $this->uid]);
     }
 }

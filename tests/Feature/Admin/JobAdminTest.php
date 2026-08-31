@@ -220,6 +220,14 @@ class JobAdminTest extends TestCase
         $this->assertSame($super->id, $fresh->referred_by_user_id);
         $this->assertSame('Please look at the photos and client contact.', $fresh->referred_note);
         $this->assertNotNull($fresh->referred_at);
+
+        $this->assertDatabaseHas('staff_case_referrals', [
+            'subject_type' => 'job',
+            'subject_id' => $job->id,
+            'assignee_user_id' => $ops->id,
+            'referred_by_user_id' => $super->id,
+            'status' => 'active',
+        ]);
     }
 
     public function test_refer_rejects_an_artisan_assignee(): void

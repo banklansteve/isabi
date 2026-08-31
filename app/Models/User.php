@@ -61,6 +61,8 @@ use Illuminate\Support\Str;
     'review_reminder_days',
     'avatar_path',
     'avatar_url',
+    'logo_path',
+    'logo_url',
     'profile_completion',
     'token_balance',
     'plan',
@@ -73,6 +75,7 @@ use Illuminate\Support\Str;
     'shift_days',
     'shift_starts_at',
     'shift_ends_at',
+    'shift_breaks',
     'session_epoch',
 ])]
 #[Hidden(['password', 'remember_token'])]
@@ -110,6 +113,7 @@ class User extends Authenticatable
             'last_logout_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'shift_days' => 'array',
+            'shift_breaks' => 'array',
             'session_epoch' => 'integer',
         ];
     }
@@ -329,6 +333,20 @@ class User extends Authenticatable
             ?: trim(($this->first_name ?? '').' '.($this->last_name ?? ''))
             ?: (string) $this->name
             ?: 'Artisan';
+    }
+
+    /** Logo for PDFs, embeds, and exports — falls back to profile photo. */
+    public function brandLogoUrl(): ?string
+    {
+        if (filled($this->logo_url)) {
+            return $this->logo_url;
+        }
+
+        if (filled($this->avatar_url)) {
+            return $this->avatar_url;
+        }
+
+        return null;
     }
 
     public function slugChangesRemaining(): int

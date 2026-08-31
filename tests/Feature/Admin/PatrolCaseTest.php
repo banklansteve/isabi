@@ -81,7 +81,7 @@ class PatrolCaseTest extends TestCase
         $viewer = $this->withPermissions(['hr.view', 'hr.manage']);
 
         $this->actingAs($viewer)
-            ->get(route('admin.patrol.index'))
+            ->get(route('admin.patrol.jobs'))
             ->assertForbidden();
     }
 
@@ -90,10 +90,10 @@ class PatrolCaseTest extends TestCase
         $ops = $this->withPermissions(['patrol.view', 'patrol.investigate']);
 
         $this->actingAs($ops)
-            ->get(route('admin.patrol.index'))
+            ->get(route('admin.patrol.jobs'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/Patrol/Index')
+                ->component('Admin/Patrol/Jobs')
                 ->where('can.view', true)
                 ->where('can.investigate', true)
                 ->where('can.resolve', false));

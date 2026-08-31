@@ -94,6 +94,34 @@ class OpsMessageController extends Controller
         ]);
     }
 
+    public function options(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->canDo('admin.ops_messages.send')
+                || $user?->canDo('admin.users.manage')
+                || $user?->canDo('admin.messaging.manage'),
+            403,
+        );
+
+        if (Schema::hasTable('ops_message_templates') && ! OpsMessageTemplate::query()->exists()) {
+            $this->messages->seedDefaults($user);
+        }
+
+        return response()->json([
+            'templates' => $this->messages->activeTemplates()->map(fn (OpsMessageTemplate $template) => [
+                'uid' => $template->uid,
+                'title' => $template->title,
+                'category' => $template->category,
+                'subject' => $template->subject,
+                'body' => $template->body,
+                'editable_keys' => $template->editable_keys ?? ['body'],
+            ])->values()->all(),
+            'messaging_enabled' => $this->messages->messagingEnabled() || $user->isSuperAdmin(),
+            'requires_approval' => $this->messages->requiresSendApproval($user),
+        ]);
+    }
+
     public function send(SendOpsTemplatedMessageRequest $request): JsonResponse|RedirectResponse
     {
         $data = $request->validated();

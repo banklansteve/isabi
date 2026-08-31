@@ -322,6 +322,13 @@
 
                 <!-- Side -->
                 <aside class="space-y-5 lg:col-span-2">
+                    <ShareEmbedPanel
+                        v-if="entry.public_url"
+                        :profile-embed-url="profileEmbedUrl"
+                        :job-embed-url="entry.embed_url"
+                        :public-url="entry.public_url"
+                        :reference="entry.reference"
+                    />
                     <!-- Amount -->
                     <section
                         class="job-card relative overflow-hidden rounded-[1.5rem] bg-white p-5 shadow-premium ring-1 ring-ink/[0.06] sm:p-6"
@@ -449,6 +456,7 @@
 
 <script setup>
 import FormButton from '@/Components/Form/FormButton.vue';
+import ShareEmbedPanel from '@/Components/App/ShareEmbedPanel.vue';
 import MediaGallery from '@/Components/Media/MediaGallery.vue';
 import MediaLightbox from '@/Components/Media/MediaLightbox.vue';
 import ReviewShareSheet from '@/Components/Reviews/ReviewShareSheet.vue';
@@ -484,6 +492,18 @@ const sharePayload = ref(null);
 const reviewLightboxOpen = ref(false);
 
 const pageUrl = computed(() => page.props.auth?.user?.public_url || '');
+
+const profileEmbedUrl = computed(() => {
+    const slug = page.props.auth?.user?.slug;
+    if (!slug) {
+        return '';
+    }
+    try {
+        return route('embed.profile', slug);
+    } catch {
+        return '';
+    }
+});
 
 const heroChips = computed(() => {
     const chips = [{ icon: 'ti ti-calendar-event', label: props.entry.worked_on_short }];

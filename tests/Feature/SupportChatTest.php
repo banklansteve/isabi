@@ -197,7 +197,9 @@ class SupportChatTest extends TestCase
         $this->actingAs($staff)
             ->get(route('admin.support.reports'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/Support/Reports')->has('report'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Support/Reports')
+                ->has('report'));
     }
 
     public function test_canned_replies_can_be_saved(): void

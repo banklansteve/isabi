@@ -87,7 +87,7 @@ class StaffChatController extends Controller
         $peer = User::query()->findOrFail((int) $request->validated('user_id'));
         $conversation = $this->chat->directBetween($request->user(), $peer);
 
-        return redirect()->route('admin.asap.show', $conversation);
+        return redirect()->route('admin.asap.show', ['conversation' => $conversation->uid]);
     }
 
     public function typing(Request $request, StaffConversation $conversation): JsonResponse
@@ -162,7 +162,7 @@ class StaffChatController extends Controller
             return response()->json($this->presenter->thread($conversation->fresh() ?? $conversation, $request->user()));
         }
 
-        return redirect()->route('admin.asap.show', $conversation);
+        return redirect()->route('admin.asap.show', ['conversation' => $conversation->uid]);
     }
 
     private function assertStaff(?User $user): void

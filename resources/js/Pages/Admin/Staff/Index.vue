@@ -23,7 +23,24 @@
                 </button>
             </div>
 
-            <div class="mt-3 no-scrollbar flex gap-1.5 overflow-x-auto border-t border-ink/[0.05] pt-3">
+            <div class="mt-3 no-scrollbar flex flex-wrap items-center gap-1.5 overflow-x-auto border-t border-ink/[0.05] pt-3">
+                <div class="inline-flex items-center gap-2 rounded-full bg-pale px-3 py-1.5 text-[12px] font-semibold text-ink/55">
+                    <span>Adherence</span>
+                    <input
+                        v-model="adherenceDateDraft"
+                        type="date"
+                        :max="todayIso"
+                        class="rounded-md border-0 bg-white px-2 py-0.5 text-[12px] font-semibold text-ink outline-none ring-1 ring-ink/10 focus:ring-base/30"
+                    />
+                    <button
+                        type="button"
+                        class="rounded-md bg-base-action px-2.5 py-0.5 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
+                        :disabled="adherenceApplying || adherenceDateDraft === appliedAdherenceDate"
+                        @click="applyAdherenceDate"
+                    >
+                        {{ adherenceApplying ? 'Loading…' : 'Apply' }}
+                    </button>
+                </div>
                 <select v-model="statusFilter" class="chip-select" :class="statusFilter ? 'chip-select--on' : ''">
                     <option value="">All statuses</option>
                     <option value="invited">Invited</option>
@@ -72,8 +89,8 @@
                                 <th class="px-3 py-3">Status</th>
                                 <th class="px-3 py-3">Roles</th>
                                 <th class="px-3 py-3">Last login</th>
-                                <th class="px-3 py-3">Today</th>
-                                <th class="px-3 py-3">Idle</th>
+                                <th class="px-3 py-3">{{ adherenceColumnLabel }}</th>
+                                <th class="px-3 py-3">Total idle</th>
                                 <th class="px-3 py-3">Joined</th>
                                 <th class="px-4 py-3 text-right"> </th>
                             </tr>
@@ -133,10 +150,29 @@
                                 </td>
                                 <td class="px-3 py-3 font-medium text-ink/50">{{ person.last_login || '—' }}</td>
                                 <td class="px-3 py-3 font-medium text-ink/50">
-                                    <p>{{ person.attendance?.logged_in || '—' }} in</p>
-                                    <p class="text-[12px] text-ink/40">{{ person.attendance?.logged_out || '—' }} out</p>
+                                    <p class="flex flex-wrap items-center gap-1">
+                                        <span>{{ person.adherence?.summary?.signed_in_at || '—' }}</span>
+                                        <span
+                                            v-if="adherenceBadge(person)"
+                                            class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                            :class="adherenceBadge(person).class"
+                                        >
+                                            {{ adherenceBadge(person).label }}
+                                        </span>
+                                    </p>
+                                    <p class="text-[12px] text-ink/40">
+                                        {{ person.adherence?.summary?.signed_out_at || '—' }}
+                                        <span v-if="person.adherence?.summary?.adherence_pct != null">
+                                            · {{ person.adherence.summary.adherence_pct }}% on floor
+                                        </span>
+                                    </p>
                                 </td>
-                                <td class="px-3 py-3 font-medium text-ink/50">{{ person.attendance?.idle_label || '—' }}</td>
+                                <td class="px-3 py-3 font-medium text-ink/50">
+                                    <p>{{ formatTotalIdle(person.adherence?.summary) }}</p>
+                                    <p v-if="person.adherence?.summary?.idle_events_count" class="text-[12px] text-ink/40">
+                                        {{ person.adherence.summary.idle_events_count }} event{{ person.adherence.summary.idle_events_count === 1 ? '' : 's' }} over 7m
+                                    </p>
+                                </td>
                                 <td class="px-3 py-3 font-medium text-ink/50">{{ person.joined }}</td>
                                 <td class="px-4 py-3 text-right" @click.stop>
                                     <AdminStaffKebab
@@ -188,10 +224,10 @@
                                         {{ person.roles.map((role) => role.name).join(' · ') || 'No roles' }}
                                     </p>
                                     <p class="mt-1 text-[12px] text-ink/35">
-                                        Last login {{ person.last_login || 'never' }} · Idle {{ person.attendance?.idle_label || '—' }}
+                                        Last login {{ person.last_login || 'never' }} · Total idle {{ formatTotalIdle(person.adherence?.summary) }}
                                     </p>
                                     <p class="mt-0.5 text-[12px] text-ink/35">
-                                        Today {{ person.attendance?.logged_in || '—' }} in · {{ person.attendance?.logged_out || '—' }} out
+                                        {{ adherenceColumnLabel }} {{ person.adherence?.summary?.signed_in_at || '—' }} in · {{ person.adherence?.summary?.signed_out_at || '—' }}
                                     </p>
                                 </div>
                             </button>
@@ -243,11 +279,13 @@
             :roles="roles"
             :templates="templates"
             :weekdays="shift_weekdays"
+            :adherence-date="appliedAdherenceDate"
             @close="closeStaff"
             @updated="onUpdated"
             @deleted="onDeleted"
             @refresh="loadPanel"
             @resend="resend"
+            @adherence-date="applyAdherenceDateFromDrawer"
         />
 
         <AdminDrawer :open="inviteOpen" title="Invite staff" eyebrow="New teammate" @close="closeInvite">
@@ -371,7 +409,7 @@ import AdminStaffKebab from '@/Components/Admin/AdminStaffKebab.vue';
 import { useClientList } from '@/Composables/useClientList';
 import { toast } from '@/utils/adminRange';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -382,7 +420,13 @@ const props = defineProps({
     invite_ttl_hours: { type: Number, default: 48 },
     opened_id: { type: Number, default: null },
     shift_weekdays: { type: Array, default: () => [] },
+    adherence_date: { type: String, default: () => new Date().toISOString().slice(0, 10) },
 });
+
+const todayIso = new Date().toISOString().slice(0, 10);
+const appliedAdherenceDate = computed(() => props.adherence_date || todayIso);
+const adherenceDateDraft = ref(appliedAdherenceDate.value);
+const adherenceApplying = ref(false);
 
 const page = usePage();
 const meId = computed(() => page.props.auth?.user?.id);
@@ -427,6 +471,90 @@ watch(
         rows.value = [...value];
     },
 );
+
+watch(
+    () => props.adherence_date,
+    (value) => {
+        if (value) {
+            adherenceDateDraft.value = value;
+        }
+    },
+);
+
+const formatTotalIdle = (summary) => {
+    if (!summary) {
+        return '—';
+    }
+
+    if (['off_day', 'leave'].includes(summary.status)) {
+        return '—';
+    }
+
+    return summary.idle_total_label || '0s';
+};
+
+const adherenceColumnLabel = computed(() => {
+    if (appliedAdherenceDate.value === todayIso) {
+        return 'Today';
+    }
+
+    const parsed = new Date(`${appliedAdherenceDate.value}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? 'Shift' : parsed.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+});
+
+const adherenceBadge = (person) => {
+    const status = person.adherence?.summary?.status;
+    const label = person.adherence?.summary?.status_label;
+
+    if (!status || !label || status === 'in_progress' || status === 'on_time') {
+        if (status === 'in_progress') {
+            return { label, class: 'bg-emerald-50 text-emerald-700' };
+        }
+
+        return null;
+    }
+
+    const map = {
+        late: 'bg-amber-50 text-amber-800',
+        missed: 'bg-red-50 text-red-700',
+        off_day: 'bg-pale text-ink/45',
+        leave: 'bg-amber-50 text-amber-800',
+        pending: 'bg-pale text-ink/45',
+        inactive: 'bg-pale text-ink/45',
+    };
+
+    return { label, class: map[status] || 'bg-pale text-ink/45' };
+};
+
+const reloadAdherence = (date = adherenceDateDraft.value, reloadOpenPanel = false) => {
+    adherenceApplying.value = true;
+    router.get(
+        route('admin.staff.index'),
+        { adherence_date: date },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            onFinish: () => {
+                adherenceApplying.value = false;
+            },
+            onSuccess: () => {
+                if (reloadOpenPanel && open.value) {
+                    loadPanel();
+                }
+            },
+        },
+    );
+};
+
+const applyAdherenceDate = () => {
+    reloadAdherence(adherenceDateDraft.value, !!open.value);
+};
+
+const applyAdherenceDateFromDrawer = (value) => {
+    adherenceDateDraft.value = value;
+    reloadAdherence(value, true);
+};
 
 watch([statusFilter, roleFilter], () => {
     list.page.value = 1;
@@ -521,6 +649,7 @@ const loadPanel = async () => {
     try {
         const { data } = await axios.get(route('admin.staff.show', id), {
             headers: { Accept: 'application/json' },
+            params: { adherence_date: appliedAdherenceDate.value },
         });
         if (seq !== panelSeq || open.value?.id !== id) {
             return;

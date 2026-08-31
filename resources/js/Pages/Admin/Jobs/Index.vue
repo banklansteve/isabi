@@ -1,28 +1,45 @@
 <template>
     <Head title="Job logs" />
 
-    <AdminChrome title="Job logs" eyebrow="Platform work" />
-    <div class="mb-4 flex flex-col gap-3">
-        <AdminRangePicker :range="range" />
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-                v-model="list.q.value"
-                type="search"
-                placeholder="Search jobs, clients, artisans…"
-                class="w-full rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15 sm:max-w-md"
-            />
-            <select v-model="list.sort.value" class="rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15">
-                <option value="date_desc">Newest</option>
-                <option value="date_asc">Oldest</option>
-            </select>
+    <AdminChrome title="Job logs" :eyebrow="`${list.total.value.toLocaleString()} logged across Isabi`" />
+
+    <div class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div class="relative min-w-0 flex-1">
+                <i class="ti ti-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
+                <input
+                    v-model="list.q.value"
+                    type="search"
+                    placeholder="Search description, client, artisan…"
+                    class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] py-2.5 ps-10 pe-4 text-sm font-medium outline-none transition-[box-shadow,border-color] duration-150 focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
+                />
+            </div>
+            <div class="no-scrollbar flex gap-1.5 overflow-x-auto lg:justify-end">
+                <select v-model="statusFilter" class="chip-select" :class="statusFilter ? 'chip-select--on' : ''">
+                    <option value="">All statuses</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="hidden">Hidden</option>
+                    <option value="removed">Removed</option>
+                    <option value="referred">Referred</option>
+                </select>
+                <select v-model="list.sort.value" class="chip-select">
+                    <option value="date_desc">Newest first</option>
+                    <option value="date_asc">Oldest first</option>
+                    <option value="backdated_desc">Most backdated</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-3 border-t border-ink/[0.05] pt-3">
+            <p class="mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">Logged</p>
+            <AdminRangePicker :range="range" />
         </div>
     </div>
 
     <div class="overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05]">
         <AdminEmpty
             v-if="!list.pageItems.value.length"
-            title="No jobs here"
-            description="Logged jobs across Isabi will show up in this list."
+            title="No job logs match"
+            description="Try a different search, status, or date range."
             icon="ti ti-briefcase"
         />
         <ul v-else class="divide-y divide-ink/[0.06]">
@@ -30,54 +47,37 @@
                 <button
                     :ref="(el) => setRowRef(job.uid, el)"
                     type="button"
-                    class="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors duration-150 sm:px-5"
+                    class="group flex w-full items-start gap-3 px-4 py-4 text-left transition-colors duration-150 sm:gap-4 sm:px-5"
                     :class="openUid === job.uid ? 'bg-tint/80' : 'hover:bg-pale/70'"
                     @pointerenter="prefetchJob(job)"
                     @focus="prefetchJob(job)"
-                    @pointerdown="prefetchJob(job)"
                     @click="openJob(job)"
                 >
-                    <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <p class="truncate text-sm font-bold text-ink">{{ job.description }}</p>
-                            <span
-                                v-if="job.flagged"
-                                class="rounded-full bg-coral-tint px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-coral-deep"
-                            >
-                                Flagged
-                            </span>
-                            <span
-                                v-if="job.removed"
-                                class="rounded-full bg-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/45"
-                            >
-                                Removed
-                            </span>
-                            <span
-                                v-else-if="job.hidden"
-                                class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
-                            >
-                                Hidden
-                            </span>
-                            <span
-                                v-if="job.referred"
-                                class="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700"
-                            >
-                                Referred
-                            </span>
-                        </div>
-                        <p class="mt-1 text-[13px] font-medium text-ink/45">
-                            {{ job.user?.name }} · {{ job.client_name || 'No client' }} · {{ job.worked_on }}
-                        </p>
-                        <p v-if="job.backdated_days >= 30" class="mt-1 text-[12px] font-semibold text-coral">
+                    <span class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-base-action">
+                        <i class="ti ti-briefcase text-lg" aria-hidden="true" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="flex flex-wrap items-center gap-2">
+                            <span class="truncate text-sm font-bold text-ink sm:text-[15px]">{{ job.description }}</span>
+                            <JobStatusBadges :job="job" />
+                        </span>
+                        <span class="mt-1 block text-[13px] font-medium text-ink/45">
+                            {{ job.user?.name || 'Unknown artisan' }}
+                            <span v-if="job.client_name"> · {{ job.client_name }}</span>
+                            <span v-if="job.worked_on"> · {{ job.worked_on }}</span>
+                        </span>
+                        <span v-if="job.backdated_days >= 30" class="mt-1 block text-[12px] font-semibold text-coral">
                             Backdated {{ job.backdated_days }} days
-                        </p>
-                    </div>
-                    <i class="ti ti-chevron-right mt-1 shrink-0 text-ink/25" aria-hidden="true" />
+                        </span>
+                    </span>
+                    <i class="ti ti-chevron-right mt-2 shrink-0 text-sm text-ink/20 transition-colors group-hover:text-ink/40" aria-hidden="true" />
                 </button>
             </li>
         </ul>
     </div>
+
     <AdminClientPager
+        class="mt-4"
         :page="list.page.value"
         :pages="list.pageCount.value"
         :total="list.total.value"
@@ -101,6 +101,7 @@ import AdminClientPager from '@/Components/Admin/AdminClientPager.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
 import JobLogDrawer from '@/Components/Admin/JobLogDrawer.vue';
+import JobStatusBadges from '@/Components/Admin/JobStatusBadges.vue';
 import { useAdminTabs } from '@/Composables/useAdminTabs';
 import { useClientList } from '@/Composables/useClientList';
 import { useDateRange } from '@/Composables/useDateRange';
@@ -119,6 +120,7 @@ const props = defineProps({
 const { tab } = useAdminTabs({ tab: 'all' });
 const range = useDateRange('all');
 const rows = ref([...props.jobs]);
+const statusFilter = ref(tab.value === 'flagged' ? 'flagged' : tab.value === 'hidden' ? 'hidden' : '');
 
 watch(
     () => props.jobs,
@@ -127,21 +129,30 @@ watch(
     },
 );
 
+watch(tab, (value) => {
+    if (value === 'flagged') statusFilter.value = 'flagged';
+    else if (value === 'hidden') statusFilter.value = 'hidden';
+    else if (value === 'all' || !value) statusFilter.value = '';
+});
+
 const list = useClientList(
     () => rows.value.filter((job) => {
-        if (tab.value === 'flagged' && !job.flagged) return false;
+        if (statusFilter.value === 'flagged' && !job.flagged) return false;
+        if (statusFilter.value === 'hidden' && !job.hidden) return false;
+        if (statusFilter.value === 'removed' && !job.removed) return false;
+        if (statusFilter.value === 'referred' && !job.referred) return false;
         if (tab.value === 'suspicious' && job.backdated_days < 30) return false;
         return range.matches(job.created_iso);
     }),
     {
         perPage: 20,
-        searchFields: ['description', 'client_name', 'user.name', 'user.email'],
+        searchFields: ['description', 'client_name', 'user.name', 'user.email', 'category'],
         sort: 'date_desc',
-        sortMap: { date: 'created_iso' },
+        sortMap: { date: 'created_iso', backdated: 'backdated_days' },
     },
 );
 
-watch([tab, () => range.preset.value], () => {
+watch([tab, statusFilter, () => range.preset.value], () => {
     list.page.value = 1;
 });
 
@@ -164,96 +175,58 @@ const replaceListUrl = (href) => {
 };
 
 const setRowRef = (uid, el) => {
-    if (el) {
-        rowRefs.set(uid, el);
-        return;
-    }
-    rowRefs.delete(uid);
+    if (el) rowRefs.set(uid, el);
+    else rowRefs.delete(uid);
 };
 
 const onUpdated = (payload) => {
     const job = payload?.job || payload?.record;
-    if (!job?.uid) {
-        return;
-    }
+    if (!job?.uid) return;
     rows.value = rows.value.map((row) => (row.uid === job.uid ? { ...row, ...job } : row));
-    if (openRow.value?.uid === job.uid) {
-        openRow.value = { ...openRow.value, ...job };
-    }
+    if (openRow.value?.uid === job.uid) openRow.value = { ...openRow.value, ...job };
     const cached = panelCache.get(job.uid);
     if (payload?.record) {
-        const next = {
-            ...(cached || panel.value || {}),
-            record: payload.record,
-        };
+        const next = { ...(cached || panel.value || {}), record: payload.record };
         panelCache.set(job.uid, next);
-        if (openUid.value === job.uid) {
-            panel.value = next;
-        }
+        if (openUid.value === job.uid) panel.value = next;
     }
 };
 
 const requestPanel = (uid, { refresh = false } = {}) => {
-    if (!refresh && panelCache.has(uid)) {
-        return Promise.resolve(panelCache.get(uid));
-    }
-    if (!refresh && panelInflight.has(uid)) {
-        return panelInflight.get(uid);
-    }
-
+    if (!refresh && panelCache.has(uid)) return Promise.resolve(panelCache.get(uid));
+    if (!refresh && panelInflight.has(uid)) return panelInflight.get(uid);
     const request = axios
-        .get(route('admin.jobs.show', uid), {
-            headers: { Accept: 'application/json' },
-        })
+        .get(route('admin.jobs.show', uid), { headers: { Accept: 'application/json' } })
         .then(({ data }) => {
             panelCache.set(uid, data);
             return data;
         })
         .finally(() => {
-            if (panelInflight.get(uid) === request) {
-                panelInflight.delete(uid);
-            }
+            if (panelInflight.get(uid) === request) panelInflight.delete(uid);
         });
-
     panelInflight.set(uid, request);
     return request;
 };
 
 const prefetchJob = (job) => {
-    if (!job?.uid) {
-        return;
-    }
-    requestPanel(job.uid).catch(() => {});
-};
-
-const applyPanel = (uid, data) => {
-    panelCache.set(uid, data);
-    if (openUid.value === uid) {
-        panel.value = data;
-    }
+    if (job?.uid) requestPanel(job.uid).catch(() => {});
 };
 
 const loadPanel = async ({ refresh = false } = {}) => {
-    if (!openUid.value) {
-        return;
-    }
+    if (!openUid.value) return;
     const uid = openUid.value;
     const seq = ++panelSeq;
     const cached = panelCache.get(uid);
-    if (cached) {
-        panel.value = cached;
-    } else if (panel.value?.record?.uid !== uid) {
-        panel.value = null;
-    }
+    if (cached) panel.value = cached;
+    else if (panel.value?.record?.uid !== uid) panel.value = null;
     try {
         const data = await requestPanel(uid, { refresh });
-        if (seq !== panelSeq || openUid.value !== uid) {
-            return;
-        }
-        applyPanel(uid, data);
+        if (seq !== panelSeq || openUid.value !== uid) return;
+        panelCache.set(uid, data);
+        panel.value = data;
     } catch {
         if (seq === panelSeq) {
-            toast({ type: 'error', message: 'The job did not load.' });
+            toast({ type: 'error', title: 'Couldn’t load', message: 'The job details did not load.' });
             closeJob();
         }
     }
@@ -262,18 +235,11 @@ const loadPanel = async ({ refresh = false } = {}) => {
 const refreshPanel = () => loadPanel({ refresh: true });
 
 const openJob = (job) => {
-    if (!job?.uid) {
-        return;
-    }
+    if (!job?.uid) return;
     lastFocusEl.value = rowRefs.get(job.uid) || document.activeElement;
     openUid.value = job.uid;
     openRow.value = job;
-    const cached = panelCache.get(job.uid);
-    if (cached) {
-        panel.value = cached;
-    } else if (panel.value?.record?.uid !== job.uid) {
-        panel.value = null;
-    }
+    panel.value = panelCache.get(job.uid) || (panel.value?.record?.uid === job.uid ? panel.value : null);
     replaceListUrl(listUrl(job.uid));
     loadPanel();
 };
@@ -281,30 +247,36 @@ const openJob = (job) => {
 const closeJob = () => {
     const uid = openUid.value;
     openUid.value = null;
+    openRow.value = null;
     replaceListUrl(listUrl());
     nextTick(() => {
         const target = lastFocusEl.value || rowRefs.get(uid);
-        if (target && typeof target.focus === 'function') {
-            target.focus();
-        }
+        if (target?.focus) target.focus();
     });
 };
 
 watch(tab, (current, previous) => {
-    if (previous && current !== previous) {
-        closeJob();
-    }
+    if (previous && current !== previous) closeJob();
 });
 
 watch(
     () => props.opened_uid,
     (uid) => {
-        if (!uid) {
-            return;
-        }
-        const job = rows.value.find((row) => row.uid === uid) || { uid };
-        openJob(job);
+        if (!uid) return;
+        openJob(rows.value.find((row) => row.uid === uid) || { uid });
     },
     { immediate: true },
 );
 </script>
+
+<style scoped>
+.chip-select {
+    @apply appearance-none rounded-full border border-transparent bg-[#F4F6FA] px-3 py-2 pe-8 text-[12px] font-semibold text-ink/55 outline-none transition-colors duration-150 hover:bg-tint;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.65rem center;
+    background-repeat: no-repeat;
+}
+.chip-select--on {
+    @apply bg-tint text-deep ring-transparent;
+}
+</style>

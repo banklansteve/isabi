@@ -360,14 +360,14 @@ class OpsInsightsService
             ])
             ->with('user:id,name')
             ->orderByRaw('COALESCE(last_customer_message_at, created_at) asc')
-            ->get(['id', 'assigned_to_user_id', 'subject', 'status', 'last_customer_message_at', 'user_id']);
+            ->get(['id', 'uid', 'assigned_to_user_id', 'subject', 'status', 'last_customer_message_at', 'user_id']);
 
         foreach ($tickets as $ticket) {
             $id = (int) $ticket->assigned_to_user_id;
             $work[$id][] = [
                 'type' => 'support',
                 'label' => $ticket->user?->name ?: ($ticket->subject ?: 'Customer chat'),
-                'href' => route('admin.support.show', $ticket),
+                'href' => $ticket->adminShowUrl(),
                 'waiting' => $ticket->status === SupportTicket::STATUS_PENDING ? 'Waiting on customer' : 'Open chat',
             ];
         }

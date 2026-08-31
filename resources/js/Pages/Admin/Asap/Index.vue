@@ -156,23 +156,26 @@
                     <div
                         v-for="message in conversation.messages"
                         :key="message.id"
-                        class="flex"
-                        :class="message.mine ? 'justify-end' : 'justify-start'"
+                        class="flex w-full"
                     >
-                        <ChatBubbleReactions
-                            :reactions="message.reactions || []"
-                            :align="message.mine ? 'end' : 'start'"
-                            :endpoint="route('admin.asap.react', [conversation.uid, message.id])"
-                            @updated="(reactions) => (message.reactions = reactions)"
+                        <div
+                            class="min-w-0 max-w-[85%]"
+                            :class="message.mine ? 'ms-auto' : 'me-auto'"
                         >
-                            <div
-                                class="max-w-[85%] rounded-2xl px-4 py-3 text-sm font-medium leading-relaxed"
-                                :class="
-                                    message.mine
-                                        ? 'rounded-br-md bg-base-action text-white'
-                                        : 'rounded-bl-md bg-white text-ink ring-1 ring-ink/[0.06]'
-                                "
+                            <ChatBubbleReactions
+                                :reactions="message.reactions || []"
+                                :align="message.mine ? 'end' : 'start'"
+                                :endpoint="route('admin.asap.react', [conversation.uid, message.id])"
+                                @updated="(reactions) => (message.reactions = reactions)"
                             >
+                                <div
+                                    class="w-full rounded-2xl px-4 py-3 text-sm font-medium leading-relaxed"
+                                    :class="
+                                        message.mine
+                                            ? 'rounded-br-md bg-base-action text-white'
+                                            : 'rounded-bl-md bg-white text-ink ring-1 ring-ink/[0.06]'
+                                    "
+                                >
                                 <p
                                     v-if="!message.mine && conversation.type === 'asap'"
                                     class="mb-1 text-[11px] font-bold text-base-action"
@@ -212,8 +215,9 @@
                                 >
                                     {{ message.when }}
                                 </p>
-                            </div>
-                        </ChatBubbleReactions>
+                                </div>
+                            </ChatBubbleReactions>
+                        </div>
                     </div>
                     <div v-if="typingLabel" class="flex justify-start">
                         <div class="rounded-2xl bg-white px-4 py-2.5 text-ink/40 ring-1 ring-ink/[0.06]">

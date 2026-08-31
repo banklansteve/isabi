@@ -21,6 +21,7 @@ use App\Support\Admin\AnnouncementService;
 use App\Support\Staff\AdminPermissions;
 use App\Support\Staff\StaffInvitationService;
 use App\Support\Staff\StaffPresenter;
+use App\Support\Staff\StaffPresence;
 use App\Support\Staff\StaffShift;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -32,15 +33,20 @@ use Inertia\Response;
 
 class StaffController extends Controller
 {
-    public function index(): Response
+    public function __construct(private readonly StaffPresence $presence) {}
+
+    public function index(Request $request): Response
     {
-        return Inertia::render('Admin/Staff/Index', $this->indexProps());
+        return Inertia::render('Admin/Staff/Index', $this->indexProps($request));
     }
 
     public function show(Request $request, User $staff): Response|JsonResponse
     {
         abort_unless($staff->isStaff(), 404);
         $staff->load(['staffRoles', 'invitedBy:id,name,email', 'latestStaffInvitation.suggestedRole', 'hrProfile']);
+
+        $adherenceDate = $this->resolveAdherenceDate($request->query('adherence_date'));
+        $this->presence->reconcileIdle($staff);
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
             $actor = $request->user();
@@ -49,11 +55,12 @@ class StaffController extends Controller
                 $staff,
                 (bool) ($actor?->canDo('hr.view')),
                 (bool) ($actor?->canDo('hr.discipline.view')),
+                $adherenceDate,
             ));
         }
 
         return Inertia::render('Admin/Staff/Index', [
-            ...$this->indexProps(),
+            ...$this->indexProps($request),
             'opened_id' => $staff->id,
         ]);
     }
@@ -196,6 +203,7 @@ class StaffController extends Controller
             'shift_days' => $staff->shift_days,
             'shift_starts_at' => $staff->shift_starts_at,
             'shift_ends_at' => $staff->shift_ends_at,
+            'shift_breaks' => $staff->shift_breaks,
         ];
         $shift = $request->shift();
         $staff->forceFill($shift)->save();
@@ -393,9 +401,10 @@ class StaffController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function indexProps(): array
+    private function indexProps(?Request $request = null): array
     {
         $today = now()->toDateString();
+        $adherenceDate = $this->resolveAdherenceDate($request?->query('adherence_date'));
 
         $staff = User::query()
             ->staff()
@@ -409,8 +418,10 @@ class StaffController extends Controller
             ->orderBy('name')
             ->get();
 
+        $this->presence->reconcileIdleForStaff($staff);
+
         return [
-            'staff' => $staff->map(fn (User $user) => StaffPresenter::listPayload($user))->values(),
+            'staff' => $staff->map(fn (User $user) => StaffPresenter::listPayload($user, null, $adherenceDate))->values(),
             'roles' => StaffRole::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
@@ -420,8 +431,22 @@ class StaffController extends Controller
             'templates' => StaffPresenter::templates(),
             'invite_ttl_hours' => AdminPermissions::ttlHours(),
             'shift_weekdays' => StaffShift::weekdays(),
+            'adherence_date' => $adherenceDate,
             'opened_id' => null,
         ];
+    }
+
+    private function resolveAdherenceDate(mixed $value): string
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return now()->toDateString();
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return now()->toDateString();
+        }
     }
 
     private function guardSensitive(User $actor, User $staff, bool $allowLastSuper = false): void

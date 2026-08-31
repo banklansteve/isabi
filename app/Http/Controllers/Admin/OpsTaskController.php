@@ -16,6 +16,6 @@ class OpsTaskController extends Controller
 
         abort_unless($user?->isOperationsAdmin(), 403);
 
-        return Inertia::render('Admin/Ops/Tasks', $feed->home($user));
+        return Inertia::render('Admin/Ops/Tasks', $feed->tasks($user));
     }
 }

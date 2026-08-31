@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\JobReference;
 use App\Support\JobSlug;
 use App\Support\WorkLogEditPolicy;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ class WorkLog extends Model
     protected $fillable = [
         'user_id',
         'uid',
+        'reference',
         'slug',
         'description',
         'worked_on',
@@ -97,6 +99,10 @@ class WorkLog extends Model
                 $log->uid = (string) Str::uuid();
             }
 
+            if (blank($log->reference)) {
+                $log->reference = JobReference::unique(null, $log->description);
+            }
+
             if (blank($log->slug) && filled($log->user_id)) {
                 $log->slug = JobSlug::uniqueFor($log->user_id, $log->description);
             }
@@ -143,11 +149,16 @@ class WorkLog extends Model
     {
         $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
 
-        if (blank($user?->slug) || blank($this->slug)) {
+        if (blank($user?->slug) || blank($this->reference)) {
             return null;
         }
 
-        return route('public.job', [$user->slug, $this->slug]);
+        return route('public.job', [$user->slug, $this->reference]);
+    }
+
+    public function quoteRequests(): HasMany
+    {
+        return $this->hasMany(QuoteRequest::class);
     }
 
     public function user(): BelongsTo

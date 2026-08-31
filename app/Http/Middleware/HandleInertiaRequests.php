@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\AnnouncementDelivery;
 use App\Support\Admin\AnnouncementService;
+use App\Support\Admin\ApprovalService;
 use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Admin\OpsDutyPresenter;
 use App\Support\CookieConsent;
@@ -101,6 +102,8 @@ class HandleInertiaRequests extends Middleware
                         'unread_count' => 0,
                         'items' => [],
                         'tasks' => [],
+                        'attention_items' => [],
+                        'priority_groups' => [],
                         'shortcuts' => [],
                         'roles' => [],
                         'role_summary' => 'Operations',
@@ -124,13 +127,21 @@ class HandleInertiaRequests extends Middleware
                     ];
                 }
 
-                $service = app(AnnouncementService::class);
-                $inbox = $service->inboxFor($user);
+                return app(AnnouncementService::class)->inboxPayloadFor($user);
+            },
+            'admin_inbox' => function () use ($user) {
+                if (! $user?->isSuperAdmin()) {
+                    return null;
+                }
 
-                return [
-                    'unread_count' => $service->unreadInAppCount($user),
-                    'items' => $inbox->map(fn (AnnouncementDelivery $delivery) => $service->presentDelivery($delivery, $user))->values()->all(),
-                ];
+                return app(OpsAttentionFeed::class)->superAdminInbox($user);
+            },
+            'my_approvals_pending' => function () use ($user) {
+                if (! $user?->isStaff() || $user->isRestrictedStaff() || $user->isSuperAdmin()) {
+                    return 0;
+                }
+
+                return app(ApprovalService::class)->pendingCountFor($user);
             },
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),

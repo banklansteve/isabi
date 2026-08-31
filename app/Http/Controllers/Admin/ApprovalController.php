@@ -31,15 +31,15 @@ class ApprovalController extends Controller
     {
         abort_unless($request->user()?->canDo('admin.approvals.manage'), 403);
 
-        $pending = $this->approvals->pending()->map(fn (AdminApproval $approval) => $this->row($approval));
+        $pending = $this->approvals->pending()->map(fn (AdminApproval $approval) => $this->approvals->present($approval));
 
         $recent = AdminApproval::query()
-            ->with(['requester:id,name,email', 'reviewer:id,name'])
+            ->with(['requester:id,name,email', 'reviewer:id,name', 'subject'])
             ->whereIn('status', [AdminApproval::STATUS_APPROVED, AdminApproval::STATUS_REJECTED])
             ->latest('reviewed_at')
             ->limit(40)
             ->get()
-            ->map(fn (AdminApproval $approval) => $this->row($approval));
+            ->map(fn (AdminApproval $approval) => $this->approvals->present($approval));
 
         return Inertia::render('Admin/Approvals/Index', [
             'pending' => $pending->values()->all(),
@@ -48,27 +48,53 @@ class ApprovalController extends Controller
         ]);
     }
 
+    public function mine(Request $request): Response
+    {
+        abort_unless($request->user()?->isStaff(), 403);
+        abort_if($request->user()?->isSuperAdmin(), 403);
+
+        return Inertia::render('Admin/Ops/MyApprovals', [
+            ...$this->approvals->forRequester($request->user()),
+            'opened_uid' => null,
+            'opened' => null,
+        ]);
+    }
+
+    public function mineShow(Request $request, AdminApproval $approval): Response
+    {
+        $user = $request->user();
+        abort_unless($user?->isStaff(), 403);
+        abort_if($user?->isSuperAdmin(), 403);
+        abort_unless($approval->requested_by_user_id === $user->id, 403);
+
+        return Inertia::render('Admin/Ops/MyApprovals', [
+            ...$this->approvals->forRequester($user),
+            'opened_uid' => $approval->uid,
+            'opened' => $this->approvals->present($approval),
+        ]);
+    }
+
     public function show(Request $request, AdminApproval $approval): Response
     {
         abort_unless($request->user()?->canDo('admin.approvals.manage'), 403);
 
-        $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name']);
+        $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name', 'subject']);
 
-        $pending = $this->approvals->pending()->map(fn (AdminApproval $row) => $this->row($row));
+        $pending = $this->approvals->pending()->map(fn (AdminApproval $row) => $this->approvals->present($row));
 
         $recent = AdminApproval::query()
-            ->with(['requester:id,name,email', 'reviewer:id,name'])
+            ->with(['requester:id,name,email', 'reviewer:id,name', 'subject'])
             ->whereIn('status', [AdminApproval::STATUS_APPROVED, AdminApproval::STATUS_REJECTED])
             ->latest('reviewed_at')
             ->limit(40)
             ->get()
-            ->map(fn (AdminApproval $row) => $this->row($row));
+            ->map(fn (AdminApproval $row) => $this->approvals->present($row));
 
         return Inertia::render('Admin/Approvals/Index', [
             'pending' => $pending->values()->all(),
             'recent' => $recent->values()->all(),
             'opened_uid' => $approval->uid,
-            'opened' => $this->row($approval),
+            'opened' => $this->approvals->present($approval),
         ]);
     }
 
@@ -109,6 +135,7 @@ class ApprovalController extends Controller
         match ($approval->action) {
             'users.suspend' => $this->suspendUser($approval, $payload),
             'users.reinstate' => $this->reinstateUser($approval, $payload),
+            'users.delete' => $this->deleteUser($approval, $payload),
             'jobs.hide' => $this->hideJob($approval, $payload),
             'jobs.remove' => $this->removeJob($approval, $payload),
             'reviews.hide' => $this->hideReview($approval, $payload),
@@ -116,6 +143,29 @@ class ApprovalController extends Controller
             'messages.send' => $this->sendMessage($approval, $payload, $reviewer),
             default => abort(422, 'Unknown approval action.'),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function deleteUser(AdminApproval $approval, array $payload): void
+    {
+        $user = User::query()->findOrFail((int) ($payload['user_id'] ?? $approval->subject_id));
+        abort_unless($user->isRegularUser(), 422);
+
+        $reason = (string) ($payload['reason'] ?? $approval->reason);
+        $email = $user->email;
+
+        $this->forgetSessions($user);
+        $user->delete();
+
+        AdminAudit::record(
+            'users.deleted',
+            "Approved deletion of {$email}: {$reason}",
+            $user,
+            ['email' => $email],
+            ['reason' => $reason, 'deleted_at' => now()->toIso8601String()],
+        );
     }
 
     /**
@@ -280,26 +330,6 @@ class ApprovalController extends Controller
             (string) $payload['body'],
             (array) $payload['channels'],
         );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function row(AdminApproval $approval): array
-    {
-        return [
-            'uid' => $approval->uid,
-            'action' => $approval->action,
-            'action_label' => str_replace('.', ' → ', $approval->action),
-            'reason' => $approval->reason,
-            'status' => $approval->status,
-            'requester' => $approval->requester?->only(['id', 'name', 'email']),
-            'reviewer' => $approval->reviewer?->only(['id', 'name']),
-            'review_note' => $approval->review_note,
-            'when' => $approval->created_at?->timezone(config('app.display_timezone'))->diffForHumans(),
-            'reviewed_when' => $approval->reviewed_at?->timezone(config('app.display_timezone'))->diffForHumans(),
-            'payload' => $approval->payload,
-        ];
     }
 
     private function forgetSessions(User $user): void

@@ -1,9 +1,9 @@
 <template>
     <div
-        class="group/react relative"
+        class="group/react relative flex w-full min-w-0 flex-col"
         :class="align === 'end' ? 'items-end' : 'items-start'"
     >
-        <div class="relative inline-flex max-w-full flex-col" :class="align === 'end' ? 'items-end' : 'items-start'">
+        <div class="relative flex w-full min-w-0 max-w-full flex-col" :class="align === 'end' ? 'items-end' : 'items-start'">
             <div
                 class="pointer-events-none absolute -top-3 z-10 flex opacity-0 transition-opacity duration-150 group-hover/react:pointer-events-auto group-hover/react:opacity-100 group-focus-within/react:pointer-events-auto group-focus-within/react:opacity-100"
                 :class="align === 'end' ? 'right-2' : 'left-2'"

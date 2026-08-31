@@ -21,6 +21,8 @@ use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Admin\ApprovalService;
+use App\Models\StaffCaseReferral;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\NigeriaLocations;
 use App\Support\NumberFormat;
 use App\Support\Tokens\TokenWallet;
@@ -61,39 +63,8 @@ class UserAdminController extends Controller
 
     public function suspend(AdminReasonRequest $request, User $user, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
-        abort_unless($user->isRegularUser(), 403);
-
         $reason = $request->validated('reason');
-        $old = ['suspended_at' => $user->suspended_at?->toIso8601String()];
-
-        $result = $approvals->run(
-            $request->user(),
-            'users.suspend',
-            $user,
-            $reason,
-            [
-                'user_id' => $user->id,
-                'reason' => $reason,
-                'old' => $old,
-                'new' => ['suspended_at' => now()->toIso8601String(), 'reason' => $reason],
-            ],
-            function () use ($user, $reason, $old, $request) {
-                $user->forceFill([
-                    'suspended_at' => now(),
-                    'suspension_reason' => $reason,
-                ])->save();
-
-                AdminAudit::record(
-                    'users.suspended',
-                    "{$request->user()->name} suspended {$user->email}: {$reason}",
-                    $user,
-                    $old,
-                    ['suspended_at' => $user->suspended_at?->toIso8601String(), 'reason' => $reason],
-                );
-
-                $this->forgetSessions($user);
-            },
-        );
+        $result = $this->suspendThroughApproval($request->user(), $user, $reason, $approvals);
 
         if (($result['status'] ?? '') === 'pending') {
             return AdminResponse::mutation($request, [
@@ -103,11 +74,13 @@ class UserAdminController extends Controller
             ]);
         }
 
+        $user = $result['user'];
+
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'User suspended',
             'message' => $user->displayBusinessName().' can no longer sign in.',
-        ], ['user' => $this->listPayload($user->fresh()->loadCount(['workLogs', 'reviews']))]);
+        ], ['user' => $this->listPayload($user->loadCount(['workLogs', 'reviews']))]);
     }
 
     public function reinstate(AdminReasonRequest $request, User $user, ApprovalService $approvals): JsonResponse|RedirectResponse
@@ -404,24 +377,50 @@ class UserAdminController extends Controller
         ]);
     }
 
-    public function destroy(DestroyUserRequest $request, User $user): JsonResponse|RedirectResponse
+    public function destroy(DestroyUserRequest $request, User $user, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
         abort_unless($user->isRegularUser(), 403);
 
         $reason = $request->validated('reason');
+        $confirmation = $request->validated('confirmation');
         $email = $user->email;
         $name = $user->displayBusinessName();
 
-        $this->forgetSessions($user);
-        $user->delete();
-
-        AdminAudit::record(
-            'users.deleted',
-            "{$request->user()->name} soft-deleted {$email}: {$reason}",
+        $result = $approvals->run(
+            $request->user(),
+            'users.delete',
             $user,
-            ['email' => $email],
-            ['reason' => $reason, 'deleted_at' => now()->toIso8601String()],
+            $reason,
+            [
+                'user_id' => $user->id,
+                'reason' => $reason,
+                'confirmation' => $confirmation,
+                'old' => ['email' => $email],
+                'new' => ['deleted_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($user, $reason, $request, $email) {
+                $this->forgetSessions($user);
+                $user->delete();
+
+                AdminAudit::record(
+                    'users.deleted',
+                    "{$request->user()->name} soft-deleted {$email}: {$reason}",
+                    $user,
+                    ['email' => $email],
+                    ['reason' => $reason, 'deleted_at' => now()->toIso8601String()],
+                );
+
+                return ['deleted_id' => $user->id];
+            },
         );
+
+        if (($result['status'] ?? '') === 'pending') {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => 'A Super Admin must approve deleting this account before it takes effect.',
+            ]);
+        }
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
@@ -430,38 +429,68 @@ class UserAdminController extends Controller
         ], ['deleted_id' => $user->id]);
     }
 
-    public function bulkSuspend(BulkUsersRequest $request): JsonResponse|RedirectResponse
+    public function bulkSuspend(BulkUsersRequest $request, ApprovalService $approvals): JsonResponse|RedirectResponse
     {
         $data = $request->validated();
         $reason = $data['reason'];
-        $count = 0;
+        $executedIds = [];
+        $pendingCount = 0;
 
         User::query()
             ->artisans()
             ->whereIn('id', $data['ids'])
             ->whereNull('suspended_at')
             ->get()
-            ->each(function (User $user) use ($request, $reason, &$count) {
-                $user->forceFill([
-                    'suspended_at' => now(),
-                    'suspension_reason' => $reason,
-                ])->save();
-                $this->forgetSessions($user);
-                AdminAudit::record(
-                    'users.suspended',
-                    "{$request->user()->name} bulk-suspended {$user->email}: {$reason}",
-                    $user,
-                    ['suspended_at' => null],
-                    ['reason' => $reason],
-                );
-                $count++;
+            ->each(function (User $user) use ($request, $reason, $approvals, &$executedIds, &$pendingCount) {
+                if (! $user->isRegularUser()) {
+                    return;
+                }
+
+                $result = $this->suspendThroughApproval($request->user(), $user, $reason, $approvals);
+
+                if (($result['status'] ?? '') === 'pending') {
+                    $pendingCount++;
+
+                    return;
+                }
+
+                $executedIds[] = $user->id;
             });
+
+        $executedCount = count($executedIds);
+
+        if ($pendingCount > 0 && $executedCount === 0) {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Approval requested',
+                'message' => $pendingCount === 1
+                    ? 'A Super Admin must approve this suspension before it takes effect.'
+                    : "{$pendingCount} suspensions sent for Super Admin approval.",
+            ], [
+                'pending_count' => $pendingCount,
+                'executed_ids' => $executedIds,
+            ]);
+        }
+
+        if ($pendingCount > 0) {
+            return AdminResponse::mutation($request, [
+                'type' => 'info',
+                'title' => 'Partly submitted',
+                'message' => "{$executedCount} suspended now. {$pendingCount} waiting on Super Admin approval.",
+            ], [
+                'pending_count' => $pendingCount,
+                'executed_ids' => $executedIds,
+            ]);
+        }
 
         return AdminResponse::mutation($request, [
             'type' => 'success',
             'title' => 'Suspended',
-            'message' => $count.' artisan'.($count === 1 ? '' : 's').' can no longer sign in.',
-        ], ['count' => $count]);
+            'message' => $executedCount.' artisan'.($executedCount === 1 ? '' : 's').' can no longer sign in.',
+        ], [
+            'count' => $executedCount,
+            'executed_ids' => $executedIds,
+        ]);
     }
 
     public function bulkMessage(BulkUsersRequest $request, AnnouncementService $announcements): JsonResponse|RedirectResponse
@@ -597,6 +626,7 @@ class UserAdminController extends Controller
                 'client' => $review->client_display_name,
                 'flagged' => $review->flagged_at !== null,
                 'hidden' => $review->hidden_at !== null,
+                'removed' => $review->removed_at !== null,
                 'submitted_at' => ($review->submitted_at ?? $review->created_at)?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
                 'job' => $review->workLog?->description,
             ]);
@@ -723,6 +753,12 @@ class UserAdminController extends Controller
                 'admin_actions' => $adminActions,
             ],
             'can_see_financials' => (bool) $canSeeFinancials,
+            'escalation' => app(StaffCaseReferralService::class)->escalationBlockFor(
+                StaffCaseReferral::SUBJECT_USER,
+                $user->id,
+            ),
+            'can_escalate' => $viewer
+                && app(StaffCaseReferralService::class)->canEscalate($viewer, StaffCaseReferral::SUBJECT_USER),
         ];
     }
 
@@ -811,6 +847,7 @@ class UserAdminController extends Controller
             'worked_on_label' => $log->worked_on?->format('j M Y'),
             'flagged' => $log->flagged_at !== null,
             'hidden' => $log->hidden_at !== null,
+            'removed' => $log->removed_at !== null,
             'status' => $status,
             'has_review' => $log->review !== null,
         ];
@@ -836,6 +873,51 @@ class UserAdminController extends Controller
         }
 
         return 'Free';
+    }
+
+    /**
+     * @return array{status: string, user?: User}
+     */
+    private function suspendThroughApproval(User $actor, User $user, string $reason, ApprovalService $approvals): array
+    {
+        abort_unless($user->isRegularUser(), 403);
+
+        $old = ['suspended_at' => $user->suspended_at?->toIso8601String()];
+
+        $result = $approvals->run(
+            $actor,
+            'users.suspend',
+            $user,
+            $reason,
+            [
+                'user_id' => $user->id,
+                'reason' => $reason,
+                'old' => $old,
+                'new' => ['suspended_at' => now()->toIso8601String(), 'reason' => $reason],
+            ],
+            function () use ($user, $reason, $old, $actor) {
+                $user->forceFill([
+                    'suspended_at' => now(),
+                    'suspension_reason' => $reason,
+                ])->save();
+
+                AdminAudit::record(
+                    'users.suspended',
+                    "{$actor->name} suspended {$user->email}: {$reason}",
+                    $user,
+                    $old,
+                    ['suspended_at' => $user->suspended_at?->toIso8601String(), 'reason' => $reason],
+                );
+
+                $this->forgetSessions($user);
+            },
+        );
+
+        if (($result['status'] ?? '') === 'executed') {
+            $result['user'] = $user->fresh();
+        }
+
+        return $result;
     }
 
     private function forgetSessions(User $user): void

@@ -457,6 +457,7 @@ const props = defineProps({
         type: Object,
         default: () => ({ service_state: null, service_lga: null }),
     },
+    fromQuote: { type: Object, default: null },
 });
 
 const step = ref(0);
@@ -474,17 +475,18 @@ const steps = [
 ];
 
 const form = useForm({
-    description: '',
+    description: props.defaults.description || '',
     worked_on: props.today,
-    client_name: '',
+    client_name: props.defaults.client_name || '',
     job_category: '',
     job_subcategory: '',
     service_state: props.defaults.service_state || '',
     service_lga: props.defaults.service_lga || '',
     service_city: '',
-    client_whatsapp: '',
+    client_whatsapp: props.defaults.client_whatsapp || '',
     amount_charged: '',
     media: [],
+    from_quote_uid: props.fromQuote?.uid || '',
 });
 
 const states = computed(() => Object.keys(props.locations || {}));

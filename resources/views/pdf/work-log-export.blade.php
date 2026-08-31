@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Work log — {{ $user->displayBusinessName() }}</title>
+    <title>Work references — {{ $user->displayBusinessName() }}</title>
     <style>
         @page { margin: 36px 40px; }
         body {
@@ -15,6 +15,26 @@
             border-bottom: 2px solid #0B1F3A;
             padding-bottom: 14px;
             margin-bottom: 18px;
+        }
+        .masthead-row {
+            display: table;
+            width: 100%;
+        }
+        .masthead-brand {
+            display: table-cell;
+            vertical-align: middle;
+            width: 72px;
+        }
+        .masthead-logo {
+            width: 56px;
+            height: 56px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+        .masthead-copy {
+            display: table-cell;
+            vertical-align: middle;
+            padding-left: 12px;
         }
         .brand {
             font-size: 11px;
@@ -72,6 +92,13 @@
             text-transform: uppercase;
             color: #2F6FED;
         }
+        .ref {
+            font-family: DejaVu Sans Mono, monospace;
+            font-size: 9px;
+            font-weight: 700;
+            color: #1A4FB5;
+            margin-top: 3px;
+        }
         .job h2 {
             font-size: 13px;
             margin: 3px 0 4px;
@@ -105,18 +132,27 @@
 </head>
 <body>
     <div class="masthead">
-        <p class="brand">Isabi · Proof of work</p>
-        <h1>{{ $user->displayBusinessName() }}</h1>
-        <p class="meta">
-            @if($user->trade)<strong>{{ $user->trade }}</strong> · @endif
-            @if($user->lga || $user->state)
-                {{ collect([$user->lga, $user->state])->filter()->implode(', ') }} ·
+        <div class="masthead-row">
+            @if($brandLogo)
+                <div class="masthead-brand">
+                    <img src="{{ $brandLogo }}" alt="" class="masthead-logo">
+                </div>
             @endif
-            Exported {{ $generatedAt->format('j M Y') }}
-            @if($publicUrl)
-                · {{ preg_replace('#^https?://#', '', $publicUrl) }}
-            @endif
-        </p>
+            <div class="masthead-copy">
+                <p class="brand">Work references</p>
+                <h1>{{ $user->displayBusinessName() }}</h1>
+                <p class="meta">
+                    @if($user->trade)<strong>{{ $user->trade }}</strong> · @endif
+                    @if($user->lga || $user->state)
+                        {{ collect([$user->lga, $user->state])->filter()->implode(', ') }} ·
+                    @endif
+                    Exported {{ $generatedAt->format('j M Y') }}
+                    @if($publicUrl)
+                        · {{ preg_replace('#^https?://#', '', $publicUrl) }}
+                    @endif
+                </p>
+            </div>
+        </div>
     </div>
 
     @php
@@ -150,6 +186,9 @@
                     </div>
                 @endif
                 <h2>{{ $log->description }}</h2>
+                @if($log->reference)
+                    <div class="ref">{{ $log->reference }}</div>
+                @endif
                 <div class="when">
                     {{ $log->worked_on?->timezone(config('app.display_timezone'))->format('j M Y') }}
                     @if($log->client_name) · {{ $log->client_name }} @endif
@@ -187,8 +226,8 @@
     @endforelse
 
     <div class="footer">
-        <span>Generated from Isabi · Reviews shown as submitted by clients</span>
-        <span class="right">{{ $user->displayBusinessName() }}</span>
+        <span>Generated for {{ $user->displayBusinessName() }} · Reviews shown as submitted by clients</span>
+        <span class="right">Isabi</span>
     </div>
 </body>
 </html>

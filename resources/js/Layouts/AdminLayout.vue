@@ -184,7 +184,7 @@
                 </div>
 
                 <div
-                    v-if="currentTabs.length > 1"
+                    v-if="currentTabs.length > 1 && !isSuper"
                     class="no-scrollbar flex gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6 lg:justify-end"
                 >
                     <button
@@ -213,6 +213,7 @@
                     >
                         You can sign in, but no roles have been assigned yet. Ask a Super Admin to grant access — this screen stays empty on purpose.
                     </div>
+                    <AdminSectionTabs v-if="isSuper" :tabs="currentTabs" />
                     <slot />
                 </div>
             </main>
@@ -264,6 +265,7 @@ import {
     tabIsActive,
 } from '@/Data/adminNav';
 import { adminChrome } from '@/Composables/useAdminChrome';
+import AdminSectionTabs from '@/Components/Admin/AdminSectionTabs.vue';
 import NotificationBell from '@/Components/App/NotificationBell.vue';
 import { parseQuery } from '@/utils/adminRange';
 import { prefetchAdmin, prefetchAdminSoon, visitAdmin } from '@/utils/adminVisit';

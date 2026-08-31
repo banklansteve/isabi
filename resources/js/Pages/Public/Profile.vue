@@ -499,6 +499,19 @@
                                             <i class="ti ti-hourglass-low text-sm" aria-hidden="true" />
                                             Awaiting client review
                                         </p>
+
+                                        <div
+                                            v-if="!viewerIsOwner && jobHref(job)"
+                                            class="mt-5"
+                                        >
+                                            <Link
+                                                :href="jobHref(job)"
+                                                class="tap-target inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition-colors hover:bg-tint"
+                                            >
+                                                View job page
+                                                <i class="ti ti-arrow-right text-sm" aria-hidden="true" />
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -598,6 +611,31 @@
                 </section>
 
                 <section
+                    v-if="showProfileQuote"
+                    id="profile-quote"
+                    ref="profileQuoteSection"
+                    class="scroll-mt-24 mt-8 overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-base-action/15 sm:mt-12"
+                >
+                    <div class="border-b border-ink/[0.05] bg-gradient-to-r from-tint/80 to-white px-5 py-5 sm:px-6">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base-action">
+                            Get a quote
+                        </p>
+                        <h2 class="mt-1 font-editorial text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+                            Planning something similar?
+                        </h2>
+                        <p class="mt-1 text-sm font-medium leading-relaxed text-ink/45">
+                            Tell {{ profile.business_name }} what you need — they’ll follow up on the details you leave.
+                        </p>
+                    </div>
+                    <div class="px-5 py-5 sm:px-6 sm:py-6">
+                        <QuoteRequestForm
+                            :quote-url="quoteUrl"
+                            :business-name="profile.business_name"
+                        />
+                    </div>
+                </section>
+
+                <section
                     v-if="viewerIsOwner"
                     class="relative mt-8 overflow-hidden rounded-xl bg-ink px-4 py-7 text-white sm:mt-16 sm:rounded-2xl sm:px-10 sm:py-10"
                     aria-labelledby="qr-heading"
@@ -652,6 +690,13 @@
                         </div>
                     </div>
                 </section>
+
+                <ShareEmbedPanel
+                    v-if="viewerIsOwner && profile.embed_url"
+                    class="relative mt-8 sm:mt-10"
+                    :profile-embed-url="profile.embed_url"
+                    :public-url="profile.public_url"
+                />
             </div>
 
             <MediaLightbox
@@ -683,6 +728,26 @@
             </div>
         </div>
 
+        <div
+            v-if="showProfileQuoteSticky"
+            class="fixed inset-x-0 z-40 border-t border-ink/10 bg-white/95 px-4 py-3 backdrop-blur-md sm:hidden"
+            :class="showWhatsAppBar ? 'bottom-[4.25rem]' : 'bottom-0'"
+            :style="
+                showWhatsAppBar
+                    ? undefined
+                    : { paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }
+            "
+        >
+            <button
+                type="button"
+                class="tap-target flex w-full items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)]"
+                @click="scrollToProfileQuote"
+            >
+                <i class="ti ti-message-quote text-lg" aria-hidden="true" />
+                Request a quote
+            </button>
+        </div>
+
         <ProfileQrModal
             :show="qrOpen"
             :url="profile.public_url || ''"
@@ -710,9 +775,11 @@
 
 <script setup>
 import AppEmptyState from '@/Components/App/AppEmptyState.vue';
+import ShareEmbedPanel from '@/Components/App/ShareEmbedPanel.vue';
 import JobMediaMosaic from '@/Components/Media/JobMediaMosaic.vue';
 import MediaLightbox from '@/Components/Media/MediaLightbox.vue';
 import JobLogControls from '@/Components/Public/JobLogControls.vue';
+import QuoteRequestForm from '@/Components/Public/QuoteRequestForm.vue';
 import ProfileQrModal from '@/Components/Public/ProfileQrModal.vue';
 import ReviewShareCard from '@/Components/Public/ReviewShareCard.vue';
 import StarDisplay from '@/Components/Reviews/StarDisplay.vue';
@@ -726,6 +793,7 @@ const props = defineProps({
     profile: { type: Object, required: true },
     timeline: { type: Array, default: () => [] },
     viewerIsOwner: { type: Boolean, default: false },
+    quoteUrl: { type: String, default: '' },
 });
 
 const page = usePage();
@@ -735,6 +803,14 @@ const isLoggedIn = computed(() => !!page.props.auth?.user);
 const showWhatsAppBar = computed(
     () => !!props.profile.whatsapp_url && !props.viewerIsOwner,
 );
+
+const showProfileQuote = computed(() => !props.viewerIsOwner && !!props.quoteUrl);
+const showProfileQuoteSticky = computed(() => showProfileQuote.value && props.timeline.length > 0);
+const profileQuoteSection = ref(null);
+
+const scrollToProfileQuote = () => {
+    profileQuoteSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 const openWhatsAppChat = () => {
     if (!props.profile.whatsapp_url) {
@@ -749,6 +825,12 @@ const openWhatsAppChat = () => {
 
     window.open(props.profile.whatsapp_url, '_blank', 'noopener,noreferrer');
 };
+
+onMounted(() => {
+    if (showProfileQuote.value && window.location.hash === '#profile-quote') {
+        window.setTimeout(scrollToProfileQuote, 120);
+    }
+});
 
 const qrOpen = ref(false);
 const linkCopied = ref(false);

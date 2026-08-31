@@ -14,7 +14,7 @@ return [
         'reset-password', 'forgot-password', 'support', 'terms', 'verify-email',
         'welcome', 'work-log', 'www', 'null', 'undefined', 'settings', 'billing',
         'account', 'user', 'users', 'artisan', 'artisans', 'review', 'reviews',
-        'sitemap', 'jobs', 'directory', 'explore',
+        'sitemap', 'jobs', 'directory', 'explore', 'q', 'quotes',
     ],
 
     /** Max times an artisan may change their public slug. */
@@ -22,4 +22,7 @@ return [
 
     /** Review invite link lifetime (days). */
     'review_token_days' => 30,
+
+    /** Client quote response link lifetime (days). */
+    'quote_token_days' => 30,
 ];

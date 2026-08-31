@@ -77,6 +77,43 @@
                             </div>
                         </div>
 
+                        <div
+                            class="mt-4 flex flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink/[0.05] sm:flex-row sm:items-center sm:p-5"
+                        >
+                            <div
+                                class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white text-xl font-bold text-deep shadow-sm ring-1 ring-ink/[0.06]"
+                            >
+                                <img
+                                    v-if="profile.logo_url"
+                                    :src="profile.logo_url"
+                                    alt=""
+                                    class="h-full w-full object-contain p-2"
+                                />
+                                <i v-else class="ti ti-building-store text-2xl text-ink/25" aria-hidden="true" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] font-bold uppercase tracking-[0.1em] text-ink/40">
+                                    Business logo
+                                </p>
+                                <p class="mt-1 text-sm font-medium text-ink/55">
+                                    Used on PDF exports, embed widgets, and tender packs — separate from your profile photo.
+                                </p>
+                                <label
+                                    class="tap-target mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-base-action/30 bg-white px-3.5 py-2 text-xs font-bold text-base-action transition-colors hover:bg-tint"
+                                >
+                                    <i class="ti ti-upload" aria-hidden="true" />
+                                    {{ profile.logo_url ? 'Change logo' : 'Upload logo' }}
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        class="sr-only"
+                                        :disabled="logoForm.processing"
+                                        @change="onLogoPick"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
                         <dl class="grid gap-3 sm:grid-cols-2">
                             <div
                                 v-for="row in basicsRows"
@@ -739,6 +776,10 @@ const avatarForm = useForm({
     avatar: null,
 });
 
+const logoForm = useForm({
+    logo: null,
+});
+
 const onAvatarPick = (event) => {
     const file = event.target?.files?.[0];
     if (!file) return;
@@ -748,6 +789,20 @@ const onAvatarPick = (event) => {
         preserveScroll: true,
         onFinish: () => {
             avatarForm.reset('avatar');
+            if (event.target) event.target.value = '';
+        },
+    });
+};
+
+const onLogoPick = (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    logoForm.logo = file;
+    logoForm.post(route('profile.logo'), {
+        forceFormData: true,
+        preserveScroll: true,
+        onFinish: () => {
+            logoForm.reset('logo');
             if (event.target) event.target.value = '';
         },
     });

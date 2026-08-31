@@ -26,7 +26,10 @@
                 </div>
             </header>
 
-            <main class="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:space-y-6 sm:px-8 sm:py-10">
+            <main
+                class="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:space-y-6 sm:px-8 sm:py-10"
+                :class="showQuoteCta ? 'pb-28 sm:pb-10' : ''"
+            >
                 <nav class="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink/40">
                     <Link :href="route('public.directory')" class="transition-colors hover:text-ink">
                         Artisans
@@ -48,14 +51,15 @@
                             class="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-tint text-sm font-extrabold text-deep"
                         >
                             <img
-                                v-if="profile.avatar_url"
-                                :src="profile.avatar_url"
+                                v-if="profile.logo_url || profile.avatar_url"
+                                :src="profile.logo_url || profile.avatar_url"
                                 :alt="profile.business_name"
                                 class="h-full w-full object-cover"
+                                :class="profile.logo_url ? 'object-contain p-1.5 bg-white' : ''"
                             />
                             <span v-else>{{ initials }}</span>
                         </Link>
-                        <div class="min-w-0">
+                        <div class="min-w-0 flex-1">
                             <Link
                                 :href="profile.public_url"
                                 class="block truncate text-sm font-bold text-ink hover:text-base-action"
@@ -66,6 +70,15 @@
                                 {{ [profile.trade, profile.area_label].filter(Boolean).join(' · ') }}
                             </p>
                         </div>
+                        <button
+                            v-if="showQuoteCta"
+                            type="button"
+                            class="tap-target hidden shrink-0 items-center gap-1.5 rounded-xl bg-base-action px-3.5 py-2.5 text-xs font-bold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.45)] transition-colors hover:bg-base-hover sm:inline-flex"
+                            @click="scrollToQuote"
+                        >
+                            <i class="ti ti-message-quote text-sm" aria-hidden="true" />
+                            Request a quote
+                        </button>
                     </div>
 
                     <div class="px-5 py-5 sm:px-6 sm:py-6">
@@ -89,6 +102,12 @@
                                 <time :datetime="job.worked_on || undefined">{{ job.worked_on_label }}</time>
                             </span>
                             <span
+                                v-if="job.reference"
+                                class="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-bold text-deep"
+                            >
+                                Ref {{ job.reference }}
+                            </span>
+                            <span
                                 v-if="job.service_label"
                                 class="inline-flex items-center gap-1.5 rounded-full bg-pale px-3 py-1.5 text-xs font-semibold text-ink/60"
                             >
@@ -96,6 +115,16 @@
                                 {{ job.service_label }}
                             </span>
                         </div>
+
+                        <button
+                            v-if="showQuoteCta"
+                            type="button"
+                            class="tap-target mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition-colors hover:bg-base-hover sm:hidden"
+                            @click="scrollToQuote"
+                        >
+                            <i class="ti ti-message-quote text-lg" aria-hidden="true" />
+                            Request a quote
+                        </button>
                     </div>
                 </section>
 
@@ -145,6 +174,29 @@
                     This job is on {{ profile.business_name }}’s public page. A client review has not been left yet.
                 </p>
 
+                <section
+                    v-if="showQuoteCta"
+                    id="quote"
+                    ref="quoteSection"
+                    class="scroll-mt-24 overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-base-action/15"
+                >
+                    <div class="border-b border-ink/[0.05] bg-gradient-to-r from-tint/80 to-white px-5 py-5 sm:px-6">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base-action">Get a quote</p>
+                        <h2 class="mt-1 font-editorial text-xl font-semibold tracking-tight text-ink">
+                            Interested in similar work?
+                        </h2>
+                        <p class="mt-1 text-sm font-medium text-ink/45">
+                            Leave your details — {{ profile.business_name }} will follow up directly.
+                        </p>
+                    </div>
+                    <div class="px-5 py-5 sm:px-6 sm:py-6">
+                        <QuoteRequestForm
+                            :quote-url="quoteUrl"
+                            :business-name="profile.business_name"
+                        />
+                    </div>
+                </section>
+
                 <Link
                     :href="profile.public_url"
                     class="tap-target inline-flex items-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition-colors hover:bg-base-hover"
@@ -154,6 +206,21 @@
                 </Link>
             </main>
 
+            <div
+                v-if="showQuoteCta"
+                class="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-white/95 px-4 py-3 backdrop-blur-md sm:hidden"
+                style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))"
+            >
+                <button
+                    type="button"
+                    class="tap-target flex w-full items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)]"
+                    @click="scrollToQuote"
+                >
+                    <i class="ti ti-message-quote text-lg" aria-hidden="true" />
+                    Request a quote
+                </button>
+            </div>
+
             <SiteFooter v-if="!isLoggedIn" />
         </div>
     </component>
@@ -161,20 +228,41 @@
 
 <script setup>
 import MediaGallery from '@/Components/Media/MediaGallery.vue';
+import QuoteRequestForm from '@/Components/Public/QuoteRequestForm.vue';
 import StarDisplay from '@/Components/Reviews/StarDisplay.vue';
 import SiteFooter from '@/Components/SiteFooter.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     profile: { type: Object, required: true },
     job: { type: Object, required: true },
+    quoteUrl: { type: String, default: '' },
     viewerIsOwner: { type: Boolean, default: false },
 });
 
 const page = usePage();
 const isLoggedIn = computed(() => !!page.props.auth?.user);
+const quoteSection = ref(null);
+
+const showQuoteCta = computed(() => !props.viewerIsOwner && !!props.quoteUrl);
+
+const quoteUrl = computed(
+    () => props.quoteUrl || (props.job.reference
+        ? route('public.job.quote', [props.profile.slug, props.job.reference])
+        : ''),
+);
+
+const scrollToQuote = () => {
+    quoteSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+onMounted(() => {
+    if (showQuoteCta.value && window.location.hash === '#quote') {
+        window.setTimeout(scrollToQuote, 120);
+    }
+});
 
 const initials = computed(() => {
     const parts = String(props.profile.business_name || '')

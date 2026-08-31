@@ -6,7 +6,7 @@
         :eyebrow="team ? 'How the floor is performing' : 'Your completed work'"
     />
 
-    <OpsMyWorkTabs />
+    <OpsPerformanceTabs />
 
     <div class="mb-4">
         <AdminRangePicker :range="range" />
@@ -239,9 +239,9 @@
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
-import OpsMyWorkTabs from '@/Components/Admin/OpsMyWorkTabs.vue';
+import OpsPerformanceTabs from '@/Components/Admin/OpsPerformanceTabs.vue';
 import { useDateRange } from '@/Composables/useDateRange';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 

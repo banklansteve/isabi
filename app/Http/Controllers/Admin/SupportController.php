@@ -12,7 +12,9 @@ use App\Http\Requests\Admin\TagSupportTicketRequest;
 use App\Http\Requests\Admin\UpdateCannedReplyRequest;
 use App\Models\SupportCannedReply;
 use App\Models\SupportTicket;
+use App\Models\StaffCaseReferral;
 use App\Models\User;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Realtime\Realtime;
@@ -361,6 +363,8 @@ class SupportController extends Controller
         ]);
 
         $visibleOpen = $this->scopeVisibleTickets(clone $openQuery, $request->user());
+        $resolvedQuery = SupportTicket::query()->where('status', SupportTicket::STATUS_RESOLVED);
+        $visibleResolved = $this->scopeVisibleTickets(clone $resolvedQuery, $request->user());
 
         return [
             'tickets' => $tickets,
@@ -369,10 +373,16 @@ class SupportController extends Controller
             'agents' => $request->user()?->isSuperAdmin()
                 ? $this->conversations->assignableAgents()
                 : [],
+            'staff' => \App\Support\Admin\JobAdminPresenter::staffOptions(),
+            'can_refer' => (bool) $request->user()?->canDo('admin.support.manage'),
+            'can_escalate' => app(StaffCaseReferralService::class)
+                ->canEscalate($request->user(), StaffCaseReferral::SUBJECT_SUPPORT),
             'topics' => $this->presenter->topicOptions(),
             'canned' => $this->cannedPayload($request->user()),
             'moments' => SupportChatTemplates::momentOptions(),
             'counts' => [
+                'active' => $visibleOpen->count(),
+                'resolved' => $visibleResolved->count(),
                 'unassigned' => (clone $openQuery)->whereNull('assigned_to_user_id')->count(),
                 'mine' => (clone $openQuery)->where('assigned_to_user_id', $request->user()->id)->count(),
                 'open' => $visibleOpen->count(),
@@ -474,13 +484,19 @@ class SupportController extends Controller
 
     private function selectedTicket(Request $request): ?SupportTicket
     {
-        $id = (int) ($request->route('ticket')?->id ?? $request->query('ticket', 0));
+        $routeTicket = $request->route('ticket');
 
-        if ($id < 1) {
+        if ($routeTicket instanceof SupportTicket) {
+            return $routeTicket;
+        }
+
+        $uid = trim((string) $request->query('ticket', ''));
+
+        if ($uid === '') {
             return null;
         }
 
-        return SupportTicket::query()->find($id);
+        return SupportTicket::query()->where('uid', $uid)->first();
     }
 
     private function respond(Request $request, SupportTicket $ticket): JsonResponse|RedirectResponse

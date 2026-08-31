@@ -29,6 +29,7 @@ use App\Http\Controllers\Admin\Hr\HrProfileController;
 use App\Http\Controllers\Admin\Hr\HrReportController;
 use App\Http\Controllers\Admin\Hr\HrSettingsController;
 use App\Http\Controllers\Admin\JobAdminController;
+use App\Http\Controllers\Admin\ModerationDeskController;
 use App\Http\Controllers\Admin\OpsAttentionController;
 use App\Http\Controllers\Admin\OpsInsightsController;
 use App\Http\Controllers\Admin\OpsMessageController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Admin\ReferralAdminController;
 use App\Http\Controllers\Admin\ReviewAdminController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\StaffAssignmentController;
+use App\Http\Controllers\Admin\StaffCaseReferralController;
 use App\Http\Controllers\Admin\StaffChatController;
 use App\Http\Controllers\Admin\StaffController;
 use App\Http\Controllers\Admin\StaffRoleController;
@@ -84,9 +86,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/', AdminDashboardController::class)->name('dashboard');
         Route::get('tasks', OpsTaskController::class)->name('tasks');
+        Route::get('assigned', [StaffCaseReferralController::class, 'index'])->name('assigned.index');
+        Route::get('my-approvals', [ApprovalController::class, 'mine'])->name('my-approvals.index');
+        Route::get('my-approvals/{approval}', [ApprovalController::class, 'mineShow'])->name('my-approvals.show');
+        Route::get('moderation-desk', [ModerationDeskController::class, 'index'])->name('moderation-desk.index');
+        Route::post('referrals', [StaffCaseReferralController::class, 'store'])->name('referrals.store');
+        Route::post('escalations', [StaffCaseReferralController::class, 'escalate'])->name('escalations.store');
+        Route::post('escalations/{referral}/acknowledge', [StaffCaseReferralController::class, 'acknowledge'])->name('escalations.acknowledge');
+        Route::post('escalations/{referral}/complete', [StaffCaseReferralController::class, 'completeEscalation'])->name('escalations.complete');
+        Route::post('referrals/{referral}/return', [StaffCaseReferralController::class, 'returnCase'])->name('referrals.return');
         Route::get('insights', [OpsInsightsController::class, 'index'])->name('insights.index');
         Route::get('insights/live', [OpsInsightsController::class, 'live'])->name('insights.live');
-        Route::get('account', AccountController::class)->name('account');
+        Route::get('account', [AccountController::class, 'show'])->name('account');
+        Route::post('account/avatar', [AccountController::class, 'updateAvatar'])->name('account.avatar');
+        Route::patch('account/profile', [AccountController::class, 'updateProfile'])->name('account.profile');
         Route::post('attention/read', [OpsAttentionController::class, 'read'])->name('attention.read');
         Route::post('attention/read-all', [OpsAttentionController::class, 'readAll'])->name('attention.read-all');
 
@@ -140,6 +153,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::prefix('ops-messages')->name('ops-messages.')->group(function () {
             Route::get('/', [OpsMessageController::class, 'index'])->name('index');
+            Route::get('options', [OpsMessageController::class, 'options'])->name('options');
             Route::post('/', [OpsMessageController::class, 'send'])->name('send');
             Route::post('templates', [OpsMessageController::class, 'storeTemplate'])->name('templates.store');
             Route::patch('templates/{template}', [OpsMessageController::class, 'updateTemplate'])->name('templates.update');
@@ -153,7 +167,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         Route::middleware('ability:patrol.view')->prefix('patrol')->name('patrol.')->group(function () {
-            Route::get('/', [PatrolController::class, 'index'])->name('index');
+            Route::get('/', fn () => redirect()->route('admin.patrol.jobs'))->name('index');
+            Route::get('jobs', [PatrolController::class, 'jobs'])->name('jobs');
+            Route::get('reviews', [PatrolController::class, 'reviews'])->name('reviews');
             Route::get('{patrolCase}', [PatrolController::class, 'show'])->name('show');
             Route::post('{patrolCase}/notes', [PatrolController::class, 'storeNote'])->middleware('ability:patrol.investigate')->name('notes.store');
             Route::post('{patrolCase}/review', [PatrolController::class, 'startReview'])->middleware('ability:patrol.investigate')->name('review');
@@ -167,6 +183,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         Route::get('reviews', [ReviewAdminController::class, 'index'])->middleware('ability:admin.content.manage')->name('reviews.index');
+        Route::get('reviews/{review}', [ReviewAdminController::class, 'show'])->middleware('ability:admin.content.manage')->name('reviews.show');
         Route::post('reviews/{review}/flag', [ReviewAdminController::class, 'flag'])->name('reviews.flag');
         Route::post('reviews/{review}/unflag', [ReviewAdminController::class, 'unflag'])->name('reviews.unflag');
         Route::post('reviews/{review}/hide', [ReviewAdminController::class, 'hide'])->name('reviews.hide');

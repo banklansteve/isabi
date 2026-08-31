@@ -3,7 +3,8 @@
 
     <AdminChrome title="Support reports" eyebrow="Last 30 days" />
 
-    <OpsMyWorkTabs />
+    <OpsPerformanceTabs />
+
     <SupportWorkspaceNav />
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -54,7 +55,7 @@
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
-import OpsMyWorkTabs from '@/Components/Admin/OpsMyWorkTabs.vue';
+import OpsPerformanceTabs from '@/Components/Admin/OpsPerformanceTabs.vue';
 import SupportWorkspaceNav from '@/Components/Admin/SupportWorkspaceNav.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';

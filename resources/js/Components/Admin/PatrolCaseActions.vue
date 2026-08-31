@@ -98,6 +98,13 @@
                 label="Warn or suspend on Users"
                 @click="$emit('handoff')"
             />
+            <FormButton
+                v-if="can.refer"
+                variant="secondary"
+                class="w-full"
+                label="Refer to colleague"
+                @click="$emit('refer')"
+            />
         </div>
     </div>
 </template>
@@ -113,9 +120,9 @@ const props = defineProps({
     approveLabel: { type: String, default: 'Approve recommendation' },
 });
 
-defineEmits(['review', 'recommend', 'dismiss', 'hide', 'remove', 'handoff', 'approve', 'reject']);
+defineEmits(['review', 'recommend', 'dismiss', 'hide', 'remove', 'handoff', 'approve', 'reject', 'refer']);
 
 const isReview = computed(() => props.record?.kind === 'review');
 const isOpen = computed(() => ['new', 'in_review', 'pending_approval'].includes(props.record?.status));
-const show = computed(() => Boolean(props.record && isOpen.value && (props.can.investigate || props.can.resolve)));
+const show = computed(() => Boolean(props.record && isOpen.value && (props.can.investigate || props.can.resolve || props.can.refer)));
 </script>

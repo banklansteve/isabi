@@ -2,10 +2,14 @@
 
 namespace App\Support\Admin;
 
+use App\Enums\StaffStatus;
+use App\Enums\UserRole;
 use App\Models\AdminApproval;
 use App\Models\Announcement;
 use App\Models\AnnouncementDelivery;
+use App\Models\Review;
 use App\Models\User;
+use App\Models\WorkLog;
 use App\Support\Realtime\Realtime;
 use App\Support\Staff\AppSettingsService;
 use Illuminate\Database\Eloquent\Model;
@@ -17,10 +21,8 @@ class ApprovalService
 {
     public const ACTIONS_REQUIRING_APPROVAL = [
         'users.suspend',
-        'users.reinstate',
-        'jobs.hide',
+        'users.delete',
         'jobs.remove',
-        'reviews.hide',
         'reviews.remove',
         'messages.send',
     ];
@@ -186,19 +188,96 @@ class ApprovalService
             ->get();
     }
 
+    /**
+     * Pending approvals for the Super Admin priority inbox.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function superAdminAttentionItems(): array
+    {
+        if (! Schema::hasTable('admin_approvals')) {
+            return [];
+        }
+
+        return $this->pending()
+            ->map(function (AdminApproval $approval) {
+                $subject = $this->subjectSummary($approval);
+
+                return [
+                    'key' => 'approval:'.$approval->uid,
+                    'signature' => 'approval:'.$approval->uid.':'.($approval->created_at?->timestamp ?? 0),
+                    'approval_uid' => $approval->uid,
+                    'urgency' => 110,
+                    'sort_at' => $approval->created_at?->timestamp ?? 0,
+                    'title' => $this->actionLabel($approval->action),
+                    'subtitle' => trim(implode(' · ', array_filter([
+                        $approval->requester?->name ?: $approval->requester?->email,
+                        $subject,
+                        $approval->reason ? Str::limit($approval->reason, 72) : null,
+                    ]))),
+                    'href' => route('admin.approvals.show', $approval),
+                    'icon' => 'ti ti-shield-check',
+                    'tone' => 'high',
+                    'queue' => 'Approval',
+                    'group' => 'approvals',
+                    'priority' => 'high',
+                    'count' => 1,
+                    'unread' => true,
+                    'note' => $approval->reason,
+                    'referrer' => [
+                        'id' => $approval->requested_by_user_id,
+                        'name' => $approval->requester?->name ?: $approval->requester?->email,
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     private function notifySuperAdmins(AdminApproval $approval): void
     {
-        $supers = User::query()->where('role', \App\Enums\UserRole::SuperAdmin)->get();
-        $approval->loadMissing('requester');
+        $superIds = User::query()
+            ->where('role', UserRole::SuperAdmin)
+            ->where('staff_status', StaffStatus::Active)
+            ->pluck('id')
+            ->all();
 
-        foreach ($supers as $super) {
-            $this->pushInApp(
-                $super,
-                'Approval needed',
-                "{$approval->requester?->name} requested {$this->actionLabel($approval->action)}.",
-                route('admin.approvals.index'),
-            );
+        if ($superIds === []) {
+            return;
         }
+
+        $approval->loadMissing('requester');
+        $href = route('admin.approvals.show', $approval);
+        $label = $this->actionLabel($approval->action);
+        $requester = $approval->requester?->name ?: 'Operations staff';
+        $subject = $this->subjectSummary($approval);
+
+        $body = trim(implode("\n\n", array_filter([
+            "{$requester} requested {$label}.",
+            $subject ? "Subject: {$subject}" : null,
+            $approval->reason ? "Reason: {$approval->reason}" : null,
+        ])));
+
+        $actor = $approval->requester
+            ?? User::query()->find($approval->requested_by_user_id);
+
+        if (! $actor instanceof User) {
+            return;
+        }
+
+        $this->announcements->sendToStaff(
+            $actor,
+            $superIds,
+            'Approval needed: '.$label,
+            $body,
+            [Announcement::CHANNEL_IN_APP],
+            null,
+            [
+                'kind' => 'staff_approval',
+                'href' => $href,
+                'approval_uid' => $approval->uid,
+            ],
+        );
     }
 
     private function notifyRequester(AdminApproval $approval, bool $approved): void
@@ -212,7 +291,7 @@ class ApprovalService
             $requester,
             $approved ? 'Request approved' : 'Request rejected',
             ($approved ? 'Approved' : 'Rejected').': '.$this->actionLabel($approval->action),
-            route('admin.approvals.index'),
+            route('admin.my-approvals.index'),
         );
     }
 
@@ -261,17 +340,164 @@ class ApprovalService
         return "{$actor->name} ".($executed ? 'completed' : 'requested')." {$action} on {$target}: {$reason}";
     }
 
-    private function actionLabel(string $action): string
+    public function pendingCountFor(User $user): int
+    {
+        if (! Schema::hasTable('admin_approvals')) {
+            return 0;
+        }
+
+        return AdminApproval::query()
+            ->where('requested_by_user_id', $user->id)
+            ->where('status', AdminApproval::STATUS_PENDING)
+            ->count();
+    }
+
+    /**
+     * @return array{pending: list<array<string, mixed>>, recent: list<array<string, mixed>>, pending_count: int}
+     */
+    public function forRequester(User $user): array
+    {
+        if (! Schema::hasTable('admin_approvals')) {
+            return [
+                'pending' => [],
+                'recent' => [],
+                'pending_count' => 0,
+            ];
+        }
+
+        $pending = AdminApproval::query()
+            ->with(['reviewer:id,name', 'subject'])
+            ->where('requested_by_user_id', $user->id)
+            ->where('status', AdminApproval::STATUS_PENDING)
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn (AdminApproval $approval) => $this->present($approval));
+
+        $recent = AdminApproval::query()
+            ->with(['reviewer:id,name', 'subject'])
+            ->where('requested_by_user_id', $user->id)
+            ->whereIn('status', [AdminApproval::STATUS_APPROVED, AdminApproval::STATUS_REJECTED])
+            ->latest('reviewed_at')
+            ->limit(40)
+            ->get()
+            ->map(fn (AdminApproval $approval) => $this->present($approval));
+
+        return [
+            'pending' => $pending->values()->all(),
+            'recent' => $recent->values()->all(),
+            'pending_count' => $this->pendingCountFor($user),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function present(AdminApproval $approval): array
+    {
+        $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name', 'subject']);
+        $timezone = (string) config('app.display_timezone', config('app.timezone'));
+
+        return [
+            'uid' => $approval->uid,
+            'action' => $approval->action,
+            'action_label' => $this->actionLabel($approval->action),
+            'subject_label' => $this->subjectSummary($approval),
+            'subject_href' => $this->subjectHref($approval),
+            'reason' => $approval->reason,
+            'status' => $approval->status,
+            'status_label' => $this->statusLabel($approval->status),
+            'requester' => $approval->requester?->only(['id', 'name', 'email']),
+            'reviewer' => $approval->reviewer?->only(['id', 'name']),
+            'review_note' => $approval->review_note,
+            'when' => $approval->created_at?->timezone($timezone)->diffForHumans(),
+            'reviewed_when' => $approval->reviewed_at?->timezone($timezone)->diffForHumans(),
+            'submitted_at' => $approval->created_at?->timezone($timezone)->format('j M Y · g:ia'),
+            'reviewed_at' => $approval->reviewed_at?->timezone($timezone)->format('j M Y · g:ia'),
+            'payload' => $approval->payload,
+        ];
+    }
+
+    public function actionLabel(string $action): string
     {
         return match ($action) {
-            'users.suspend' => 'user suspension',
-            'users.reinstate' => 'user reinstatement',
-            'jobs.hide' => 'hiding a job log',
-            'jobs.remove' => 'removing a job log',
-            'reviews.hide' => 'hiding a review',
-            'reviews.remove' => 'removing a review',
-            'messages.send' => 'sending a templated message',
-            default => str_replace('.', ' ', $action),
+            'users.suspend' => 'Suspend user',
+            'users.reinstate' => 'Reinstate user',
+            'users.delete' => 'Delete user',
+            'jobs.hide' => 'Hide job log',
+            'jobs.remove' => 'Delete job log',
+            'reviews.hide' => 'Hide review',
+            'reviews.remove' => 'Delete review',
+            'messages.send' => 'Send templated message',
+            default => Str::headline(str_replace('.', ' ', $action)),
+        };
+    }
+
+    public function subjectSummary(AdminApproval $approval): ?string
+    {
+        $subject = $approval->subject;
+
+        if ($subject instanceof User) {
+            return $subject->displayBusinessName() ?: $subject->email;
+        }
+
+        if ($subject instanceof WorkLog) {
+            return 'Job '.$subject->uid;
+        }
+
+        if ($subject instanceof Review) {
+            return 'Review from '.($subject->client_display_name ?: 'client');
+        }
+
+        $payload = is_array($approval->payload) ? $approval->payload : [];
+
+        if (in_array($approval->action, ['users.delete', 'users.suspend', 'users.reinstate'], true) && isset($payload['user_id'])) {
+            $user = User::query()->find($payload['user_id']);
+
+            return $user?->displayBusinessName() ?: $user?->email ?: 'User #'.$payload['user_id'];
+        }
+
+        return match ($approval->action) {
+            'jobs.remove', 'jobs.hide' => isset($payload['work_log_uid'])
+                ? 'Job '.$payload['work_log_uid']
+                : null,
+            'reviews.remove', 'reviews.hide' => isset($payload['review_uid'])
+                ? 'Review '.$payload['review_uid']
+                : null,
+            default => null,
+        };
+    }
+
+    public function subjectHref(AdminApproval $approval): ?string
+    {
+        $payload = is_array($approval->payload) ? $approval->payload : [];
+
+        if (in_array($approval->action, ['users.delete', 'users.suspend', 'users.reinstate'], true) && isset($payload['user_id'])) {
+            $user = User::query()->find($payload['user_id']);
+            if ($user instanceof User) {
+                return route('admin.users.show', $user);
+            }
+        }
+
+        return match ($approval->action) {
+            'jobs.remove', 'jobs.hide' => isset($payload['work_log_uid'])
+                ? route('admin.jobs.index', ['job' => $payload['work_log_uid']])
+                : null,
+            'reviews.remove', 'reviews.hide' => isset($payload['review_uid'])
+                ? route('admin.reviews.index', ['review' => $payload['review_uid']])
+                : null,
+            default => null,
+        };
+    }
+
+    private function statusLabel(string $status): string
+    {
+        return match ($status) {
+            AdminApproval::STATUS_PENDING => 'Awaiting Super Admin',
+            AdminApproval::STATUS_APPROVED => 'Approved',
+            AdminApproval::STATUS_REJECTED => 'Rejected',
+            AdminApproval::STATUS_CANCELLED => 'Cancelled',
+            default => Str::headline($status),
         };
     }
 

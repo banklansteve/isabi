@@ -39,7 +39,7 @@ class StaffChatPresenter
             'title' => $title,
             'subtitle' => $this->preview($latest),
             'unread' => $unread,
-            'href' => route('admin.asap.show', $conversation),
+            'href' => $conversation->adminShowUrl(),
             'icon' => $conversation->isAsap() ? 'ti ti-bolt' : 'ti ti-user',
             'when' => $latest?->created_at
                 ?->timezone((string) config('app.display_timezone'))

@@ -1,11 +1,17 @@
 <template>
     <Head :title="ticket ? ticket.subject : 'Customer support'" />
 
-    <AdminChrome title="Customer support" :eyebrow="is_super ? 'Every conversation' : 'Live inbox'" />
+    <AdminChrome
+        v-if="!ticket"
+        title="Customer support"
+        :eyebrow="is_super ? 'Every conversation' : 'Live inbox'"
+    />
 
-    <SupportWorkspaceNav />
+    <SupportWorkspaceNav :counts="counts" />
 
-    <div class="flex h-[calc(100dvh-11rem)] min-h-[22rem] overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05] lg:h-[calc(100dvh-10rem)]">
+    <div
+        class="flex flex-col lg:h-[calc(100dvh-10rem)] lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-premium lg:ring-1 lg:ring-ink/[0.05]"
+    >
         <aside
             class="flex w-full flex-col border-ink/[0.06] lg:w-[22rem] lg:shrink-0 lg:border-r"
             :class="ticket ? 'hidden lg:flex' : 'flex'"
@@ -19,17 +25,6 @@
                     @change="visitFilters"
                 />
                 <div class="flex gap-2">
-                    <select
-                        :value="filters.status"
-                        class="min-w-0 flex-1 rounded-xl border border-ink/10 bg-[#F4F6FA] px-2.5 py-2 text-[12px] font-semibold text-ink outline-none"
-                        @change="setFilter('status', $event.target.value)"
-                    >
-                        <option value="open">Open</option>
-                        <option value="new">New</option>
-                        <option value="pending">Waiting on customer</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="all">All</option>
-                    </select>
                     <select
                         :value="filters.assigned"
                         class="min-w-0 flex-1 rounded-xl border border-ink/10 bg-[#F4F6FA] px-2.5 py-2 text-[12px] font-semibold text-ink outline-none"
@@ -107,10 +102,10 @@
             <ul v-else class="min-h-0 flex-1 overflow-y-auto">
                 <li v-for="item in visibleList" :key="item.id">
                     <Link
-                        :href="route('admin.support.show', item.id)"
+                        :href="route('admin.support.show', item.uid)"
                         prefetch
                         class="flex gap-3 border-b border-ink/[0.05] px-3.5 py-3 transition-colors hover:bg-pale/80"
-                        :class="ticket?.id === item.id ? 'bg-tint/70' : ''"
+                        :class="ticket?.uid === item.uid ? 'bg-tint/70' : ''"
                     >
                         <span class="relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-full bg-tint text-[11px] font-bold text-deep">
                             <img v-if="item.user?.avatar_url" :src="item.user.avatar_url" alt="" class="h-full w-full object-cover" />
@@ -160,7 +155,7 @@
             <template v-else>
                 <header class="flex items-center gap-3 border-b border-ink/[0.06] bg-white px-3 py-3 sm:px-4">
                     <Link
-                        :href="route('admin.support.index')"
+                        :href="route('admin.support.index', filters)"
                         class="tap-target flex h-10 w-10 items-center justify-center rounded-xl text-ink/40 hover:bg-pale lg:hidden"
                         aria-label="Back to inbox"
                     >
@@ -184,7 +179,7 @@
                         v-if="ticket.status !== 'resolved' && canPickUp"
                         type="button"
                         class="tap-target rounded-xl bg-base-action px-3 py-2 text-[12px] font-semibold text-white hover:bg-base-hover"
-                        @click="claim"
+                        @click="askConfirm('claim')"
                     >
                         {{ ticket.assigned?.id && is_super ? 'Take over' : 'Pick up' }}
                     </button>
@@ -193,7 +188,7 @@
                         type="button"
                         class="tap-target rounded-xl px-3 py-2 text-[12px] font-semibold"
                         :class="canPickUp ? 'bg-pale text-ink' : 'bg-base-action text-white hover:bg-base-hover'"
-                        @click="resolve"
+                        @click="askConfirm('resolve')"
                     >
                         Resolve
                     </button>
@@ -201,14 +196,14 @@
                         v-else
                         type="button"
                         class="tap-target rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink"
-                        @click="reopen"
+                        @click="askConfirm('reopen')"
                     >
                         Reopen
                     </button>
                 </header>
 
                 <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-                    <div class="flex min-w-0 min-h-0 flex-1 flex-col">
+                    <div class="flex min-h-[min(100dvh-8rem,920px)] min-w-0 flex-col lg:min-h-0 lg:flex-1">
                         <div ref="scroller" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5">
                             <div
                                 v-for="(message, index) in ticket.messages"
@@ -219,7 +214,7 @@
                                 <ChatBubbleReactions
                                     :reactions="message.reactions || []"
                                     :align="message.role === 'support' ? 'end' : 'start'"
-                                    :endpoint="route('admin.support.react', [ticket.id, message.id])"
+                                    :endpoint="route('admin.support.react', [ticket.uid, message.id])"
                                     @updated="(reactions) => (message.reactions = reactions)"
                                 >
                                     <div
@@ -264,7 +259,8 @@
 
                         <form
                             v-if="ticket.status !== 'resolved'"
-                            class="border-t border-ink/[0.06] bg-white p-3"
+                            class="shrink-0 border-t border-ink/[0.06] bg-white p-3 sm:p-4"
+                            style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))"
                             @submit.prevent="reply"
                         >
                             <div v-if="cannedOpen" class="mb-2 max-h-52 overflow-y-auto rounded-xl ring-1 ring-ink/[0.08]">
@@ -302,9 +298,9 @@
                             </div>
                             <textarea
                                 v-model="draft"
-                                rows="2"
+                                rows="3"
                                 placeholder="Write a reply — type / for saved replies"
-                                class="w-full resize-none rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                                class="min-h-[4.5rem] w-full resize-none rounded-xl border border-ink/10 px-3.5 py-3 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
                                 @keydown.enter.exact.prevent="reply"
                                 @input="onDraft"
                             />
@@ -334,7 +330,7 @@
                         </form>
                     </div>
 
-                    <aside class="flex w-full flex-col border-t border-ink/[0.06] bg-white lg:w-72 lg:border-l lg:border-t-0">
+                    <aside class="flex w-full shrink-0 flex-col border-t border-ink/[0.06] bg-white lg:max-h-none lg:w-72 lg:border-l lg:border-t-0">
                         <div class="space-y-4 p-4">
                             <div>
                                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Assignment</p>
@@ -357,7 +353,7 @@
                                     v-if="ticket.status !== 'resolved' && canPickUp"
                                     type="button"
                                     class="mt-2 w-full rounded-xl bg-base-action px-3 py-2 text-[12px] font-semibold text-white hover:bg-base-hover"
-                                    @click="claim"
+                                    @click="askConfirm('claim')"
                                 >
                                     Pick up this chat
                                 </button>
@@ -365,10 +361,52 @@
                                     v-else-if="ticket.status !== 'resolved' && isMine"
                                     type="button"
                                     class="mt-2 w-full rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink hover:bg-tint"
-                                    @click="assign('')"
+                                    @click="askConfirm('release')"
                                 >
                                     Release chat
                                 </button>
+                                <button
+                                    v-if="ticket.status !== 'resolved' && can_refer && (isMine || is_super || canPickUp)"
+                                    type="button"
+                                    class="mt-2 w-full rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink hover:bg-tint"
+                                    @click="referOpen = true"
+                                >
+                                    Refer to colleague
+                                </button>
+                                <button
+                                    v-if="ticket.status !== 'resolved' && can_escalate && !is_super && !ticket.escalation"
+                                    type="button"
+                                    class="mt-2 w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[12px] font-semibold text-violet-800 hover:bg-violet-100"
+                                    @click="escalateOpen = true"
+                                >
+                                    Escalate to Super Admin
+                                </button>
+                                <div
+                                    v-if="ticket.escalation"
+                                    class="mt-3 rounded-xl bg-violet-50/80 p-3 ring-1 ring-violet-100"
+                                >
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-700">Escalated</p>
+                                            <p
+                                                class="mt-1 text-[12px] font-semibold"
+                                                :class="escalationStatusClass(ticket.escalation.tone)"
+                                            >
+                                                {{ ticket.escalation.status }}
+                                            </p>
+                                            <p v-if="ticket.escalation.note" class="mt-1 text-[12px] font-medium text-ink/60">{{ ticket.escalation.note }}</p>
+                                        </div>
+                                        <button
+                                            v-if="is_super && ticket.escalation.tone !== 'resolved'"
+                                            type="button"
+                                            class="shrink-0 rounded-lg bg-base-action px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-base-hover disabled:opacity-60"
+                                            :disabled="confirmBusy"
+                                            @click="askConfirm('resolveEscalation')"
+                                        >
+                                            Resolve
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div>
                                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Tags</p>
@@ -437,16 +475,55 @@
             </template>
         </section>
     </div>
+
+    <ReferToStaffDialog
+        :open="referOpen"
+        title="Refer this chat to a colleague?"
+        description="They become the assigned agent immediately."
+        confirm-label="Refer chat"
+        :staff="staff"
+        default-queue="support"
+        :show-queue="false"
+        :processing="referBusy"
+        @close="referOpen = false"
+        @confirm="submitRefer"
+    />
+
+    <EscalateToSuperDialog
+        :open="escalateOpen"
+        title="Escalate this chat to Super Admin?"
+        description="Include what you tried and why you need a decision upstairs."
+        :processing="escalateBusy"
+        @close="escalateOpen = false"
+        @confirm="submitEscalate"
+    />
+
+    <AdminConfirmDialog
+        :open="!!confirmAction"
+        :title="confirmMeta.title"
+        :description="confirmMeta.description"
+        :confirm-label="confirmMeta.confirmLabel"
+        :tone="confirmMeta.tone"
+        :require-reason="confirmMeta.requireReason !== false"
+        :processing="confirmBusy"
+        @close="confirmAction = null"
+        @confirm="submitConfirm"
+    />
 </template>
 
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
+import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import ReferToStaffDialog from '@/Components/Admin/ReferToStaffDialog.vue';
+import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
 import SupportWorkspaceNav from '@/Components/Admin/SupportWorkspaceNav.vue';
 import SupportTypingDots from '@/Components/App/SupportTypingDots.vue';
 import ChatBubbleReactions from '@/Components/Chat/ChatBubbleReactions.vue';
 import ChatEmojiPicker from '@/Components/Chat/ChatEmojiPicker.vue';
 import { echoClient, echoConnected } from '@/echo';
+import { toast } from '@/utils/adminRange';
+import { escalationStatusClass } from '@/utils/opsStatus';
 import { queueStatusClass, queueStatusLabel } from '@/utils/supportChat';
 import { scrollChatToEnd } from '@/utils/chatScroll';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
@@ -458,10 +535,13 @@ const props = defineProps({
     ticket: { type: Object, default: null },
     filters: { type: Object, default: () => ({}) },
     agents: { type: Array, default: () => [] },
+    staff: { type: Array, default: () => [] },
+    can_refer: { type: Boolean, default: false },
+    can_escalate: { type: Boolean, default: false },
     topics: { type: Array, default: () => [] },
     canned: { type: Array, default: () => [] },
     moments: { type: Array, default: () => [] },
-    counts: { type: Object, default: () => ({ unassigned: 0, mine: 0, open: 0 }) },
+    counts: { type: Object, default: () => ({ active: 0, resolved: 0, unassigned: 0, mine: 0, open: 0 }) },
     is_super: { type: Boolean, default: false },
     poll_ms: { type: Number, default: 8000 },
 });
@@ -491,6 +571,12 @@ const cannedOpen = ref(false);
 const cannedMoment = ref('');
 const file = ref(null);
 const fileName = ref('');
+const referOpen = ref(false);
+const referBusy = ref(false);
+const escalateOpen = ref(false);
+const escalateBusy = ref(false);
+const confirmAction = ref(null);
+const confirmBusy = ref(false);
 const sending = ref(false);
 const loading = ref(false);
 const scroller = ref(null);
@@ -550,6 +636,43 @@ const canPickUp = computed(() => {
     return props.is_super && assignedId !== meId.value;
 });
 
+const confirmMeta = computed(() => {
+    const map = {
+        resolve: {
+            title: 'Resolve this chat?',
+            description: 'The artisan will see it as closed. You can reopen it later if needed.',
+            confirmLabel: 'Resolve chat',
+            tone: 'default',
+        },
+        reopen: {
+            title: 'Reopen this chat?',
+            description: 'It returns to the active queue for follow-up.',
+            confirmLabel: 'Reopen chat',
+            tone: 'default',
+        },
+        claim: {
+            title: ticket.value?.assigned?.id && props.is_super ? 'Take over this chat?' : 'Pick up this chat?',
+            description: 'You become the assigned agent for this conversation.',
+            confirmLabel: ticket.value?.assigned?.id && props.is_super ? 'Take over' : 'Pick up',
+            tone: 'default',
+        },
+        release: {
+            title: 'Release this chat?',
+            description: 'It goes back to the unassigned queue for another agent.',
+            confirmLabel: 'Release chat',
+            tone: 'default',
+        },
+        resolveEscalation: {
+            title: 'Mark this escalation resolved?',
+            description: 'Closes the Super Admin queue item for this chat.',
+            confirmLabel: 'Mark resolved',
+            tone: 'default',
+        },
+    };
+
+    return map[confirmAction.value] || { title: 'Confirm', description: '', confirmLabel: 'Confirm', tone: 'default' };
+});
+
 const filteredCanned = computed(() => {
     const q = draft.value.startsWith('/') ? draft.value.slice(1).toLowerCase() : '';
     let items = props.canned;
@@ -598,7 +721,6 @@ const visitFilters = (overrides = {}) => {
     router.get(route('admin.support.index'), {
         ...props.filters,
         q: query.value,
-        ticket: ticket.value?.id,
         ...overrides,
     }, { preserveState: true, preserveScroll: true, replace: true });
 };
@@ -622,7 +744,7 @@ const reply = async () => {
     if (draft.value.trim()) data.append('body', draft.value.trim());
     if (file.value) data.append('attachment', file.value);
     try {
-        const { data: payload } = await axios.post(route('admin.support.reply', ticket.value.id), data, jsonHeaders);
+        const { data: payload } = await axios.post(route('admin.support.reply', ticket.value.uid), data, jsonHeaders);
         draft.value = '';
         file.value = null;
         fileName.value = '';
@@ -635,39 +757,147 @@ const reply = async () => {
 
 const addNote = async () => {
     if (!noteDraft.value.trim() || !ticket.value) return;
-    const { data } = await axios.post(route('admin.support.notes.store', ticket.value.id), { body: noteDraft.value }, jsonHeaders);
+    const { data } = await axios.post(route('admin.support.notes.store', ticket.value.uid), { body: noteDraft.value }, jsonHeaders);
     noteDraft.value = '';
     applyThread(data);
 };
 
+const askConfirm = (action) => {
+    confirmAction.value = action;
+};
+
+const submitConfirm = async ({ reason }) => {
+    if (!ticket.value || !confirmAction.value) {
+        return;
+    }
+
+    confirmBusy.value = true;
+    try {
+        if (confirmAction.value === 'claim') {
+            const { data } = await axios.post(route('admin.support.claim', ticket.value.uid), { reason }, jsonHeaders);
+            applyThread(data);
+        } else if (confirmAction.value === 'release') {
+            const { data } = await axios.post(route('admin.support.assign', ticket.value.uid), {
+                assigned_to_user_id: null,
+                reason,
+            }, jsonHeaders);
+            applyThread(data);
+        } else if (confirmAction.value === 'resolve') {
+            await axios.post(route('admin.support.resolve', ticket.value.uid), { reason }, jsonHeaders);
+            ticket.value = null;
+            confirmAction.value = null;
+            router.get(route('admin.support.index', { ...props.filters, status: 'resolved', q: query.value }), {}, {
+                preserveState: false,
+                replace: true,
+            });
+            return;
+        } else if (confirmAction.value === 'reopen') {
+            const { data } = await axios.post(route('admin.support.reopen', ticket.value.uid), { reason }, jsonHeaders);
+            applyThread(data);
+        } else if (confirmAction.value === 'resolveEscalation') {
+            const escalationId = ticket.value?.escalation?.id;
+            if (!escalationId) {
+                return;
+            }
+            const { data } = await axios.post(route('admin.escalations.complete', escalationId), { note: reason }, jsonHeaders);
+            if (data.block) {
+                ticket.value = { ...ticket.value, escalation: data.block };
+            } else if (ticket.value?.escalation) {
+                ticket.value = {
+                    ...ticket.value,
+                    escalation: { ...ticket.value.escalation, status: 'Resolved', tone: 'resolved' },
+                };
+            }
+            toast(data.toast || { type: 'success', title: 'Resolved', message: 'Escalation closed.' });
+        }
+        confirmAction.value = null;
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t save',
+            message: error?.response?.data?.message || 'Try that again in a moment.',
+        });
+    } finally {
+        confirmBusy.value = false;
+    }
+};
+
 const assign = async (id) => {
-    const { data } = await axios.post(route('admin.support.assign', ticket.value.id), {
+    const { data } = await axios.post(route('admin.support.assign', ticket.value.uid), {
         assigned_to_user_id: id || null,
     }, jsonHeaders);
     applyThread(data);
 };
 
-const claim = async () => {
+const submitRefer = async ({ assignee_id, note }) => {
     if (!ticket.value) return;
-    const { data } = await axios.post(route('admin.support.claim', ticket.value.id), {}, jsonHeaders);
-    applyThread(data);
+    referBusy.value = true;
+    try {
+        const { data } = await axios.post(route('admin.referrals.store'), {
+            subject_type: 'support',
+            subject_uid: ticket.value.uid,
+            assignee_id,
+            note,
+            queue: 'support',
+        }, jsonHeaders);
+        referOpen.value = false;
+        toast(data.toast || { type: 'success', title: 'Referred', message: 'Chat handed to a colleague.' });
+        router.reload({ only: ['tickets', 'ticket', 'counts'] });
+    } catch (error) {
+        const messageText = error?.response?.data?.errors?.assignee_id?.[0]
+            || error?.response?.data?.errors?.note?.[0]
+            || 'Try that again in a moment.';
+        toast({ type: 'error', title: 'Couldn’t refer', message: messageText });
+    } finally {
+        referBusy.value = false;
+    }
+};
+
+const submitEscalate = async ({ note }) => {
+    if (!ticket.value) return;
+    escalateBusy.value = true;
+    try {
+        const { data } = await axios.post(route('admin.escalations.store'), {
+            subject_type: 'support',
+            subject_uid: ticket.value.uid,
+            note,
+        }, jsonHeaders);
+        escalateOpen.value = false;
+        if (data.block) {
+            ticket.value = { ...ticket.value, escalation: data.block };
+        }
+        toast(data.toast || { type: 'success', title: 'Escalated', message: 'Super Admin has been notified.' });
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t escalate',
+            message: error?.response?.data?.errors?.note?.[0] || 'Try that again in a moment.',
+        });
+    } finally {
+        escalateBusy.value = false;
+    }
+};
+
+const acknowledgeEscalationFromUrl = async () => {
+    if (!page.props.auth?.user?.is_super_admin) {
+        return;
+    }
+    try {
+        const escalationId = new URL(page.url, window.location.origin).searchParams.get('escalation');
+        if (!escalationId) {
+            return;
+        }
+        await axios.post(route('admin.escalations.acknowledge', escalationId), {}, jsonHeaders);
+    } catch {
+        // Non-blocking.
+    }
 };
 
 const toggleTag = async (key) => {
     const tags = new Set(ticket.value.tags || []);
     if (tags.has(key)) tags.delete(key);
     else tags.add(key);
-    const { data } = await axios.post(route('admin.support.tags', ticket.value.id), { tags: [...tags] }, jsonHeaders);
-    applyThread(data);
-};
-
-const resolve = async () => {
-    const { data } = await axios.post(route('admin.support.resolve', ticket.value.id), {}, jsonHeaders);
-    applyThread(data);
-};
-
-const reopen = async () => {
-    const { data } = await axios.post(route('admin.support.reopen', ticket.value.id), {}, jsonHeaders);
+    const { data } = await axios.post(route('admin.support.tags', ticket.value.uid), { tags: [...tags] }, jsonHeaders);
     applyThread(data);
 };
 
@@ -709,7 +939,7 @@ const onDraft = () => {
     window.clearTimeout(typingTimer);
     typingTimer = window.setTimeout(() => {
         if (!ticket.value) return;
-        axios.post(route('admin.support.typing', ticket.value.id), {}, jsonHeaders).catch(() => {});
+        axios.post(route('admin.support.typing', ticket.value.uid), {}, jsonHeaders).catch(() => {});
     }, 280);
 };
 
@@ -717,7 +947,7 @@ const sync = async () => {
     try {
         const { data } = await axios.get(route('admin.support.sync'), {
             ...jsonHeaders,
-            params: { ...props.filters, ticket: ticket.value?.id, q: query.value },
+            params: { ...props.filters, ticket: ticket.value?.uid, q: query.value },
         });
         list.value = (data.tickets || []).filter(isVisibleChat);
         if (data.ticket) {
@@ -799,6 +1029,7 @@ const bindEcho = () => {
 onMounted(() => {
     scrollThread();
     bindEcho();
+    acknowledgeEscalationFromUrl();
     window.addEventListener('isabi:support-inbox', onInboxEvent);
     window.addEventListener('isabi:support-typing', onTypingEvent);
     pollTimer = window.setInterval(() => {

@@ -4,6 +4,7 @@
             <div ref="rootRef" class="relative">
                 <button
                     :id="fieldId"
+                    ref="triggerRef"
                     type="button"
                     class="form-control form-select-trigger"
                     :class="[
@@ -38,62 +39,66 @@
                     />
                 </button>
 
-                <Transition name="select-panel">
-                    <div
-                        v-if="open"
-                        :id="listboxId"
-                        class="form-select-panel"
-                        role="listbox"
-                        :aria-labelledby="fieldId"
-                    >
-                        <div v-if="searchable" class="sticky top-0 z-10 border-b border-ink/6 bg-white p-2">
-                            <div class="relative">
-                                <i class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
-                                <input
-                                    ref="searchRef"
-                                    v-model="query"
-                                    type="search"
-                                    class="w-full rounded-xl border border-ink/10 bg-pale py-2.5 ps-9 pe-3 text-sm font-medium text-ink outline-none placeholder:text-ink/30 focus:border-base focus:bg-white focus:ring-2 focus:ring-base/15"
-                                    :placeholder="searchPlaceholder"
-                                    @keydown="onSearchKeydown"
-                                />
+                <Teleport to="body">
+                    <Transition name="select-panel">
+                        <div
+                            v-if="open"
+                            ref="panelRef"
+                            :id="listboxId"
+                            class="form-select-panel fixed z-[80]"
+                            role="listbox"
+                            :aria-labelledby="fieldId"
+                            :style="panelStyle"
+                        >
+                            <div v-if="searchable" class="sticky top-0 z-10 border-b border-ink/6 bg-white p-2">
+                                <div class="relative">
+                                    <i class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
+                                    <input
+                                        ref="searchRef"
+                                        v-model="query"
+                                        type="search"
+                                        class="w-full rounded-xl border border-ink/10 bg-pale py-2.5 ps-9 pe-3 text-sm font-medium text-ink outline-none placeholder:text-ink/30 focus:border-base focus:bg-white focus:ring-2 focus:ring-base/15"
+                                        :placeholder="searchPlaceholder"
+                                        @keydown="onSearchKeydown"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="max-h-60 overflow-y-auto p-1.5">
+                                <p
+                                    v-if="!filteredOptions.length"
+                                    class="px-3 py-6 text-center text-sm font-medium text-ink/40"
+                                >
+                                    No matches
+                                </p>
+                                <button
+                                    v-for="(option, index) in filteredOptions"
+                                    :key="optionValue(option)"
+                                    type="button"
+                                    role="option"
+                                    class="tap-target flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors"
+                                    :class="
+                                        isSelected(option)
+                                            ? 'bg-tint text-ink'
+                                            : index === activeIndex
+                                              ? 'bg-pale text-ink'
+                                              : 'text-ink/75 hover:bg-pale'
+                                    "
+                                    :aria-selected="isSelected(option)"
+                                    @mouseenter="activeIndex = index"
+                                    @click="select(option)"
+                                >
+                                    <span class="min-w-0 flex-1 truncate">{{ optionLabel(option) }}</span>
+                                    <i
+                                        v-if="isSelected(option)"
+                                        class="ti ti-check shrink-0 text-base text-base"
+                                        aria-hidden="true"
+                                    />
+                                </button>
                             </div>
                         </div>
-
-                        <div class="max-h-60 overflow-y-auto p-1.5">
-                            <p
-                                v-if="!filteredOptions.length"
-                                class="px-3 py-6 text-center text-sm font-medium text-ink/40"
-                            >
-                                No matches
-                            </p>
-                            <button
-                                v-for="(option, index) in filteredOptions"
-                                :key="optionValue(option)"
-                                type="button"
-                                role="option"
-                                class="tap-target flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors"
-                                :class="
-                                    isSelected(option)
-                                        ? 'bg-tint text-ink'
-                                        : index === activeIndex
-                                          ? 'bg-pale text-ink'
-                                          : 'text-ink/75 hover:bg-pale'
-                                "
-                                :aria-selected="isSelected(option)"
-                                @mouseenter="activeIndex = index"
-                                @click="select(option)"
-                            >
-                                <span class="min-w-0 flex-1 truncate">{{ optionLabel(option) }}</span>
-                                <i
-                                    v-if="isSelected(option)"
-                                    class="ti ti-check shrink-0 text-base text-base"
-                                    aria-hidden="true"
-                                />
-                            </button>
-                        </div>
-                    </div>
-                </Transition>
+                    </Transition>
+                </Teleport>
             </div>
         </template>
     </FormField>
@@ -128,6 +133,9 @@ const open = ref(false);
 const query = ref('');
 const activeIndex = ref(-1);
 const rootRef = ref(null);
+const triggerRef = ref(null);
+const panelRef = ref(null);
+const panelStyle = ref({});
 const searchRef = ref(null);
 const listboxId = `listbox-${useId()}`;
 
@@ -164,6 +172,33 @@ const close = () => {
     emit('blur');
 };
 
+const updatePanelPosition = async () => {
+    await nextTick();
+    const trigger = triggerRef.value;
+    if (!trigger) {
+        return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const gutter = 8;
+    const panelWidth = rect.width;
+    const approxHeight = 280;
+    const spaceBelow = window.innerHeight - rect.bottom - gutter;
+    const openUp = spaceBelow < approxHeight && rect.top > spaceBelow;
+
+    let left = rect.left;
+    if (left + panelWidth > window.innerWidth - gutter) {
+        left = Math.max(gutter, window.innerWidth - panelWidth - gutter);
+    }
+
+    panelStyle.value = {
+        width: `${panelWidth}px`,
+        left: `${left}px`,
+        top: openUp ? 'auto' : `${rect.bottom + gutter}px`,
+        bottom: openUp ? `${window.innerHeight - rect.top + gutter}px` : 'auto',
+    };
+};
+
 const openPanel = async () => {
     if (props.disabled) {
         return;
@@ -171,6 +206,7 @@ const openPanel = async () => {
     open.value = true;
     const selectedIdx = filteredOptions.value.findIndex((option) => isSelected(option));
     activeIndex.value = selectedIdx >= 0 ? selectedIdx : 0;
+    await updatePanelPosition();
     await nextTick();
     if (props.searchable) {
         searchRef.value?.focus();
@@ -229,8 +265,16 @@ const onSearchKeydown = (event) => {
 };
 
 const onPointerDown = (event) => {
-    if (!rootRef.value?.contains(event.target)) {
-        close();
+    const target = event.target;
+    if (rootRef.value?.contains(target) || panelRef.value?.contains(target)) {
+        return;
+    }
+    close();
+};
+
+const onViewportChange = () => {
+    if (open.value) {
+        updatePanelPosition();
     }
 };
 
@@ -249,9 +293,13 @@ watch(query, () => {
 
 onMounted(() => {
     document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('scroll', onViewportChange, true);
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('resize', onViewportChange);
+    window.removeEventListener('scroll', onViewportChange, true);
 });
 </script>

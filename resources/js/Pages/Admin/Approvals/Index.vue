@@ -7,14 +7,14 @@
         <section class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.05] sm:p-5">
             <h2 class="text-sm font-bold text-ink">Pending</h2>
             <p class="mt-1 text-[13px] font-medium text-ink/45">
-                Sensitive ops actions wait here until you approve or reject them.
+                Suspend, delete, and remove requests from operations staff wait here until you approve or reject them.
             </p>
 
             <AdminEmpty
                 v-if="!pending.length"
                 class="mt-4"
                 title="Nothing waiting"
-                description="When operations request a suspension, hide, or message send, it lands here."
+                description="When operations request deleting a user, job, or review, it lands here."
                 icon="ti ti-shield-check"
             />
 
@@ -28,8 +28,20 @@
                         <p v-if="item.reason" class="mt-2 text-[13px] font-medium text-ink/70">{{ item.reason }}</p>
                     </div>
                     <div class="flex shrink-0 gap-2">
-                        <FormButton variant="secondary" label="Reject" @click="decide(item, 'reject')" />
-                        <FormButton variant="primary" label="Approve" @click="decide(item, 'approve')" />
+                        <FormButton
+                            variant="secondary"
+                            label="Reject"
+                            :loading="busyUid === item.uid && busyAction === 'reject'"
+                            loading-label="Rejecting…"
+                            @click="decide(item, 'reject')"
+                        />
+                        <FormButton
+                            variant="primary"
+                            label="Approve"
+                            :loading="busyUid === item.uid && busyAction === 'approve'"
+                            loading-label="Approving…"
+                            @click="decide(item, 'approve')"
+                        />
                     </div>
                 </li>
             </ul>
@@ -50,21 +62,73 @@
             </ul>
         </section>
     </div>
+
+    <AdminConfirmDialog
+        :open="!!confirmItem"
+        :title="confirmItem?.action === 'approve' ? 'Approve this request?' : 'Reject this request?'"
+        :description="confirmItem?.row?.reason || 'Add a note for the audit log.'"
+        :confirm-label="confirmItem?.action === 'approve' ? 'Approve' : 'Reject'"
+        :tone="confirmItem?.action === 'reject' ? 'danger' : 'default'"
+        reason-placeholder="Optional note for the requester…"
+        :require-reason="confirmItem?.action === 'reject'"
+        :processing="!!confirmItem && busyUid === confirmItem.row.uid"
+        @close="confirmItem = null"
+        @confirm="submitDecision"
+    />
 </template>
 
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
+import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import { toast } from '@/utils/adminRange';
 import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import { ref } from 'vue';
 
 defineProps({
     pending: { type: Array, default: () => [] },
     recent: { type: Array, default: () => [] },
 });
 
-const decide = (item, action) => {
-    const note = window.prompt(action === 'approve' ? 'Optional note' : 'Rejection note') ?? '';
-    router.post(route(`admin.approvals.${action}`, item.uid), { note }, { preserveScroll: true });
+const busyUid = ref('');
+const busyAction = ref('');
+const confirmItem = ref(null);
+
+const decide = (row, action) => {
+    confirmItem.value = { row, action };
+};
+
+const submitDecision = async ({ reason }) => {
+    if (!confirmItem.value) {
+        return;
+    }
+
+    const { row, action } = confirmItem.value;
+    busyUid.value = row.uid;
+    busyAction.value = action;
+
+    try {
+        const { data } = await axios.post(route(`admin.approvals.${action}`, row.uid), { note: reason }, {
+            headers: { Accept: 'application/json' },
+        });
+        toast(data.toast || {
+            type: 'success',
+            title: action === 'approve' ? 'Approved' : 'Rejected',
+            message: 'Decision saved.',
+        });
+        confirmItem.value = null;
+        router.reload({ preserveScroll: true });
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t save',
+            message: error?.response?.data?.message || 'Try that again in a moment.',
+        });
+    } finally {
+        busyUid.value = '';
+        busyAction.value = '';
+    }
 };
 </script>

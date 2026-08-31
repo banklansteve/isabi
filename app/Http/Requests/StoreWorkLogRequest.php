@@ -54,6 +54,7 @@ class StoreWorkLogRequest extends FormRequest
             ])),
             'service_city' => ['nullable', 'string', 'max:120'],
             'client_whatsapp' => ['nullable', 'string', 'max:20', 'regex:/^(?:\+?234|0)[789][01]\d{8}$/'],
+            'from_quote_uid' => ['nullable', 'string', 'max:64'],
             'amount_charged' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'media' => ['nullable', 'array', 'max:8'],
             'media.*' => [

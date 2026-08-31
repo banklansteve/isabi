@@ -10,7 +10,13 @@ use App\Http\Controllers\Internal\PricingDocsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicJobController;
+use App\Http\Controllers\EmbedController;
 use App\Http\Controllers\PublicProfileController;
+use App\Http\Controllers\PublicProfileQuoteController;
+use App\Http\Controllers\PublicQuoteController;
+use App\Http\Controllers\PublicQuoteRequestController;
+use App\Http\Controllers\QuoteBuilderController;
+use App\Http\Controllers\QuotePipelineController;
 use App\Http\Controllers\PublicReviewController;
 use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReferralController;
@@ -145,8 +151,39 @@ Route::get('/p/{slug}', [PublicProfileController::class, 'show'])
     ->name('public.profile');
 Route::get('/p/{slug}/{job}', [PublicJobController::class, 'show'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
-    ->where('job', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
     ->name('public.job');
+Route::post('/p/{slug}/quote', [PublicProfileQuoteController::class, 'store'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->middleware('throttle:8,1')
+    ->name('public.profile.quote');
+Route::post('/p/{slug}/{job}/quote', [PublicQuoteRequestController::class, 'store'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
+    ->middleware('throttle:8,1')
+    ->name('public.job.quote');
+
+Route::get('/embed/{slug}', [EmbedController::class, 'profile'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->name('embed.profile');
+Route::get('/embed/{slug}/{job}', [EmbedController::class, 'job'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
+    ->name('embed.job');
+
+Route::get('/q/{token}', [PublicQuoteController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('quotes.public.show');
+Route::post('/q/{token}', [PublicQuoteController::class, 'respond'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->middleware('throttle:12,1')
+    ->name('quotes.public.respond');
+Route::get('/q/{token}/thanks', [PublicQuoteController::class, 'thanks'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('quotes.public.thanks');
+Route::get('/q/{token}/pdf', [PublicQuoteController::class, 'pdf'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('quotes.public.pdf');
 
 Route::get('/r/{token}', [PublicReviewController::class, 'show'])
     ->where('token', '[A-Za-z0-9]+')
@@ -187,6 +224,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/referrals', [ReferralController::class, 'index'])->name('referrals.index');
     Route::post('/notifications/{delivery}/read', [NotificationController::class, 'read'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
+    Route::get('/quotes', [QuotePipelineController::class, 'index'])->name('quotes.index');
+    Route::redirect('/quotes/requests', '/quotes');
+    Route::redirect('/quotes/sent', '/quotes');
+    Route::get('/quotes/requests/{quoteRequest}', [QuoteBuilderController::class, 'show'])->name('quotes.requests.show');
+    Route::put('/quotes/requests/{quoteRequest}', [QuoteBuilderController::class, 'update'])->name('quotes.requests.update');
+    Route::post('/quotes/requests/{quoteRequest}/send', [QuoteBuilderController::class, 'send'])->name('quotes.requests.send');
+    Route::get('/quotes/{quoteRequest}', [QuoteBuilderController::class, 'show'])->name('quotes.show');
+    Route::put('/quotes/{quoteRequest}', [QuoteBuilderController::class, 'update'])->name('quotes.update');
+    Route::post('/quotes/{quoteRequest}/send', [QuoteBuilderController::class, 'send'])->name('quotes.send');
+    Route::post('/quotes/{quoteRequest}/revise', [QuoteBuilderController::class, 'revise'])->name('quotes.revise');
+
     Route::post('/realtime/ping', [RealtimeController::class, 'ping'])
         ->middleware('throttle:60,1')
         ->name('realtime.ping');
@@ -202,6 +251,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
+    Route::post('/profile/logo', [ProfileController::class, 'updateLogo'])->name('profile.logo');
     Route::patch('/profile/slug', [ProfileController::class, 'updateSlug'])->name('profile.slug');
     Route::patch('/profile/review-messages', [ProfileController::class, 'updateReviewMessages'])
         ->name('profile.review-messages');

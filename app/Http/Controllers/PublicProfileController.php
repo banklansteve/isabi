@@ -33,14 +33,15 @@ class PublicProfileController extends Controller
             ->get()
             ->map(fn ($log) => [
                 'uid' => $log->uid,
+                'reference' => $log->reference,
                 'slug' => $log->slug,
-                'public_url' => ($user->slug && $log->slug)
-                    ? route('public.job', [$user->slug, $log->slug])
+                'public_url' => ($user->slug && $log->reference)
+                    ? route('public.job', [$user->slug, $log->reference])
                     : null,
                 'detail_url' => $viewerIsOwner
                     ? route('work-log.show', $log->uid)
-                    : (($user->slug && $log->slug)
-                        ? route('public.job', [$user->slug, $log->slug])
+                    : (($user->slug && $log->reference)
+                        ? route('public.job', [$user->slug, $log->reference])
                         : null),
                 'description' => $log->description,
                 'job_category' => $log->job_category,
@@ -160,6 +161,8 @@ class PublicProfileController extends Controller
                 'lga' => $user->lga,
                 'bio' => $user->bio,
                 'avatar_url' => $user->avatar_url,
+                'logo_url' => $user->logo_url,
+                'embed_url' => $user->slug ? route('embed.profile', $user->slug) : null,
                 'area_label' => collect([$user->lga, $user->state])->filter()->implode(', ') ?: null,
                 'whatsapp_url' => $wa !== '' ? "https://wa.me/{$wa}" : null,
                 'review_count' => $reviewCount,
@@ -187,6 +190,7 @@ class PublicProfileController extends Controller
             ],
             'timeline' => $workLogs,
             'viewerIsOwner' => $viewerIsOwner,
+            'quoteUrl' => $user->slug ? route('public.profile.quote', $user->slug) : null,
         ]);
     }
 }

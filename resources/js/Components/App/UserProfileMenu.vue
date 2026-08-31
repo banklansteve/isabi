@@ -110,6 +110,7 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 
 const menuItems = [
+    { label: 'Quotes', icon: 'ti ti-file-invoice', href: route('quotes.index') },
     { label: 'Account settings', icon: 'ti ti-settings', href: route('profile.edit') },
     { label: 'Tokens & plan', icon: 'ti ti-coin', href: route('tokens.index') },
     { label: 'Referrals', icon: 'ti ti-gift', href: route('referrals.index') },

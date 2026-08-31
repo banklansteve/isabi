@@ -95,19 +95,26 @@ export const adminNavGroups = [
                 tabs: [
                     { label: 'All', route: 'admin.jobs.index' },
                     { label: 'Flagged', route: 'admin.jobs.index', params: { tab: 'flagged' } },
+                    { label: 'Hidden', route: 'admin.jobs.index', params: { tab: 'hidden' } },
                 ],
             },
             {
-                key: 'patrol',
-                label: 'Patrol',
+                key: 'patrol-jobs',
+                label: 'Job logs patrol',
+                shortLabel: 'Job patrol',
                 icon: 'ti ti-binoculars',
-                route: 'admin.patrol.index',
-                match: ['admin.patrol.*'],
+                route: 'admin.patrol.jobs',
+                match: ['admin.patrol.jobs', 'admin.patrol.show'],
                 ability: 'patrol.view',
-                tabs: [
-                    { label: 'Job logs', route: 'admin.patrol.index', params: { tab: 'jobs' } },
-                    { label: 'Reviews', route: 'admin.patrol.index', params: { tab: 'reviews' } },
-                ],
+            },
+            {
+                key: 'patrol-reviews',
+                label: 'Reviews patrol',
+                shortLabel: 'Review patrol',
+                icon: 'ti ti-star-half',
+                route: 'admin.patrol.reviews',
+                match: ['admin.patrol.reviews'],
+                ability: 'patrol.view',
             },
             {
                 key: 'reviews',
@@ -119,8 +126,36 @@ export const adminNavGroups = [
                 tabs: [
                     { label: 'All', route: 'admin.reviews.index' },
                     { label: 'Flagged', route: 'admin.reviews.index', params: { tab: 'flagged' } },
+                    { label: 'Hidden', route: 'admin.reviews.index', params: { tab: 'hidden' } },
                     { label: 'Health', route: 'admin.reviews.index', params: { tab: 'health' } },
                 ],
+            },
+            {
+                key: 'assigned',
+                label: 'Assigned to me',
+                shortLabel: 'Assigned',
+                icon: 'ti ti-user-check',
+                route: 'admin.assigned.index',
+                match: ['admin.assigned.*'],
+            },
+            {
+                key: 'my-approvals',
+                label: 'My approvals',
+                shortLabel: 'Approvals',
+                icon: 'ti ti-clock-hour-4',
+                route: 'admin.my-approvals.index',
+                match: ['admin.my-approvals.*'],
+                opsOnly: true,
+            },
+            {
+                key: 'moderation-desk',
+                label: 'Moderation desk',
+                shortLabel: 'Desk',
+                icon: 'ti ti-layout-grid',
+                route: 'admin.moderation-desk.index',
+                match: ['admin.moderation-desk.*'],
+                abilitiesAny: ['admin.content.manage', 'admin.moderation.manage', 'patrol.view', 'admin.users.view'],
+                preview: true,
             },
             {
                 key: 'referrals',
@@ -197,12 +232,12 @@ export const adminNavGroups = [
             },
             {
                 key: 'ops_messages',
-                label: 'Warn a user',
+                label: 'Message templates',
                 icon: 'ti ti-mail-forward',
                 route: 'admin.ops-messages.index',
                 match: ['admin.ops-messages.*'],
-                abilitiesAny: ['admin.ops_messages.send', 'admin.users.manage', 'admin.messaging.manage'],
-                tabs: [{ label: 'Send', route: 'admin.ops-messages.index' }],
+                super: true,
+                tabs: [{ label: 'Templates', route: 'admin.ops-messages.index' }],
             },
             {
                 key: 'approvals',
@@ -284,6 +319,10 @@ export function flattenAdminNav(isSuperAdmin = false, abilities = []) {
 
 export function canSeeNavItem(item, isSuperAdmin = false, abilities = []) {
     if (item.super && !isSuperAdmin) {
+        return false;
+    }
+
+    if (item.opsOnly && isSuperAdmin) {
         return false;
     }
 

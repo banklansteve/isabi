@@ -68,6 +68,7 @@
 <script setup>
 import Dropdown from '@/Components/Dropdown.vue';
 import { router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { computed } from 'vue';
 
 const page = usePage();
@@ -75,15 +76,52 @@ const page = usePage();
 const unreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const items = computed(() => page.props.notifications?.items ?? []);
 
-const markRead = (item) => {
-    if (!item?.id || !item.unread) {
+const jsonHeaders = { headers: { Accept: 'application/json' } };
+
+const applyNotifications = (payload) => {
+    if (!payload) {
         return;
     }
 
-    router.post(route('notifications.read', item.id), {}, { preserveScroll: true, preserveState: true });
+    page.props.notifications = payload;
 };
 
-const markAllRead = () => {
-    router.post(route('notifications.read-all'), {}, { preserveScroll: true, preserveState: true });
+const removeItem = (item) => {
+    const current = page.props.notifications || { unread_count: 0, items: [] };
+
+    page.props.notifications = {
+        unread_count: item?.unread
+            ? Math.max(0, (current.unread_count ?? 0) - 1)
+            : (current.unread_count ?? 0),
+        items: (current.items || []).filter((entry) => entry.id !== item?.id),
+    };
+};
+
+const markRead = async (item) => {
+    if (item?.id && item.unread) {
+        removeItem(item);
+
+        try {
+            const { data } = await axios.post(route('notifications.read', item.id), {}, jsonHeaders);
+            applyNotifications(data.notifications);
+        } catch {
+            // Keep optimistic state; next page load will reconcile.
+        }
+    }
+
+    if (item?.href) {
+        router.visit(item.href);
+    }
+};
+
+const markAllRead = async () => {
+    page.props.notifications = { unread_count: 0, items: [] };
+
+    try {
+        const { data } = await axios.post(route('notifications.read-all'), {}, jsonHeaders);
+        applyNotifications(data.notifications);
+    } catch {
+        // Keep optimistic state; next page load will reconcile.
+    }
 };
 </script>

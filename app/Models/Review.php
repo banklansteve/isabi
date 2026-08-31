@@ -31,6 +31,10 @@ class Review extends Model
         'hidden_at',
         'hidden_reason',
         'removed_at',
+        'assigned_to_user_id',
+        'referred_by_user_id',
+        'referred_note',
+        'referred_at',
     ];
 
     /**
@@ -45,12 +49,18 @@ class Review extends Model
             'flagged_at' => 'datetime',
             'hidden_at' => 'datetime',
             'removed_at' => 'datetime',
+            'referred_at' => 'datetime',
         ];
     }
 
     public function isPubliclyVisible(): bool
     {
         return $this->hidden_at === null && $this->removed_at === null;
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'uid';
     }
 
     public function scopePubliclyVisible($query)
@@ -78,6 +88,16 @@ class Review extends Model
     public function artisan(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    public function referredByStaff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referred_by_user_id');
     }
 
     public function patrolCase(): HasOne

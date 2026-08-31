@@ -45,12 +45,52 @@
                         </template>
                         <template #content>
                             <div class="w-80 p-2">
+                                <p class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">
+                                    Work
+                                </p>
                                 <Link
                                     :href="route('admin.tasks')"
                                     class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="currentRoute === 'admin.tasks' ? 'bg-tint text-deep' : ''"
                                 >
                                     <i class="ti ti-layout-list text-lg text-ink/40" aria-hidden="true" />
                                     All tasks
+                                </Link>
+                                <Link
+                                    :href="route('admin.assigned.index', { queue: 'moderation' })"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="isAssigned ? 'bg-tint text-deep' : ''"
+                                >
+                                    <i class="ti ti-user-check text-lg text-ink/40" aria-hidden="true" />
+                                    Assigned to me
+                                </Link>
+                                <Link
+                                    v-if="!user?.is_super_admin"
+                                    :href="route('admin.my-approvals.index')"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="isMyApprovals ? 'bg-tint text-deep' : ''"
+                                >
+                                    <i class="ti ti-clock-hour-4 text-lg text-ink/40" aria-hidden="true" />
+                                    <span class="min-w-0 flex-1 truncate">My approvals</span>
+                                    <span
+                                        v-if="pendingApprovals > 0"
+                                        class="rounded-full bg-base-action px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                                    >
+                                        {{ formatBadgeCount(pendingApprovals) }}
+                                    </span>
+                                </Link>
+
+                                <div class="my-1 border-t border-ink/[0.06]" />
+
+                                <Link
+                                    v-if="canModerationDesk"
+                                    :href="route('admin.moderation-desk.index')"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="isModerationDesk ? 'bg-tint text-deep' : ''"
+                                >
+                                    <i class="ti ti-layout-grid text-lg text-ink/40" aria-hidden="true" />
+                                    Moderation desk
+                                    <span class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">Preview</span>
                                 </Link>
 
                                 <div class="my-1 border-t border-ink/[0.06]" />
@@ -104,6 +144,29 @@
                                         </span>
                                     </button>
                                 </template>
+
+                                <div class="my-1 border-t border-ink/[0.06]" />
+
+                                <p class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">
+                                    Performance
+                                </p>
+                                <Link
+                                    :href="route('admin.insights.index')"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="isInsights ? 'bg-tint text-deep' : ''"
+                                >
+                                    <i class="ti ti-chart-bar text-lg text-ink/40" aria-hidden="true" />
+                                    My stats
+                                </Link>
+                                <Link
+                                    v-if="canSupport"
+                                    :href="route('admin.support.reports')"
+                                    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-pale"
+                                    :class="isReports ? 'bg-tint text-deep' : ''"
+                                >
+                                    <i class="ti ti-report-analytics text-lg text-ink/40" aria-hidden="true" />
+                                    Support reports
+                                </Link>
                             </div>
                         </template>
                     </Dropdown>
@@ -179,11 +242,12 @@ import {
     tabHref,
     tabIsActive,
 } from '@/Data/adminNav';
+import { useOpsAttentionLive } from '@/Composables/useOpsAttentionLive';
 import { formatBadgeCount } from '@/utils/opsStatus';
 import { parseQuery } from '@/utils/adminRange';
 import { prefetchAdmin, visitAdmin } from '@/utils/adminVisit';
-import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, provide, ref, watch } from 'vue';
 
 defineProps({
     title: { type: String, default: '' },
@@ -220,8 +284,28 @@ const currentPath = computed(() => {
 });
 
 const isHome = computed(() => currentRoute.value === 'admin.dashboard');
-const isTasks = computed(() => currentRoute.value === 'admin.tasks');
+const isTasks = computed(() => currentRoute.value === 'admin.tasks' || isAssigned.value || isMyApprovals.value);
+const isAssigned = computed(() => String(currentRoute.value || '').startsWith('admin.assigned'));
+const isMyApprovals = computed(() => String(currentRoute.value || '').startsWith('admin.my-approvals'));
+const isInsights = computed(() => String(currentRoute.value || '').startsWith('admin.insights'));
+const isModerationDesk = computed(() => String(currentRoute.value || '').startsWith('admin.moderation-desk'));
 const isReports = computed(() => currentRoute.value === 'admin.support.reports');
+const pendingApprovals = computed(() => Number(page.props.my_approvals_pending || 0));
+const canModerationDesk = computed(() => {
+    if (user.value?.is_super_admin) {
+        return true;
+    }
+
+    const keys = abilities.value || [];
+
+    return keys.includes('admin.content.manage')
+        || keys.includes('admin.moderation.manage')
+        || keys.includes('patrol.view')
+        || keys.includes('admin.users.view');
+});
+const canSupport = computed(() =>
+    abilities.value.includes('admin.support.manage') || !!user.value?.is_super_admin,
+);
 
 const hrefPath = (href) => {
     try {
@@ -261,8 +345,12 @@ const currentTabs = computed(() =>
     (currentItem.value?.tabs || []).filter((tab) => canSeeNavTab(tab, false, abilities.value)),
 );
 
+const DROPDOWN_QUEUE_KEYS = new Set(['moderation_desk', 'my_approvals', 'ops_messages']);
+
 const queueItems = computed(() =>
-    shortcuts.value.map((item) => ({
+    shortcuts.value
+        .filter((item) => !DROPDOWN_QUEUE_KEYS.has(item.key))
+        .map((item) => ({
         key: item.key,
         label: item.label,
         icon: item.icon || 'ti ti-circle',
@@ -278,11 +366,13 @@ const queueItems = computed(() =>
 const attentionTasks = computed(() => {
     const tasks = inbox.value.tasks;
 
-    if (Array.isArray(tasks) && tasks.length) {
+    if (Array.isArray(tasks)) {
         return tasks.slice(0, 6);
     }
 
-    return unreadItems.value.slice(0, 6);
+    return (unreadItems.value || [])
+        .filter((item) => !['asap', 'ops_chat'].includes(item.group))
+        .slice(0, 6);
 });
 
 const openTask = (item) => {
@@ -305,21 +395,7 @@ watch(currentTabs, (tabs) => {
     tabs.forEach((tab) => prefetchAdmin(tabHref(tab)));
 }, { immediate: true });
 
-const refreshAsapBadge = () => {
-    if (String(currentRoute.value).startsWith('admin.asap')) {
-        return;
-    }
-
-    router.reload({ only: ['ops_inbox', 'asap_unread'], preserveScroll: true, preserveState: true });
-};
-
-onMounted(() => {
-    window.addEventListener('isabi:staff-chat', refreshAsapBadge);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('isabi:staff-chat', refreshAsapBadge);
-});
+useOpsAttentionLive();
 </script>
 
 <style scoped>

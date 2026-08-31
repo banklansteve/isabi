@@ -149,6 +149,15 @@
                                             <i class="ti ti-mail" aria-hidden="true" />
                                         </button>
                                         <button
+                                            v-if="canWarn"
+                                            type="button"
+                                            class="icon-btn text-amber-700"
+                                            title="Warn"
+                                            @click="warnUser = person"
+                                        >
+                                            <i class="ti ti-mail-forward" aria-hidden="true" />
+                                        </button>
+                                        <button
                                             type="button"
                                             class="icon-btn text-red-500"
                                             :title="person.suspended ? 'Reinstate' : 'Suspend'"
@@ -260,6 +269,8 @@
                 <textarea v-model="rowBody" rows="4" placeholder="Message" class="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium" />
             </template>
         </AdminConfirmDialog>
+
+        <OpsWarnUserDialog :open="!!warnUser" :user="warnUser" @close="warnUser = null" />
 </template>
 
 <script setup>
@@ -268,21 +279,34 @@ import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
 import AdminUserDrawer from '@/Components/Admin/AdminUserDrawer.vue';
+import OpsWarnUserDialog from '@/Components/Admin/OpsWarnUserDialog.vue';
 import { useAdminTabs } from '@/Composables/useAdminTabs';
 import { useClientList } from '@/Composables/useClientList';
 import { useDateRange } from '@/Composables/useDateRange';
 import { useSavedViews } from '@/Composables/useSavedViews';
 import { toast } from '@/utils/adminRange';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     users: { type: Array, default: () => [] },
     trades: { type: Array, default: () => [] },
     states: { type: Array, default: () => [] },
     opened_id: { type: Number, default: null },
+});
+
+const page = usePage();
+const jsonHeaders = { headers: { Accept: 'application/json' } };
+const isSuper = computed(() => !!page.props.auth?.user?.is_super_admin);
+const canWarn = computed(() => {
+    const keys = page.props.auth?.user?.abilities || [];
+
+    return isSuper.value
+        || keys.includes('admin.ops_messages.send')
+        || keys.includes('admin.users.manage')
+        || keys.includes('admin.messaging.manage');
 });
 
 const tabQuery = inject('adminTabQuery', ref({}));
@@ -303,6 +327,7 @@ const bulkBody = ref('');
 const rowAction = ref(null);
 const rowSubject = ref('');
 const rowBody = ref('');
+const warnUser = ref(null);
 const busy = ref(false);
 let panelSeq = 0;
 
@@ -460,6 +485,23 @@ const onUpdated = (user) => {
     }
 };
 
+const acknowledgeEscalationFromUrl = async () => {
+    if (!page.props.auth?.user?.is_super_admin) {
+        return;
+    }
+
+    try {
+        const escalationId = new URL(page.url, window.location.origin).searchParams.get('escalation');
+        if (!escalationId) {
+            return;
+        }
+
+        await axios.post(route('admin.escalations.acknowledge', escalationId), {}, jsonHeaders);
+    } catch {
+        // Non-blocking.
+    }
+};
+
 const loadPanel = async () => {
     if (!open.value) {
         return;
@@ -478,6 +520,7 @@ const loadPanel = async () => {
         if (data.user) {
             onUpdated({ ...open.value, ...data.user });
         }
+        await acknowledgeEscalationFromUrl();
     } catch {
         if (seq === panelSeq) {
             toast({ type: 'error', title: 'Couldn’t load', message: 'The account details did not load.' });
@@ -501,6 +544,10 @@ const closeUser = () => {
     panel.value = null;
     replaceListUrl(route('admin.users.index'));
 };
+
+onMounted(() => {
+    acknowledgeEscalationFromUrl();
+});
 
 watch(
     () => props.opened_id,
@@ -550,9 +597,11 @@ const runBulk = async ({ reason }) => {
         if (bulk.value === 'suspend') {
             const { data } = await axios.post(route('admin.users.bulk-suspend'), { ids: selected.value, reason });
             toast(data.toast);
-            rows.value = rows.value.map((row) =>
-                selected.value.includes(row.id) ? { ...row, suspended: true } : row,
-            );
+            if (data.executed_ids?.length) {
+                rows.value = rows.value.map((row) =>
+                    data.executed_ids.includes(row.id) ? { ...row, suspended: true } : row,
+                );
+            }
         } else {
             const { data } = await axios.post(route('admin.users.bulk-message'), {
                 ids: selected.value,
@@ -596,7 +645,7 @@ const runRowAction = async ({ reason }) => {
             toast(data.toast);
             if (data.user) {
                 onUpdated(data.user);
-            } else {
+            } else if (data.toast?.type === 'success') {
                 onUpdated({ ...person, suspended: type === 'suspend' });
             }
         }

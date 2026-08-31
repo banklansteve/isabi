@@ -8,12 +8,15 @@ use App\Http\Requests\Admin\ModerateWorkLogRequest;
 use App\Http\Requests\Admin\ReferWorkLogRequest;
 use App\Http\Requests\Admin\UpdateAdminWorkLogRequest;
 use App\Models\Announcement;
+use App\Models\StaffCaseReferral;
+use App\Models\User;
 use App\Models\WorkLog;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Admin\ApprovalService;
 use App\Support\Admin\JobAdminPresenter;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\ReviewInvite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -55,10 +58,17 @@ class JobAdminController extends Controller
 
         AdminAudit::record(
             'jobs.flagged',
-            "{$request->user()->name} flagged job {$workLog->uid}.",
+            "{$request->user()->name} flagged job {$workLog->uid}: {$reason}",
             $workLog,
             $old,
             ['flagged_at' => $workLog->flagged_at?->toIso8601String(), 'reason' => $reason],
+        );
+
+        app(StaffCaseReferralService::class)->notifySuperAdminsOfFlag(
+            $request->user(),
+            StaffCaseReferral::SUBJECT_JOB,
+            $workLog,
+            $reason,
         );
 
         return $this->mutated($request, $workLog, [
@@ -254,34 +264,24 @@ class JobAdminController extends Controller
         ]);
     }
 
-    public function refer(ReferWorkLogRequest $request, WorkLog $workLog): JsonResponse|RedirectResponse
-    {
+    public function refer(
+        ReferWorkLogRequest $request,
+        WorkLog $workLog,
+        StaffCaseReferralService $referrals,
+    ): JsonResponse|RedirectResponse {
         $data = $request->validated();
-        $old = [
-            'referred_to_user_id' => $workLog->referred_to_user_id,
-            'referred_at' => $workLog->referred_at?->toIso8601String(),
-        ];
+        $assignee = User::query()->findOrFail((int) $data['assignee_id']);
 
-        $workLog->forceFill([
-            'referred_to_user_id' => $data['assignee_id'],
-            'referred_by_user_id' => $request->user()->id,
-            'referred_note' => $data['note'],
-            'referred_at' => now(),
-        ])->save();
-
-        AdminAudit::record(
-            'jobs.referred',
-            "{$request->user()->name} referred job {$workLog->uid} to staff #{$data['assignee_id']}: {$data['note']}",
+        $referrals->refer(
+            $request->user(),
+            StaffCaseReferral::SUBJECT_JOB,
             $workLog,
-            $old,
-            [
-                'referred_to_user_id' => $workLog->referred_to_user_id,
-                'referred_at' => $workLog->referred_at?->toIso8601String(),
-                'note' => $data['note'],
-            ],
+            $assignee,
+            $data['note'],
+            StaffCaseReferral::QUEUE_GENERAL,
         );
 
-        return $this->mutated($request, $workLog, [
+        return $this->mutated($request, $workLog->fresh(), [
             'type' => 'success',
             'title' => 'Referred to operations',
             'message' => 'The assignment is on this job file.',

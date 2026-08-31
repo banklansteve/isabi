@@ -1,7 +1,7 @@
 <template>
-    <Head title="Warn a user" />
+    <Head title="Message templates" />
 
-    <AdminChrome title="Warn a user" eyebrow="Templated outreach" />
+    <AdminChrome title="Message templates" eyebrow="Templated outreach" />
 
     <div v-if="!messaging_enabled" class="rounded-2xl bg-white p-6 text-sm font-medium text-ink/50 shadow-premium ring-1 ring-ink/[0.05]">
         Templated messaging is disabled in Super Admin settings.

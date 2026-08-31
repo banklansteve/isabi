@@ -4,7 +4,9 @@ namespace App\Support\SupportChat;
 
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
+use App\Models\StaffCaseReferral;
 use App\Models\User;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Chat\MessageReactionService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -75,6 +77,7 @@ class SupportPresenter
 
         return [
             'id' => $ticket->id,
+            'uid' => $ticket->uid,
             'subject' => $ticket->subject ?: 'Support chat',
             'preview' => $preview?->body
                 ? str($preview->body)->limit(90)->toString()
@@ -154,6 +157,10 @@ class SupportPresenter
                 'avatar_url' => $ticket->user->avatar_url,
                 'whatsapp' => $ticket->user->whatsapp,
             ] : null,
+            'escalation' => app(StaffCaseReferralService::class)->escalationBlockFor(
+                StaffCaseReferral::SUBJECT_SUPPORT,
+                $ticket->id,
+            ),
         ];
     }
 

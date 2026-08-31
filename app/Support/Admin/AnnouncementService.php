@@ -199,13 +199,29 @@ class AnnouncementService
     public function inboxFor(User $user, int $limit = 12)
     {
         return AnnouncementDelivery::query()
-            ->with('announcement:id,title,subject,body,audience')
+            ->with('announcement:id,title,subject,body,audience,segment')
             ->where('user_id', $user->id)
             ->where('channel', Announcement::CHANNEL_IN_APP)
-            ->whereIn('status', [AnnouncementDelivery::STATUS_SENT, AnnouncementDelivery::STATUS_READ])
+            ->where('status', AnnouncementDelivery::STATUS_SENT)
             ->latest('id')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * @return array{unread_count: int, items: list<array<string, mixed>>}
+     */
+    public function inboxPayloadFor(User $user, int $limit = 12): array
+    {
+        $inbox = $this->inboxFor($user, $limit);
+
+        return [
+            'unread_count' => $this->unreadInAppCount($user),
+            'items' => $inbox
+                ->map(fn (AnnouncementDelivery $delivery) => $this->presentDelivery($delivery, $user))
+                ->values()
+                ->all(),
+        ];
     }
 
     /**
@@ -266,6 +282,24 @@ class AnnouncementService
     public function presentDelivery(AnnouncementDelivery $delivery, User $user): array
     {
         $message = $delivery->announcement;
+        $segment = is_array($message?->segment) ? $message->segment : [];
+        $kind = (string) ($segment['kind'] ?? '');
+        $href = filled($segment['href'] ?? null) ? (string) $segment['href'] : null;
+
+        if (! $href && filled($segment['staff_conversation_uid'] ?? null)) {
+            $href = route('admin.asap.show', ['conversation' => $segment['staff_conversation_uid']]);
+        }
+
+        $icon = match ($kind) {
+            'staff_chat_asap' => 'ti ti-bolt',
+            'staff_chat_direct' => 'ti ti-message',
+            'staff_escalation' => 'ti ti-arrow-up-right-circle',
+            'staff_approval' => 'ti ti-shield-check',
+            'staff_flag' => 'ti ti-flag',
+            'staff_referral' => 'ti ti-transfer',
+            'quote_request' => 'ti ti-file-invoice',
+            default => $message?->audience === 'staff' ? 'ti ti-shield' : 'ti ti-megaphone',
+        };
 
         return [
             'id' => $delivery->id,
@@ -276,8 +310,9 @@ class AnnouncementService
                 ? \Illuminate\Support\Str::limit($this->interpolate($message->body, $user), 90)
                 : '',
             'time' => ($delivery->sent_at ?? $delivery->created_at)?->diffForHumans() ?? '',
-            'icon' => $message?->audience === 'staff' ? 'ti ti-shield' : 'ti ti-megaphone',
+            'icon' => $icon,
             'unread' => $delivery->status === AnnouncementDelivery::STATUS_SENT,
+            'href' => $href,
         ];
     }
 
@@ -301,6 +336,7 @@ class AnnouncementService
         string $body,
         array $channels,
         ?int $templateId = null,
+        array $segment = [],
     ): Announcement {
         $ids = array_values(array_unique(array_map('intval', $userIds)));
 
@@ -311,7 +347,7 @@ class AnnouncementService
             'subject' => $subject,
             'body' => $body,
             'channels' => $this->channelsFor(Announcement::AUDIENCE_STAFF, $channels),
-            'segment' => ['user_ids' => $ids],
+            'segment' => array_merge(['user_ids' => $ids], $segment),
             'status' => Announcement::STATUS_DRAFT,
             'created_by_user_id' => $actor->id,
         ]);

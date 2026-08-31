@@ -136,6 +136,13 @@
                     </div>
                 </section>
 
+                <ShareEmbedPanel
+                    v-if="profile.embed_url"
+                    class="scroll-mt-28"
+                    :profile-embed-url="profile.embed_url"
+                    :public-url="profile.public_url"
+                />
+
                 <section
                     id="section-messages"
                     class="profile-panel scroll-mt-28 overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
@@ -246,6 +253,7 @@
 
 <script setup>
 import UserAvatar from '@/Components/App/UserAvatar.vue';
+import ShareEmbedPanel from '@/Components/App/ShareEmbedPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';

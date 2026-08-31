@@ -107,7 +107,7 @@
                         </dd>
                     </div>
                     <div v-if="shown.attendance">
-                        <dt class="font-semibold text-ink/40">Idle</dt>
+                        <dt class="font-semibold text-ink/40">Live idle</dt>
                         <dd class="mt-0.5 font-medium text-ink">{{ shown.attendance.idle_label }} without interaction</dd>
                     </div>
                     <div v-if="detail.invited_by">
@@ -118,15 +118,134 @@
                         <dt class="font-semibold text-ink/40">Suggested role</dt>
                         <dd class="mt-0.5 font-medium text-ink">{{ detail.suggested_role }}</dd>
                     </div>
-                    <div v-if="shown.attendance" class="sm:col-span-2 rounded-xl bg-pale px-3 py-3">
+                    <div v-if="adherenceView" class="sm:col-span-2 space-y-3 rounded-xl bg-pale px-3 py-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Shift adherence</p>
+                                <p class="mt-1 text-[13px] font-semibold text-ink">{{ adherenceView.date_label }}</p>
+                            </div>
+                            <div class="inline-flex flex-wrap items-center gap-2 text-[12px] font-semibold text-ink/50">
+                                <span>Date</span>
+                                <input
+                                    v-model="adherenceDateDraft"
+                                    type="date"
+                                    :max="todayIso"
+                                    class="rounded-lg border-0 bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none ring-1 ring-ink/10 focus:ring-base/30"
+                                />
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-base-action px-2.5 py-1 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
+                                    :disabled="adherenceDateDraft === props.adherenceDate"
+                                    @click="applyAdherenceDate"
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span
+                                class="rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                                :class="adherenceStatusClass(adherenceView.summary?.status)"
+                            >
+                                {{ adherenceView.summary?.status_label || '—' }}
+                            </span>
+                            <span v-if="adherenceView.summary?.adherence_pct != null" class="text-[12px] font-medium text-ink/50">
+                                {{ adherenceView.summary.adherence_pct }}% on floor
+                            </span>
+                            <span v-if="adherenceView.on_leave" class="text-[12px] font-medium text-amber-700">On approved leave</span>
+                            <span v-else-if="!adherenceView.scheduled" class="text-[12px] font-medium text-ink/45">Not scheduled this day</span>
+                        </div>
+
+                        <div class="grid gap-2 sm:grid-cols-3">
+                            <div class="rounded-xl bg-white px-3 py-2.5 ring-1 ring-ink/[0.05]">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">On floor</p>
+                                <p class="mt-1 text-[15px] font-bold text-ink">
+                                    {{ adherenceView.summary?.adherence_pct != null ? `${adherenceView.summary.adherence_pct}%` : '—' }}
+                                </p>
+                            </div>
+                            <div class="rounded-xl bg-white px-3 py-2.5 ring-1 ring-ink/[0.05]">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">Total idle</p>
+                                <p class="mt-1 text-[15px] font-bold text-coral-deep">
+                                    {{ adherenceView.summary?.idle_total_label || '0s' }}
+                                </p>
+                                <p v-if="adherenceView.summary?.idle_events_count" class="mt-0.5 text-[11px] font-medium text-ink/40">
+                                    {{ adherenceView.summary.idle_events_count }} over 7m
+                                </p>
+                            </div>
+                            <div class="rounded-xl bg-white px-3 py-2.5 ring-1 ring-ink/[0.05]">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">Sign in</p>
+                                <p class="mt-1 text-[15px] font-bold text-ink">{{ adherenceView.summary?.signed_in_at || '—' }}</p>
+                            </div>
+                        </div>
+
+                        <p class="text-[13px] font-medium text-ink">
+                            {{ adherenceView.summary?.signed_out_at || '—' }}
+                        </p>
+                        <p class="text-[12px] font-medium text-ink/45">
+                            {{ adherenceView.shift?.label }}
+                            <span v-if="adherenceView.shift?.breaks?.length">
+                                · breaks
+                                {{ adherenceView.shift.breaks.map((item) => `${item.start}–${item.end}`).join(', ') }}
+                            </span>
+                        </p>
+
+                        <div v-if="adherenceView.timeline?.length" class="space-y-2">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Day timeline</p>
+                            <div class="relative h-3 overflow-hidden rounded-full bg-white ring-1 ring-ink/[0.06]">
+                                <div
+                                    v-for="(segment, index) in adherenceView.timeline"
+                                    :key="`${segment.type}-${segment.start}-${index}`"
+                                    class="absolute top-0 h-full"
+                                    :style="{ left: `${segment.start_pct}%`, width: `${Math.max(segment.width_pct, 1.5)}%` }"
+                                    :class="timelineClass(segment.type)"
+                                    :title="`${segment.label} · ${segment.start}–${segment.end}`"
+                                />
+                            </div>
+                            <ul class="grid gap-1.5 sm:grid-cols-2">
+                                <li
+                                    v-for="(segment, index) in adherenceView.timeline"
+                                    :key="`legend-${segment.type}-${segment.start}-${index}`"
+                                    class="flex items-center gap-2 text-[12px] font-medium text-ink/55"
+                                >
+                                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="timelineClass(segment.type)" />
+                                    <span>{{ segment.label }} · {{ segment.start }}–{{ segment.end }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div v-if="adherenceView.idle_events?.length">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Idle over 7m</p>
+                            <ul class="mt-2 divide-y divide-ink/[0.06] rounded-xl bg-white ring-1 ring-ink/[0.05]">
+                                <li
+                                    v-for="event in adherenceView.idle_events"
+                                    :key="event.id"
+                                    class="flex items-center justify-between gap-3 px-3 py-2.5 text-[13px]"
+                                >
+                                    <span class="font-medium text-ink">{{ event.start }}–{{ event.end || 'now' }}</span>
+                                    <span class="font-semibold text-coral-deep">{{ event.duration_label }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div v-else-if="shown.attendance" class="sm:col-span-2 rounded-xl bg-pale px-3 py-3">
                         <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Today vs shift</p>
                         <p class="mt-1.5 text-[13px] font-medium text-ink">
-                            Should sign in {{ shown.attendance.expected_in }} · signed in {{ shown.attendance.logged_in }}
+                            Should sign in {{ shown.attendance.expected_in }}
+                            · {{ shown.attendance.logged_in }}
+                            <span
+                                v-if="shown.attendance.on_shift_now"
+                                class="ms-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
+                            >
+                                On shift
+                            </span>
                             <span v-if="shown.attendance.late" class="ms-1 font-bold text-amber-700">Late</span>
                             <span v-if="shown.attendance.missed" class="ms-1 font-bold text-coral-deep">Not signed in</span>
                         </p>
                         <p class="mt-0.5 text-[13px] font-medium text-ink/50">
-                            {{ shown.attendance.shift_label }} · signed out {{ shown.attendance.logged_out }}
+                            {{ shown.attendance.shift_label }}
+                            · last activity {{ shown.attendance.last_activity }}
+                            · {{ shown.attendance.logged_out }}
                         </p>
                     </div>
                     <div v-if="detail.suspension_reason" class="sm:col-span-2">
@@ -202,6 +321,58 @@
                             {{ shiftForm.errors.shift_ends_at }}
                         </p>
                     </label>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-[12px] font-semibold text-ink/50">Break windows</p>
+                        <button
+                            type="button"
+                            class="text-[12px] font-semibold text-base-action hover:text-base-hover"
+                            @click="addBreak"
+                        >
+                            Add break
+                        </button>
+                    </div>
+                    <p class="mt-1 text-[12px] font-medium text-ink/40">
+                        Scheduled breaks are excluded from idle logging and on-floor adherence.
+                    </p>
+                    <ul v-if="shiftForm.breaks.length" class="mt-3 space-y-2">
+                        <li
+                            v-for="(item, index) in shiftForm.breaks"
+                            :key="index"
+                            class="grid gap-2 rounded-xl bg-pale p-3 sm:grid-cols-[1fr_1fr_auto]"
+                        >
+                            <label class="block">
+                                <span class="text-[11px] font-semibold text-ink/45">Start</span>
+                                <input
+                                    v-model="item.start"
+                                    type="time"
+                                    class="mt-1 w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                                />
+                            </label>
+                            <label class="block">
+                                <span class="text-[11px] font-semibold text-ink/45">End</span>
+                                <input
+                                    v-model="item.end"
+                                    type="time"
+                                    class="mt-1 w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                class="self-end rounded-xl px-3 py-2 text-[12px] font-semibold text-coral-deep hover:bg-white"
+                                @click="removeBreak(index)"
+                            >
+                                Remove
+                            </button>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 rounded-xl bg-pale px-3 py-3 text-[13px] font-medium text-ink/45">
+                        No breaks configured.
+                    </p>
+                    <p v-if="shiftForm.errors.shift_breaks" class="mt-1.5 text-[12px] font-medium text-coral-deep">
+                        {{ shiftForm.errors.shift_breaks }}
+                    </p>
                 </div>
                 <FormButton
                     variant="primary"
@@ -497,9 +668,13 @@ const props = defineProps({
     roles: { type: Array, default: () => [] },
     templates: { type: Array, default: () => [] },
     weekdays: { type: Array, default: () => [] },
+    adherenceDate: { type: String, default: () => new Date().toISOString().slice(0, 10) },
 });
 
-const emit = defineEmits(['close', 'updated', 'deleted', 'refresh', 'resend']);
+const emit = defineEmits(['close', 'updated', 'deleted', 'refresh', 'resend', 'adherence-date']);
+
+const todayIso = new Date().toISOString().slice(0, 10);
+const adherenceDateDraft = ref(props.adherenceDate || todayIso);
 
 const page = usePage();
 const tab = ref('overview');
@@ -563,8 +738,50 @@ const shiftForm = reactive({
     days: [1, 2, 3, 4, 5, 6],
     start: '08:00',
     end: '18:00',
+    breaks: [],
     errors: {},
 });
+
+const adherenceView = computed(() => props.panel?.adherence || shown.value?.adherence || null);
+
+watch(
+    () => props.adherenceDate,
+    (value) => {
+        if (value) {
+            adherenceDateDraft.value = value;
+        }
+    },
+);
+
+const applyAdherenceDate = () => {
+    emit('adherence-date', adherenceDateDraft.value);
+};
+
+const adherenceStatusClass = (status) => {
+    const map = {
+        on_time: 'bg-emerald-50 text-emerald-700',
+        in_progress: 'bg-emerald-50 text-emerald-700',
+        late: 'bg-amber-50 text-amber-800',
+        missed: 'bg-red-50 text-red-700',
+        off_day: 'bg-white text-ink/45 ring-1 ring-ink/[0.06]',
+        leave: 'bg-amber-50 text-amber-800',
+        pending: 'bg-white text-ink/45 ring-1 ring-ink/[0.06]',
+        inactive: 'bg-white text-ink/45 ring-1 ring-ink/[0.06]',
+    };
+
+    return map[status] || 'bg-white text-ink/45 ring-1 ring-ink/[0.06]';
+};
+
+const timelineClass = (type) => {
+    const map = {
+        expected: 'bg-ink/10',
+        break: 'bg-amber-200',
+        present: 'bg-emerald-400',
+        idle: 'bg-coral-deep/80',
+    };
+
+    return map[type] || 'bg-base-action/30';
+};
 
 const currentRoles = computed(() => shown.value?.roles || []);
 const catalog = computed(() => props.panel?.templates?.length ? props.panel.templates : props.templates);
@@ -628,7 +845,24 @@ const hydrateShift = (person) => {
     shiftForm.days = [...(shift?.days || [1, 2, 3, 4, 5, 6])];
     shiftForm.start = shift?.start || '08:00';
     shiftForm.end = shift?.end || '18:00';
+    shiftForm.breaks = (shift?.breaks || []).map((item) => ({
+        start: item.start,
+        end: item.end,
+        label: item.label || 'Break',
+    }));
     shiftForm.errors = {};
+};
+
+const addBreak = () => {
+    if (shiftForm.breaks.length >= 5) {
+        return;
+    }
+
+    shiftForm.breaks.push({ start: '12:00', end: '13:00', label: 'Break' });
+};
+
+const removeBreak = (index) => {
+    shiftForm.breaks.splice(index, 1);
 };
 
 watch(
@@ -684,6 +918,7 @@ const saveShift = async () => {
             shift_days: shiftForm.days,
             shift_starts_at: shiftForm.start,
             shift_ends_at: shiftForm.end,
+            shift_breaks: shiftForm.breaks,
         });
         toast(data.toast);
         if (data.staff) {

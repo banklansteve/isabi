@@ -47,7 +47,7 @@
                         <button v-if="isSuper" type="button" class="menu-item" @click="ask('plan')">Change plan</button>
                         <button type="button" class="menu-item" @click="ask('logout')">Force logout</button>
                         <button type="button" class="menu-item" @click="ask('password')">Send password reset</button>
-                        <button v-if="isSuper" type="button" class="menu-item text-red-600" @click="ask('delete')">
+                        <button v-if="canManageUsers" type="button" class="menu-item text-red-600" @click="ask('delete')">
                             Delete account
                         </button>
                     </AdminSlideMenu>
@@ -68,6 +68,38 @@
                 <div v-for="stat in stats" :key="stat.label" class="rounded-xl bg-pale px-2 py-3 text-center sm:px-3">
                     <p class="text-[11px] font-semibold text-ink/40">{{ stat.label }}</p>
                     <p class="mt-1 text-[17px] font-bold tabular-nums tracking-tight text-ink">{{ stat.value }}</p>
+                </div>
+            </div>
+
+            <div
+                v-if="panel?.escalation"
+                class="rounded-xl bg-violet-50/80 p-3 ring-1 ring-violet-100"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-700">Escalated to Super Admin</p>
+                        <p
+                            class="mt-1 text-[13px] font-bold"
+                            :class="escalationStatusClass(panel.escalation.tone)"
+                        >
+                            {{ panel.escalation.status }}
+                        </p>
+                        <p v-if="panel.escalation.note" class="mt-1 text-[12px] font-medium leading-relaxed text-ink/60">
+                            {{ panel.escalation.note }}
+                        </p>
+                        <p v-if="panel.escalation.referred_by" class="mt-1 text-[11px] font-semibold text-ink/40">
+                            From {{ panel.escalation.referred_by }}
+                        </p>
+                    </div>
+                    <button
+                        v-if="isSuper && panel.escalation.tone !== 'resolved'"
+                        type="button"
+                        class="shrink-0 rounded-xl bg-base-action px-3 py-2 text-[12px] font-semibold text-white hover:bg-base-hover disabled:opacity-60"
+                        :disabled="resolveBusy"
+                        @click="resolveOpen = true"
+                    >
+                        Mark resolved
+                    </button>
                 </div>
             </div>
 
@@ -162,7 +194,8 @@
                     <div class="mt-2 flex flex-wrap gap-1.5">
                         <button type="button" class="chip" @click="ask('edit-job', job)">Edit</button>
                         <button v-if="!job.flagged" type="button" class="chip" @click="ask('flag-job', job)">Flag</button>
-                        <button v-if="!job.hidden" type="button" class="chip text-red-600" @click="ask('hide-job', job)">Remove</button>
+                        <button v-if="!job.hidden" type="button" class="chip" @click="ask('hide-job', job)">Hide</button>
+                        <button v-if="!job.removed" type="button" class="chip text-red-600" @click="ask('delete-job', job)">Delete</button>
                     </div>
                 </article>
             </div>
@@ -177,7 +210,8 @@
                             <p class="mt-0.5 line-clamp-3 text-[13px] text-ink/55">{{ review.comment || 'No comment' }}</p>
                             <div class="mt-2 flex gap-1.5">
                                 <button v-if="!review.flagged" type="button" class="chip" @click="ask('flag-review', review)">Flag</button>
-                                <button v-if="!review.hidden" type="button" class="chip text-red-600" @click="ask('hide-review', review)">Remove</button>
+                                <button v-if="!review.hidden" type="button" class="chip" @click="ask('hide-review', review)">Hide</button>
+                                <button v-if="!review.removed" type="button" class="chip text-red-600" @click="ask('delete-review', review)">Delete</button>
                             </div>
                         </li>
                     </ul>
@@ -260,13 +294,31 @@
         </div>
 
         <template #footer>
-            <div v-if="shown" class="flex gap-2">
+            <div v-if="shown" class="space-y-2">
+                <button
+                    v-if="canEscalate && !panel?.escalation"
+                    type="button"
+                    class="w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-800 transition-colors duration-150 hover:bg-violet-100 disabled:opacity-60"
+                    :disabled="escalateBusy"
+                    @click="escalateOpen = true"
+                >
+                    Escalate to Super Admin
+                </button>
+                <div class="flex gap-2">
                 <button
                     type="button"
                     class="flex-1 rounded-xl bg-base-action px-3 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-colors duration-150 hover:bg-base-hover"
                     @click="ask('message')"
                 >
                     Message
+                </button>
+                <button
+                    v-if="canWarn"
+                    type="button"
+                    class="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 transition-colors duration-150 hover:bg-amber-100"
+                    @click="warnOpen = true"
+                >
+                    Warn
                 </button>
                 <button
                     v-if="canImpersonate"
@@ -284,9 +336,29 @@
                 >
                     {{ shown.suspended ? 'Reinstate' : 'Suspend' }}
                 </button>
+                </div>
             </div>
         </template>
     </AdminDrawer>
+
+    <EscalateToSuperDialog
+        :open="escalateOpen"
+        title="Escalate this profile to Super Admin?"
+        description="Include what you tried and why you need a decision upstairs."
+        :processing="escalateBusy"
+        @close="escalateOpen = false"
+        @confirm="submitEscalate"
+    />
+
+    <AdminConfirmDialog
+        :open="resolveOpen"
+        title="Mark this escalation resolved?"
+        description="Closes the Super Admin queue item for this profile."
+        confirm-label="Mark resolved"
+        :processing="resolveBusy"
+        @close="resolveOpen = false"
+        @confirm="submitResolveEscalation"
+    />
 
     <AdminConfirmDialog
         :open="!!dialog"
@@ -295,7 +367,7 @@
         :confirm-label="dialogMeta.confirmLabel"
         :tone="dialogMeta.tone"
         :require-reason="dialogMeta.requireReason !== false"
-        :confirm-phrase="dialog === 'delete' ? shown?.business_name : ''"
+        :confirm-phrase="confirmPhraseForDialog"
         :processing="busy"
         @close="closeDialog"
         @confirm="runDialog"
@@ -355,13 +427,18 @@
             <input v-model="editJob.worked_on" type="date" class="field mt-2" />
         </template>
     </AdminConfirmDialog>
+
+    <OpsWarnUserDialog :open="warnOpen" :user="shown" @close="warnOpen = false" />
 </template>
 
 <script setup>
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminSlideMenu from '@/Components/Admin/AdminSlideMenu.vue';
+import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
+import OpsWarnUserDialog from '@/Components/Admin/OpsWarnUserDialog.vue';
 import { toast } from '@/utils/adminRange';
+import { escalationStatusClass } from '@/utils/opsStatus';
 import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
@@ -379,12 +456,29 @@ const isSuper = computed(() => !!page.props.auth?.user?.is_super_admin);
 const canImpersonate = computed(
     () => isSuper.value || (page.props.auth?.user?.abilities || []).includes('admin.users.impersonate'),
 );
+const canManageUsers = computed(
+    () => isSuper.value || (page.props.auth?.user?.abilities || []).includes('admin.users.manage'),
+);
+const canWarn = computed(() => {
+    const keys = page.props.auth?.user?.abilities || [];
+
+    return isSuper.value
+        || keys.includes('admin.ops_messages.send')
+        || keys.includes('admin.users.manage')
+        || keys.includes('admin.messaging.manage');
+});
+const canEscalate = computed(() => !!props.panel?.can_escalate && !isSuper.value);
 const tab = ref('overview');
 const menu = ref(false);
 const menuRoot = ref(null);
 const dialog = ref(null);
 const target = ref(null);
 const busy = ref(false);
+const escalateOpen = ref(false);
+const escalateBusy = ref(false);
+const warnOpen = ref(false);
+const resolveOpen = ref(false);
+const resolveBusy = ref(false);
 const editJob = ref(null);
 const lastPerson = ref(null);
 
@@ -437,6 +531,7 @@ watch(
         tab.value = 'overview';
         menu.value = false;
         dialog.value = null;
+        warnOpen.value = false;
         editJob.value = null;
     },
 );
@@ -473,7 +568,12 @@ watch(
 
 const dialogMeta = computed(() => {
     const map = {
-        message: { title: 'Message this artisan', description: 'Sends in-app and email to this one account.', confirmLabel: 'Send', requireReason: false },
+        message: {
+            title: 'Message this artisan',
+            description: 'Sends in-app and email to this one account. Your reason is logged.',
+            confirmLabel: 'Send',
+            requireReason: true,
+        },
         suspend: { title: 'Suspend account', description: 'They will be signed out and blocked from signing in.', confirmLabel: 'Suspend', tone: 'danger' },
         reinstate: { title: 'Reinstate account', description: 'They can sign in again.', confirmLabel: 'Reinstate' },
         verify: { title: shown.value?.verified ? 'Clear verification' : 'Manually verify', description: 'This is logged on the account.', confirmLabel: 'Save' },
@@ -483,14 +583,47 @@ const dialogMeta = computed(() => {
         credits: { title: 'Adjust credits', description: 'Add or remove tokens. Always logged.', confirmLabel: 'Update balance' },
         plan: { title: 'Change plan', description: 'Upgrade, downgrade, or extend annual access.', confirmLabel: 'Update plan' },
         edit: { title: 'Edit profile', description: 'Support edits on their behalf.', confirmLabel: 'Save profile' },
-        delete: { title: 'Delete account', description: 'Soft-delete first so mistakes can be recovered.', confirmLabel: 'Delete', tone: 'danger' },
+        delete: {
+            title: 'Delete account',
+            description: isSuper.value
+                ? 'Soft-delete first so mistakes can be recovered.'
+                : 'This sends a delete request to Super Admin. The account stays until they approve.',
+            confirmLabel: 'Delete',
+            tone: 'danger',
+        },
         'flag-job': { title: 'Flag this job', description: 'Marks it for moderation.', confirmLabel: 'Flag' },
-        'hide-job': { title: 'Remove this job', description: 'Hides it from the public page.', confirmLabel: 'Remove', tone: 'danger' },
+        'hide-job': { title: 'Hide this job', description: 'Hides it from the public page immediately.', confirmLabel: 'Hide', tone: 'danger' },
+        'delete-job': {
+            title: 'Delete this job',
+            description: isSuper.value
+                ? 'Soft-removes it from the public page.'
+                : 'Super Admin must approve before this job is deleted.',
+            confirmLabel: 'Delete',
+            tone: 'danger',
+        },
         'flag-review': { title: 'Flag this review', description: 'Policy or authenticity concern.', confirmLabel: 'Flag' },
-        'hide-review': { title: 'Remove this review', description: 'Hides it from the public page.', confirmLabel: 'Remove', tone: 'danger' },
+        'hide-review': { title: 'Hide this review', description: 'Hides it from the public page immediately.', confirmLabel: 'Hide', tone: 'danger' },
+        'delete-review': {
+            title: 'Delete this review',
+            description: isSuper.value
+                ? 'Soft-removes it from the public page.'
+                : 'Super Admin must approve before this review is deleted.',
+            confirmLabel: 'Delete',
+            tone: 'danger',
+        },
         'edit-job': { title: 'Edit job', description: 'Support correction. Logged with your reason.', confirmLabel: 'Save job' },
     };
     return map[dialog.value] || { title: 'Confirm', description: '', confirmLabel: 'Confirm' };
+});
+
+const confirmPhraseForDialog = computed(() => {
+    if (dialog.value === 'delete') {
+        return shown.value?.business_name || '';
+    }
+    if (dialog.value === 'delete-job' || dialog.value === 'delete-review') {
+        return 'DELETE';
+    }
+    return '';
 });
 
 const closeDialog = () => {
@@ -520,6 +653,53 @@ const onDocClick = (event) => {
 onMounted(() => document.addEventListener('click', onDocClick));
 onUnmounted(() => document.removeEventListener('click', onDocClick));
 
+const jsonHeaders = { headers: { Accept: 'application/json' } };
+
+const submitEscalate = async ({ note }) => {
+    if (!shown.value?.id) {
+        return;
+    }
+
+    escalateBusy.value = true;
+    try {
+        const { data } = await axios.post(route('admin.escalations.store'), {
+            subject_type: 'user',
+            subject_uid: String(shown.value.id),
+            note,
+        }, jsonHeaders);
+        escalateOpen.value = false;
+        toast(data.toast || { type: 'success', title: 'Escalated', message: 'Super Admin has been notified.' });
+        emit('refresh');
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t escalate',
+            message: error?.response?.data?.errors?.note?.[0] || 'Try that again in a moment.',
+        });
+    } finally {
+        escalateBusy.value = false;
+    }
+};
+
+const submitResolveEscalation = async ({ reason }) => {
+    const escalationId = props.panel?.escalation?.id;
+    if (!escalationId) {
+        return;
+    }
+
+    resolveBusy.value = true;
+    try {
+        const { data } = await axios.post(route('admin.escalations.complete', escalationId), { note: reason }, jsonHeaders);
+        resolveOpen.value = false;
+        toast(data.toast || { type: 'success', title: 'Resolved', message: 'Escalation closed.' });
+        emit('refresh');
+    } catch {
+        toast({ type: 'error', title: 'Couldn’t resolve', message: 'Try that again in a moment.' });
+    } finally {
+        resolveBusy.value = false;
+    }
+};
+
 const runDialog = async ({ reason, confirmation }) => {
     if (!shown.value || !dialog.value) return;
     busy.value = true;
@@ -534,6 +714,7 @@ const runDialog = async ({ reason, confirmation }) => {
                 channels: ['in_app', 'email'],
                 segment: { user_id: id },
                 action: 'send',
+                reason,
             });
             toast(data.toast);
         } else if (dialog.value === 'impersonate') {
@@ -588,6 +769,10 @@ const runDialog = async ({ reason, confirmation }) => {
             const { data } = await axios.post(route('admin.jobs.hide', target.value.uid), { reason });
             toast(data.toast);
             emit('refresh');
+        } else if (dialog.value === 'delete-job' && target.value) {
+            const { data } = await axios.post(route('admin.jobs.remove', target.value.uid), { reason });
+            toast(data.toast);
+            emit('refresh');
         } else if (dialog.value === 'edit-job' && editJob.value) {
             const { data } = await axios.patch(route('admin.jobs.update', editJob.value.uid), {
                 reason,
@@ -598,11 +783,15 @@ const runDialog = async ({ reason, confirmation }) => {
             toast(data.toast);
             emit('refresh');
         } else if (dialog.value === 'flag-review' && target.value) {
-            const { data } = await axios.post(route('admin.reviews.flag', target.value.id), { reason });
+            const { data } = await axios.post(route('admin.reviews.flag', target.value.uid || target.value.id), { reason });
             toast(data.toast);
             emit('refresh');
         } else if (dialog.value === 'hide-review' && target.value) {
-            const { data } = await axios.post(route('admin.reviews.hide', target.value.id), { reason });
+            const { data } = await axios.post(route('admin.reviews.hide', target.value.uid || target.value.id), { reason });
+            toast(data.toast);
+            emit('refresh');
+        } else if (dialog.value === 'delete-review' && target.value) {
+            const { data } = await axios.post(route('admin.reviews.remove', target.value.uid || target.value.id), { reason });
             toast(data.toast);
             emit('refresh');
         }

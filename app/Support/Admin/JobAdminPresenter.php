@@ -50,7 +50,7 @@ class JobAdminPresenter
     public static function panel(WorkLog $log, User $actor): array
     {
         $log->loadMissing([
-            'user:id,name,email,first_name,business_name,slug,trade,whatsapp,state,lga',
+            'user:id,name,email,first_name,business_name,slug,trade,whatsapp,state,lga,suspended_at',
             'media',
             'review:id,uid,work_log_id,rating,comment,client_display_name,submitted_at,hidden_at,removed_at',
             'patrolCase:id,work_log_id,kind,status,severity,flagged_at',
@@ -147,6 +147,7 @@ class JobAdminPresenter
                 'first_name' => $user->first_name,
                 'whatsapp' => $user->whatsapp,
                 'whatsapp_url' => $whatsapp ? 'https://wa.me/'.$whatsapp : null,
+                'suspended' => $user->suspended_at !== null,
                 'public_url' => $user->publicUrl(),
                 'user_url' => $actor->canDo('admin.users.view')
                     ? route('admin.users.show', $user)
@@ -183,9 +184,11 @@ class JobAdminPresenter
             'flag' => $manage,
             'refer' => $manage,
             'hide' => $manage,
+            'remove' => $manage,
             'message' => $manage || $actor->canDo('admin.messaging.manage'),
             'view_users' => $actor->canDo('admin.users.view'),
             'view_patrol' => $actor->canDo('patrol.view'),
+            'suspend_user' => $actor->canDo('admin.users.manage'),
         ];
     }
 

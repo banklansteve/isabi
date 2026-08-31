@@ -15,6 +15,15 @@
             </p>
         </div>
         <template v-else>
+            <OpsPriorityPanel
+                v-if="priorityGroups.length"
+                class="mb-6"
+                :groups="priorityGroups"
+                :open-count="priorityOpenCount"
+                heading="Needs your attention"
+                acknowledge-escalations
+            />
+
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <AdminRangePicker :range="range" />
                 <div class="flex rounded-full bg-white p-1 ring-1 ring-ink/[0.06]">
@@ -65,11 +74,14 @@ import AdminDonutChart from '@/Components/Admin/AdminDonutChart.vue';
 import AdminFunnelChart from '@/Components/Admin/AdminFunnelChart.vue';
 import AdminKpiCard from '@/Components/Admin/AdminKpiCard.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
+import OpsPriorityPanel from '@/Components/Admin/OpsPriorityPanel.vue';
 import { useDateRange } from '@/Composables/useDateRange';
 import { formatCompact, formatNaira } from '@/utils/adminRange';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+
+const page = usePage();
 
 const props = defineProps({
     kpis: { type: Array, default: () => [] },
@@ -87,6 +99,10 @@ const props = defineProps({
 
 const range = useDateRange('this_month');
 const activeMode = ref('wau');
+
+const adminInbox = computed(() => page.props.admin_inbox || null);
+const priorityGroups = computed(() => adminInbox.value?.priority_groups || []);
+const priorityOpenCount = computed(() => adminInbox.value?.open_count || 0);
 
 const revenueSeries = computed(() => range.series(props.revenue_daily?.length ? props.revenue_daily : props.revenue));
 const signupSeries = computed(() => range.series(props.signups_daily || []));

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\InsufficientTokensException;
 use App\Http\Requests\StoreWorkLogRequest;
 use App\Http\Requests\UpdateWorkLogRequest;
+use App\Models\QuoteRequest;
 use App\Models\WorkLog;
 use App\Models\WorkLogMedia;
 use App\Services\CloudinaryMediaService;
@@ -19,6 +20,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -54,6 +56,11 @@ class WorkLogController extends Controller
             ->map(fn (WorkLog $log) => [
                 'id' => $log->id,
                 'uid' => $log->uid,
+                'reference' => $log->reference,
+                'public_url' => $log->publicUrl(),
+                'embed_url' => filled($log->reference) && filled($user->slug)
+                    ? route('embed.job', [$user->slug, $log->reference])
+                    : null,
                 'description' => $log->description,
                 'worked_on' => $log->worked_on?->toDateString(),
                 'worked_on_label' => $log->worked_on?->timezone(config('app.display_timezone'))->format('j M Y'),
@@ -106,11 +113,12 @@ class WorkLogController extends Controller
         $pdf = Pdf::loadView('pdf.work-log-export', [
             'user' => $user,
             'logs' => $logs,
+            'brandLogo' => $user->brandLogoUrl(),
             'generatedAt' => now()->timezone(config('app.display_timezone')),
             'publicUrl' => $user->publicUrl(),
         ])->setPaper('a4');
 
-        $filename = 'isabi-work-log-'.($user->slug ?: 'export').'-'.now()->format('Y-m-d').'.pdf';
+        $filename = Str::slug($user->displayBusinessName() ?: 'references').'-references-'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
     }
@@ -118,6 +126,27 @@ class WorkLogController extends Controller
     public function create(Request $request): Response
     {
         $user = $request->user();
+        $defaults = [
+            'service_state' => $user->state,
+            'service_lga' => $user->lga,
+        ];
+
+        $fromQuote = null;
+        if ($request->filled('quote')) {
+            $fromQuote = QuoteRequest::query()
+                ->where('uid', $request->query('quote'))
+                ->where('user_id', $user->id)
+                ->where('status', QuoteRequest::STATUS_ACCEPTED)
+                ->with('artisanQuote')
+                ->first();
+        }
+
+        if ($fromQuote) {
+            $defaults['description'] = $fromQuote->subject
+                ?: ($fromQuote->artisanQuote?->scope_of_work ?: $fromQuote->message);
+            $defaults['client_name'] = $fromQuote->name;
+            $defaults['client_whatsapp'] = $fromQuote->phone;
+        }
 
         return Inertia::render('WorkLog/Create', [
             'maxLookbackDays' => StoreWorkLogRequest::MAX_LOOKBACK_DAYS,
@@ -125,10 +154,11 @@ class WorkLogController extends Controller
             'minDate' => now()->subDays(StoreWorkLogRequest::MAX_LOOKBACK_DAYS)->toDateString(),
             'jobCategories' => JobCategories::forFrontend(),
             'locations' => NigeriaLocations::all(),
-            'defaults' => [
-                'service_state' => $user->state,
-                'service_lga' => $user->lga,
-            ],
+            'defaults' => $defaults,
+            'fromQuote' => $fromQuote ? [
+                'uid' => $fromQuote->uid,
+                'subject' => $fromQuote->displayTitle(),
+            ] : null,
         ]);
     }
 
@@ -184,6 +214,15 @@ class WorkLogController extends Controller
 
         $this->referrals->qualifyOnFirstJob($user->fresh());
 
+        if ($request->filled('from_quote_uid')) {
+            QuoteRequest::query()
+                ->where('uid', $request->input('from_quote_uid'))
+                ->where('user_id', $user->id)
+                ->where('status', QuoteRequest::STATUS_ACCEPTED)
+                ->whereNull('logged_work_log_id')
+                ->update(['logged_work_log_id' => $workLog->id]);
+        }
+
         return redirect()
             ->route('work-log.show', $workLog)
             ->with('toast', [
@@ -210,8 +249,12 @@ class WorkLogController extends Controller
         return Inertia::render('WorkLog/Show', [
             'entry' => [
                 'uid' => $workLog->uid,
+                'reference' => $workLog->reference,
                 'slug' => $workLog->slug,
                 'public_url' => $workLog->publicUrl(),
+                'embed_url' => filled($workLog->reference) && filled($workLog->user?->slug)
+                    ? route('embed.job', [$workLog->user->slug, $workLog->reference])
+                    : null,
                 'description' => $workLog->description,
                 'worked_on' => $workLog->worked_on?->toDateString(),
                 'worked_on_label' => $workLog->worked_on?->timezone(config('app.display_timezone'))->format('l, j F Y'),

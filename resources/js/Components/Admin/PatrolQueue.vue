@@ -1,8 +1,4 @@
 <template>
-    <Head title="Patrol" />
-
-    <AdminChrome title="Patrol" :eyebrow="eyebrow" />
-
     <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.05]">
             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">New</p>
@@ -58,7 +54,7 @@
     <div class="overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05]">
         <AdminEmpty
             v-if="rows.length === 0"
-            :title="activeTab === 'reviews' ? 'No flagged reviews right now' : 'No flagged job logs right now'"
+            :title="isReviews ? 'No flagged reviews right now' : 'No flagged job logs right now'"
             description="This is a good sign. Patrol only surfaces cases when a named detection rule matches."
             icon="ti ti-binoculars"
         />
@@ -108,6 +104,7 @@
         :row="openRow"
         :panel="panel"
         :fallback-can="can"
+        :staff="staff"
         @close="closeCase"
         @refresh="refreshPanel"
         @updated="onUpdated"
@@ -115,35 +112,31 @@
 </template>
 
 <script setup>
-import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import PatrolCaseDrawer from '@/Components/Admin/PatrolCaseDrawer.vue';
 import { adminPath, visitAdmin } from '@/utils/adminVisit';
 import { toast } from '@/utils/adminRange';
 import { patrolPill, patrolSeverityMeta, patrolStatusMeta, patrolVisibilityMeta } from '@/utils/patrolStatus';
-import { Head, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, inject, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps({
+    queue: { type: String, required: true },
     cases: { type: Array, default: () => [] },
-    job_cases: { type: Array, default: () => [] },
-    review_cases: { type: Array, default: () => [] },
     filters: { type: Object, required: true },
     stats: { type: Object, required: true },
-    job_stats: { type: Object, default: () => ({ open: 0, new: 0, pending_approval: 0, in_review: 0 }) },
-    review_stats: { type: Object, default: () => ({ open: 0, new: 0, pending_approval: 0, in_review: 0 }) },
     options: { type: Object, required: true },
     can: { type: Object, default: () => ({}) },
+    staff: { type: Array, default: () => [] },
     opened_id: { type: Number, default: null },
-    tab: { type: String, default: 'jobs' },
 });
 
-const tabQuery = inject('adminTabQuery', ref({}));
-const activeTab = computed(() => (tabQuery.value?.tab === 'reviews' || props.tab === 'reviews' ? 'reviews' : 'jobs'));
+const isReviews = computed(() => props.queue === 'reviews');
 const rows = ref([...props.cases]);
-const ruleOptions = computed(() => (activeTab.value === 'reviews' ? (props.options.review_rules || []) : (props.options.rules || [])));
-const tabStats = computed(() => (activeTab.value === 'reviews' ? props.review_stats : props.job_stats));
+const ruleOptions = computed(() => (isReviews.value ? (props.options.review_rules || []) : (props.options.rules || [])));
+const tabStats = computed(() => props.stats);
+const listRoute = computed(() => (isReviews.value ? 'admin.patrol.reviews' : 'admin.patrol.jobs'));
 const openId = ref(null);
 const openRow = ref(null);
 const panel = ref(null);
@@ -153,18 +146,6 @@ const panelInflight = new Map();
 const rowRefs = new Map();
 const lastFocusEl = ref(null);
 let panelSeq = 0;
-
-const eyebrow = computed(() => {
-    const next = [];
-    const current = activeTab.value === 'reviews' ? props.review_stats : props.job_stats;
-    if (current.new) {
-        next.push(`${current.new} new`);
-    }
-    if (current.pending_approval) {
-        next.push(`${current.pending_approval} pending approval`);
-    }
-    return next.length ? next.join(', ') : 'No open flags';
-});
 
 const form = useForm({
     q: props.filters.q || '',
@@ -176,24 +157,13 @@ const form = useForm({
     sort: props.filters.sort || 'severity',
 });
 
-const syncRows = () => {
-    rows.value = [...(activeTab.value === 'reviews' ? props.review_cases : props.job_cases)];
-};
-
 watch(
-    () => [props.job_cases, props.review_cases, activeTab.value],
-    () => syncRows(),
+    () => props.cases,
+    (value) => {
+        rows.value = [...value];
+    },
     { immediate: true },
 );
-
-watch(activeTab, (tab, previous) => {
-    if (previous && tab !== previous) {
-        closeCase();
-        if (! ruleOptions.value.some((opt) => opt.value === form.rule)) {
-            form.rule = '';
-        }
-    }
-});
 
 const filterQuery = (caseId = null) => ({
     q: form.q || undefined,
@@ -203,12 +173,11 @@ const filterQuery = (caseId = null) => ({
     from: form.from || undefined,
     to: form.to || undefined,
     sort: form.sort !== 'severity' ? form.sort : undefined,
-    tab: activeTab.value === 'reviews' ? 'reviews' : 'jobs',
-    case: caseId && activeTab.value !== 'reviews' ? caseId : undefined,
-    review: caseId && activeTab.value === 'reviews' ? caseId : undefined,
+    case: caseId && !isReviews.value ? caseId : undefined,
+    review: caseId && isReviews.value ? caseId : undefined,
 });
 
-const listUrl = (caseId = null) => route('admin.patrol.index', filterQuery(caseId));
+const listUrl = (caseId = null) => route(listRoute.value, filterQuery(caseId));
 
 const replaceListUrl = (href) => {
     window.history.replaceState(window.history.state, '', adminPath(href));
@@ -363,6 +332,6 @@ watch(
 );
 
 const applyFilters = () => {
-    visitAdmin(route('admin.patrol.index', filterQuery()), { preserveState: true, replace: true });
+    visitAdmin(route(listRoute.value, filterQuery()), { preserveState: true, replace: true });
 };
 </script>

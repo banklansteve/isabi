@@ -69,10 +69,11 @@ class OpsDashboardTest extends TestCase
                 ->where('restricted', false)
                 ->has('items', 1)
                 ->where('items.0.title', 'I cannot log a job')
-                ->where('items.0.queue', 'Support')
+                ->where('items.0.queue', 'Customer support')
                 ->where('items.0.unread', true)
-                ->has('shortcuts', 1)
-                ->where('shortcuts.0.key', 'support')
+                ->has('priority_groups', 1)
+                ->has('shortcuts', 2)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->pluck('key')->contains('support'))
                 ->where('roles.0.short', 'Support')
                 ->where('roles.0.href', route('admin.support.index'))
                 ->missing('kpis'));
@@ -97,7 +98,8 @@ class OpsDashboardTest extends TestCase
                 ->has('items', 1)
                 ->where('items.0.title', 'High-severity job log flagged')
                 ->where('items.0.tone', 'high')
-                ->where('shortcuts.0.key', 'patrol')
+                ->has('priority_groups', 1)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->pluck('key')->contains('patrol_jobs'))
                 ->where('roles.0.short', 'Patrol'));
     }
 
@@ -139,11 +141,12 @@ class OpsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Ops/Home')
+                ->has('priority_groups', 2)
                 ->has('items', 2)
                 ->where('items.0.tone', 'high')
-                ->where('items.1.queue', 'Support')
+                ->where('items.1.queue', 'Customer support')
                 ->where('open_count', 2)
-                ->has('shortcuts', 2));
+                ->has('shortcuts', 4));
     }
 
     public function test_support_staff_do_not_receive_finance_shortcuts(): void
@@ -251,6 +254,50 @@ class OpsDashboardTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('Admin/Ops/Tasks'));
     }
 
+    public function test_ops_tasks_excludes_asap_and_ops_messages(): void
+    {
+        $staff = $this->withPermissions(['admin.support.manage'], 'customer_support', 'Customer support');
+        $peer = User::factory()->operationsAdmin()->create(['name' => 'Ada George']);
+        $artisan = User::factory()->regularUser()->create();
+
+        SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'subject' => 'Billing help',
+            'status' => SupportTicket::STATUS_OPEN,
+            'created_at' => now()->subHours(2),
+        ]);
+
+        $this->actingAs($peer)->get(route('admin.asap.index'))->assertOk();
+        $asap = \App\Models\StaffConversation::query()
+            ->where('type', \App\Models\StaffConversation::TYPE_ASAP)
+            ->firstOrFail();
+        $this->actingAs($peer)
+            ->postJson(route('admin.asap.store', $asap), ['body' => 'Team ping'])
+            ->assertOk();
+
+        $this->actingAs($peer)
+            ->post(route('admin.asap.direct'), ['user_id' => $staff->id])
+            ->assertRedirect();
+        $dm = \App\Models\StaffConversation::query()
+            ->where('type', \App\Models\StaffConversation::TYPE_DIRECT)
+            ->latest('id')
+            ->firstOrFail();
+        $this->actingAs($peer)
+            ->postJson(route('admin.asap.store', $dm), ['body' => 'Hi there'])
+            ->assertOk();
+
+        $this->actingAs($staff)
+            ->get(route('admin.tasks'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Ops/Tasks')
+                ->has('items', 1)
+                ->where('items.0.queue', 'Customer support')
+                ->where('items', fn ($items) => collect($items)->every(
+                    fn ($item) => ! in_array($item['group'] ?? '', ['asap', 'ops_chat'], true)
+                )));
+    }
+
     public function test_ops_staff_can_open_account(): void
     {
         $staff = $this->withPermissions(['admin.support.manage'], 'customer_support', 'Customer support');
@@ -268,6 +315,25 @@ class OpsDashboardTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Ops/Account')
                 ->where('tab', 'password'));
+    }
+
+    public function test_ops_staff_can_update_account_name(): void
+    {
+        $staff = $this->withPermissions(['admin.support.manage'], 'customer_support', 'Customer support');
+
+        $this->actingAs($staff)
+            ->patchJson(route('admin.account.profile'), [
+                'first_name' => 'Ada',
+                'last_name' => 'Okonkwo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('toast.title', 'Name updated')
+            ->assertJsonPath('account.name', 'Ada Okonkwo');
+
+        $staff->refresh();
+        $this->assertSame('Ada', $staff->first_name);
+        $this->assertSame('Okonkwo', $staff->last_name);
+        $this->assertSame('Ada Okonkwo', $staff->name);
     }
 
     /**

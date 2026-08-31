@@ -37,9 +37,9 @@
 
         <OpsEscalateBanner :escalate="escalate" />
 
-        <OpsQueueGrid :queues="shortcuts" />
+        <OpsQueueGrid :queues="queueShortcuts" />
 
-        <OpsAttentionList :items="items" :open-count="open_count" />
+        <OpsPriorityPanel :groups="priorityGroups" :open-count="attentionOpenCount" />
 
         <OpsEscalationsCard v-if="escalations.length" :items="escalations" />
     </div>
@@ -47,7 +47,7 @@
 
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
-import OpsAttentionList from '@/Components/Admin/OpsAttentionList.vue';
+import OpsPriorityPanel from '@/Components/Admin/OpsPriorityPanel.vue';
 import OpsEscalateBanner from '@/Components/Admin/OpsEscalateBanner.vue';
 import OpsEscalationsCard from '@/Components/Admin/OpsEscalationsCard.vue';
 import OpsQueueGrid from '@/Components/Admin/OpsQueueGrid.vue';
@@ -61,6 +61,7 @@ const props = defineProps({
     roles: { type: Array, default: () => [] },
     role_summary: { type: String, default: '' },
     items: { type: Array, default: () => [] },
+    priority_groups: { type: Array, default: () => [] },
     shortcuts: { type: Array, default: () => [] },
     duty: { type: Object, default: null },
     escalations: { type: Array, default: () => [] },
@@ -74,6 +75,24 @@ const props = defineProps({
 const page = usePage();
 const clockLabel = ref('');
 let timer = null;
+
+const opsInbox = computed(() => page.props.ops_inbox || {});
+
+const priorityGroups = computed(() => {
+    const groups = opsInbox.value.priority_groups;
+
+    return Array.isArray(groups) ? groups : props.priority_groups;
+});
+
+const attentionOpenCount = computed(() =>
+    typeof opsInbox.value.open_count === 'number' ? opsInbox.value.open_count : props.open_count,
+);
+
+const queueShortcuts = computed(() => {
+    const live = opsInbox.value.shortcuts;
+
+    return Array.isArray(live) && live.length ? live : props.shortcuts;
+});
 
 const givenName = computed(() => {
     if (props.given_name) {

@@ -73,6 +73,18 @@ class CloudinaryMediaService
     }
 
     /**
+     * Business logos for PDFs, embeds, and exports.
+     *
+     * @return array{public_id: string, url: string, bytes: int, resource_type: string, format: ?string, mime_type: ?string}
+     */
+    public function uploadBusinessLogo(UploadedFile $file, int $userId): array
+    {
+        return $this->upload($file, $this->folder(['logos', (string) $userId]), [
+            'resource_type' => 'image',
+        ]);
+    }
+
+    /**
      * Job media lives under isabi/work-logs/{userId}/{workLogId}
      *
      * @return array{public_id: string, url: string, bytes: int, resource_type: string, format: ?string, mime_type: ?string}

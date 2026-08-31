@@ -10,6 +10,8 @@ use App\Models\DisciplinaryCaseEvent;
 use App\Models\LeaveRequest;
 use App\Models\StaffRole;
 use App\Models\User;
+use App\Support\Staff\StaffPresence;
+use App\Support\Staff\StaffShiftAdherence;
 use Illuminate\Support\Carbon;
 
 class StaffPresenter
@@ -17,7 +19,7 @@ class StaffPresenter
     /**
      * @return array<string, mixed>
      */
-    public static function listPayload(User $user, mixed $lastLogin = null): array
+    public static function listPayload(User $user, mixed $lastLogin = null, mixed $adherenceDate = null): array
     {
         $tz = config('app.display_timezone');
         $invite = $user->relationLoaded('latestStaffInvitation')
@@ -26,6 +28,7 @@ class StaffPresenter
 
         $active = $user->last_login_at
             ?: ($lastLogin ? Carbon::parse($lastLogin) : null);
+        $adherence = app(StaffShiftAdherence::class)->forDate($user, $adherenceDate);
 
         return [
             'id' => $user->id,
@@ -55,17 +58,18 @@ class StaffPresenter
                 && (bool) ($user->on_approved_leave ?? $user->isOnLeaveOn()),
             'exited' => $user->hrProfile?->isExited() ?? false,
             'shift' => StaffShift::for($user),
-            'attendance' => StaffShift::attendance($user),
+            'attendance' => StaffShift::attendance($user, app(StaffPresence::class)),
+            'adherence' => $adherence,
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    public static function detailPayload(User $user, mixed $lastLogin = null): array
+    public static function detailPayload(User $user, mixed $lastLogin = null, mixed $adherenceDate = null): array
     {
         return [
-            ...self::listPayload($user, $lastLogin),
+            ...self::listPayload($user, $lastLogin, $adherenceDate),
             'suspension_reason' => $user->suspension_reason,
             'invited_by' => $user->invitedBy
                 ? ['id' => $user->invitedBy->id, 'name' => $user->invitedBy->name]
@@ -132,7 +136,7 @@ class StaffPresenter
     /**
      * @return array<string, mixed>
      */
-    public static function panel(User $staff, bool $canSeeHr, bool $canSeeDiscipline): array
+    public static function panel(User $staff, bool $canSeeHr, bool $canSeeDiscipline, mixed $adherenceDate = null): array
     {
         $tz = config('app.display_timezone');
 
@@ -182,7 +186,8 @@ class StaffPresenter
             ]);
 
         return [
-            'staff' => self::detailPayload($staff),
+            'staff' => self::detailPayload($staff, null, $adherenceDate),
+            'adherence' => app(StaffShiftAdherence::class)->forDate($staff, $adherenceDate),
             'activity' => [
                 'admin_actions' => $adminActions,
                 'actor_log' => $actorLog,

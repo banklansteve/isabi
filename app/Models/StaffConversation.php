@@ -66,4 +66,13 @@ class StaffConversation extends Model
     {
         return $this->type === self::TYPE_DIRECT;
     }
+
+    public function adminShowUrl(): string
+    {
+        if (! filled($this->uid)) {
+            return route('admin.asap.index');
+        }
+
+        return route('admin.asap.show', ['conversation' => $this->uid]);
+    }
 }

@@ -14,7 +14,9 @@ use App\Models\StaffAttentionRead;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Patrol\PatrolSeverity;
+use App\Support\StaffChat\StaffChatPresenter;
 use App\Support\StaffChat\StaffChatService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -54,6 +56,7 @@ class OpsAttentionFeed
             'roles' => $payload['roles'],
             'role_summary' => $payload['role_summary'],
             'items' => $payload['items'],
+            'priority_groups' => $payload['priority_groups'],
             'shortcuts' => $payload['shortcuts'],
             'duty' => $payload['duty'],
             'escalations' => $payload['escalations'],
@@ -74,6 +77,8 @@ class OpsAttentionFeed
      *     unread_count: int,
      *     items: list<array<string, mixed>>,
      *     tasks: list<array<string, mixed>>,
+     *     attention_items: list<array<string, mixed>>,
+     *     priority_groups: list<array<string, mixed>>,
      *     shortcuts: list<array<string, mixed>>,
      *     roles: list<array<string, mixed>>,
      *     role_summary: string
@@ -82,16 +87,39 @@ class OpsAttentionFeed
     public function inbox(User $user): array
     {
         $payload = $this->payload($user);
+        $tasks = $this->withoutMessages($payload['items']);
 
         return [
             'greeting' => $payload['greeting'],
             'open_count' => $payload['open_count'],
             'unread_count' => $payload['unread_count'],
             'items' => $payload['unread_items'],
-            'tasks' => array_slice($payload['items'], 0, 6),
+            'tasks' => array_slice($tasks, 0, 6),
+            'attention_items' => $payload['items'],
+            'priority_groups' => $payload['priority_groups'],
             'shortcuts' => $payload['shortcuts'],
             'roles' => $payload['roles'],
             'role_summary' => $payload['role_summary'],
+        ];
+    }
+
+    /**
+     * Tasks page feed — work queues only (no ASAP / ops chat messages).
+     *
+     * @return array<string, mixed>
+     */
+    public function tasks(User $user): array
+    {
+        $home = $this->home($user);
+        $items = $this->withoutMessages($home['items']);
+
+        return [
+            ...$home,
+            'items' => $items,
+            'open_count' => array_sum(array_map(fn (array $item) => (int) ($item['count'] ?? 1), $items)),
+            'unread_count' => count(array_filter($items, fn (array $item) => $item['unread'])),
+            'unread_items' => array_values(array_filter($items, fn (array $item) => $item['unread'])),
+            'priority_groups' => $this->priorityGroups($items),
         ];
     }
 
@@ -150,6 +178,33 @@ class OpsAttentionFeed
      *     unread_items: list<array<string, mixed>>
      * }
      */
+    /**
+     * Super Admin priority inbox for Overview + notification context.
+     *
+     * @return array{priority_groups: list<array<string, mixed>>, open_count: int, unread_count: int}
+     */
+    public function superAdminInbox(User $user): array
+    {
+        abort_unless($user->isSuperAdmin(), 403);
+
+        $approvals = app(ApprovalService::class)->superAdminAttentionItems();
+        $escalations = app(StaffCaseReferralService::class)->superAdminAttentionItems();
+        $moderation = app(ModerationAttentionService::class)->superAdminItems($user);
+        $patrol = [
+            ...$this->patrolJobItems($user),
+            ...$this->patrolReviewItems($user),
+        ];
+        $items = array_merge($approvals, $escalations, $moderation, $patrol);
+        $items = array_map(fn (array $item) => $this->withReadState($user, $item), $items);
+        $unread = count(array_filter($items, fn (array $item) => ! empty($item['unread'])));
+
+        return [
+            'priority_groups' => $this->priorityGroups($items),
+            'open_count' => count($items),
+            'unread_count' => $unread,
+        ];
+    }
+
     public function payload(User $user): array
     {
         $cacheKey = 'opsAttention.'.$user->id;
@@ -169,6 +224,7 @@ class OpsAttentionFeed
             'role_summary' => OpsDutyPresenter::summary($roles),
             'greeting' => $this->greeting(),
             'items' => $items,
+            'priority_groups' => $this->priorityGroups($items),
             'shortcuts' => $shortcuts,
             'duty' => $user->isRestrictedStaff() ? null : $this->duty($user, $roles, $items),
             'escalations' => $user->isRestrictedStaff() ? [] : $this->escalations($user),
@@ -189,8 +245,12 @@ class OpsAttentionFeed
     private function items(User $user): array
     {
         $items = [
+            ...$this->myApprovalItems($user),
+            ...$this->assignedReferralItems($user),
             ...$this->patrolJobItems($user),
+            ...$this->patrolReviewItems($user),
             ...$this->supportItems($user),
+            ...$this->staffChatItems($user),
         ];
 
         usort($items, function (array $left, array $right) {
@@ -214,6 +274,58 @@ class OpsAttentionFeed
         $request = request();
         $request?->attributes->remove('opsAttention.'.$user->id);
         $request?->attributes->remove('opsAttentionReads.'.$user->id);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function myApprovalItems(User $user): array
+    {
+        if ($user->isRestrictedStaff() || $user->isSuperAdmin() || ! Schema::hasTable('admin_approvals')) {
+            return [];
+        }
+
+        $count = app(ApprovalService::class)->pendingCountFor($user);
+        if ($count === 0) {
+            return [];
+        }
+
+        return [
+            $this->withReadState($user, [
+                'key' => 'my-approvals',
+                'signature' => 'my-approvals:'.$count,
+                'urgency' => 55,
+                'sort_at' => now()->timestamp,
+                'title' => $count === 1
+                    ? '1 request awaiting Super Admin approval'
+                    : $count.' requests awaiting Super Admin approval',
+                'subtitle' => 'Track what you submitted for review',
+                'href' => route('admin.my-approvals.index'),
+                'icon' => 'ti ti-clock-hour-4',
+                'tone' => 'medium',
+                'queue' => 'My approvals',
+                'group' => 'my_approvals',
+                'priority' => 'medium',
+                'count' => $count,
+            ]),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function assignedReferralItems(User $user): array
+    {
+        if ($user->isRestrictedStaff() || ! Schema::hasTable('staff_case_referrals')) {
+            return [];
+        }
+
+        $rows = app(StaffCaseReferralService::class)->attentionItems($user);
+
+        return array_map(
+            fn (array $item) => $this->withReadState($user, $item),
+            $rows,
+        );
     }
 
     private function patrolJobItems(User $user): array
@@ -245,7 +357,7 @@ class OpsAttentionFeed
         $remaining = $cases->reject(fn (PatrolCase $case) => $high->contains('id', $case->id))->values();
 
         $items = $high->map(fn (PatrolCase $case) => $this->withReadState($user, [
-            'key' => 'patrol:'.$case->id,
+            'key' => 'patrol:job:'.$case->id,
             'signature' => $this->signature([
                 $case->id,
                 $case->severity,
@@ -259,7 +371,8 @@ class OpsAttentionFeed
             'href' => route('admin.patrol.show', $case),
             'icon' => 'ti ti-flag',
             'tone' => 'high',
-            'queue' => 'Patrol',
+            'queue' => 'Job logs patrol',
+            'group' => 'patrol_jobs',
             'priority' => 'high',
             'count' => 1,
         ]))->all();
@@ -282,10 +395,95 @@ class OpsAttentionFeed
                     ? '1 flagged job log to review'
                     : $count.' flagged job logs to review',
                 'subtitle' => config('patrol.severities.'.$maxSeverity, Str::headline($maxSeverity)).' severity',
-                'href' => route('admin.patrol.index'),
+                'href' => route('admin.patrol.jobs'),
                 'icon' => 'ti ti-binoculars',
                 'tone' => $maxSeverity === PatrolCase::SEVERITY_MEDIUM ? 'medium' : 'low',
-                'queue' => 'Patrol',
+                'queue' => 'Job logs patrol',
+                'group' => 'patrol_jobs',
+                'priority' => $maxSeverity === PatrolCase::SEVERITY_MEDIUM ? 'medium' : 'low',
+                'count' => $count,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function patrolReviewItems(User $user): array
+    {
+        if (! $user->canDo('patrol.view') || ! Schema::hasTable('patrol_cases')) {
+            return [];
+        }
+
+        $cases = PatrolCase::query()
+            ->open()
+            ->reviews()
+            ->with([
+                'artisan:id,name,first_name,last_name,business_name',
+                'rules',
+                'review:id,rating,comment',
+            ])
+            ->orderByDesc('flagged_at')
+            ->limit(40)
+            ->get();
+
+        if ($cases->isEmpty()) {
+            return [];
+        }
+
+        $high = $cases
+            ->filter(fn (PatrolCase $case) => PatrolSeverity::isHigh((string) $case->severity))
+            ->take(8)
+            ->values();
+
+        $remaining = $cases->reject(fn (PatrolCase $case) => $high->contains('id', $case->id))->values();
+
+        $items = $high->map(fn (PatrolCase $case) => $this->withReadState($user, [
+            'key' => 'patrol:review:'.$case->id,
+            'signature' => $this->signature([
+                $case->id,
+                $case->severity,
+                $case->status,
+                optional($case->updated_at)->timestamp,
+            ]),
+            'urgency' => self::URGENCY_HIGH_PATROL - 5,
+            'sort_at' => optional($case->flagged_at)->timestamp ?? 0,
+            'title' => 'High-severity review flagged',
+            'subtitle' => $this->patrolSubtitle($case),
+            'href' => route('admin.patrol.show', $case),
+            'icon' => 'ti ti-star',
+            'tone' => 'high',
+            'queue' => 'Reviews patrol',
+            'group' => 'patrol_reviews',
+            'priority' => 'high',
+            'count' => 1,
+        ]))->all();
+
+        if ($remaining->isNotEmpty()) {
+            $latest = $remaining->sortByDesc(fn (PatrolCase $case) => optional($case->flagged_at)->timestamp ?? 0)->first();
+            $maxSeverity = (string) PatrolSeverity::max($remaining->pluck('severity')->all());
+            $count = $remaining->count();
+
+            $items[] = $this->withReadState($user, [
+                'key' => 'patrol:reviews',
+                'signature' => $this->signature([
+                    $count,
+                    $remaining->max('id'),
+                    $maxSeverity,
+                ]),
+                'urgency' => self::URGENCY_PATROL_QUEUE - 5,
+                'sort_at' => optional($latest?->flagged_at)->timestamp ?? 0,
+                'title' => $count === 1
+                    ? '1 flagged review to check'
+                    : $count.' flagged reviews to check',
+                'subtitle' => config('patrol.severities.'.$maxSeverity, Str::headline($maxSeverity)).' severity',
+                'href' => route('admin.patrol.reviews'),
+                'icon' => 'ti ti-star-half',
+                'tone' => $maxSeverity === PatrolCase::SEVERITY_MEDIUM ? 'medium' : 'low',
+                'queue' => 'Reviews patrol',
+                'group' => 'patrol_reviews',
                 'priority' => $maxSeverity === PatrolCase::SEVERITY_MEDIUM ? 'medium' : 'low',
                 'count' => $count,
             ]);
@@ -318,30 +516,217 @@ class OpsAttentionFeed
             return [];
         }
 
-        return $tickets->map(function (SupportTicket $ticket) use ($user) {
-            $hours = max(0, (int) ($ticket->created_at?->diffInHours(now()) ?? 0));
-            $priority = $hours >= 3 ? 'high' : 'medium';
-            $subject = trim((string) $ticket->subject);
+        if ($tickets->count() === 1) {
+            $ticket = $tickets->first();
 
-            return $this->withReadState($user, [
-                'key' => 'support:'.$ticket->id,
+            return [$this->supportTicketItem($user, $ticket)];
+        }
+
+        $oldest = $tickets->first();
+        $count = $tickets->count();
+        $hours = max(0, (int) ($oldest->created_at?->diffInHours(now()) ?? 0));
+        $priority = $hours >= 3 ? 'high' : 'medium';
+        $subject = trim((string) $oldest->subject);
+
+        return [$this->withReadState($user, [
+            'key' => 'support:queue',
+            'signature' => $this->signature([
+                $count,
+                $tickets->max('id'),
+                $tickets->pluck('status')->join(','),
+            ]),
+            'urgency' => $priority === 'high' ? self::URGENCY_SUPPORT + 10 : self::URGENCY_SUPPORT,
+            'sort_at' => now()->timestamp - (int) ($oldest->created_at?->timestamp ?? now()->timestamp),
+            'title' => $count.' customer chats waiting',
+            'subtitle' => ($subject !== '' ? $subject : 'Open ticket').' · '.$this->waitingLabel($oldest->created_at),
+            'href' => route('admin.support.index'),
+            'icon' => 'ti ti-headset',
+            'tone' => $priority === 'high' ? 'high' : 'support',
+            'queue' => 'Customer support',
+            'group' => 'support',
+            'priority' => $priority,
+            'count' => $count,
+        ])];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function supportTicketItem(User $user, SupportTicket $ticket): array
+    {
+        $hours = max(0, (int) ($ticket->created_at?->diffInHours(now()) ?? 0));
+        $priority = $hours >= 3 ? 'high' : 'medium';
+        $subject = trim((string) $ticket->subject);
+
+        return $this->withReadState($user, [
+            'key' => 'support:'.$ticket->id,
+            'signature' => $this->signature([
+                $ticket->id,
+                $ticket->status,
+                optional($ticket->last_reply_at ?? $ticket->updated_at)->timestamp,
+            ]),
+            'urgency' => $priority === 'high' ? self::URGENCY_SUPPORT + 10 : self::URGENCY_SUPPORT,
+            'sort_at' => now()->timestamp - (int) ($ticket->created_at?->timestamp ?? now()->timestamp),
+            'title' => $subject !== '' ? $subject : 'Open support ticket',
+            'subtitle' => 'Customer support · '.$this->waitingLabel($ticket->created_at),
+            'href' => $ticket->adminShowUrl(),
+            'icon' => 'ti ti-headset',
+            'tone' => $priority === 'high' ? 'high' : 'support',
+            'queue' => 'Customer support',
+            'group' => 'support',
+            'priority' => $priority,
+            'count' => 1,
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function staffChatItems(User $user): array
+    {
+        if (! $user->isStaff() || ! Schema::hasTable('staff_conversations')) {
+            return [];
+        }
+
+        $presenter = app(StaffChatPresenter::class);
+        $inbox = app(StaffChatService::class)->inboxFor($user);
+
+        $unread = $inbox
+            ->map(fn ($conversation) => $presenter->inboxItem($conversation, $user))
+            ->filter(fn (array $item) => $item['unread'])
+            ->values();
+
+        if ($unread->isEmpty()) {
+            return [];
+        }
+
+        $items = [];
+        $asap = $unread->firstWhere('type', 'asap');
+
+        if ($asap) {
+            $items[] = $this->withReadState($user, [
+                'key' => 'asap:chat',
                 'signature' => $this->signature([
-                    $ticket->id,
-                    $ticket->status,
-                    optional($ticket->last_reply_at ?? $ticket->updated_at)->timestamp,
+                    $asap['uid'],
+                    $asap['when_iso'] ?? '',
                 ]),
-                'urgency' => $priority === 'high' ? self::URGENCY_SUPPORT + 10 : self::URGENCY_SUPPORT,
-                'sort_at' => now()->timestamp - (int) ($ticket->created_at?->timestamp ?? now()->timestamp),
-                'title' => $subject !== '' ? $subject : 'Open support ticket',
-                'subtitle' => 'Support · '.$this->waitingLabel($ticket->created_at),
-                'href' => route('admin.support.show', $ticket),
-                'icon' => 'ti ti-headset',
-                'tone' => $priority === 'high' ? 'high' : 'support',
-                'queue' => 'Support',
-                'priority' => $priority,
+                'urgency' => 55,
+                'sort_at' => strtotime((string) ($asap['when_iso'] ?? '')) ?: now()->timestamp,
+                'title' => 'ASAP messages',
+                'subtitle' => $asap['subtitle'] ?? 'New messages in the group chat',
+                'href' => $asap['href'],
+                'icon' => 'ti ti-bolt',
+                'tone' => 'medium',
+                'queue' => 'ASAP',
+                'group' => 'asap',
+                'priority' => 'medium',
                 'count' => 1,
             ]);
-        })->all();
+        }
+
+        $direct = $unread->where('type', 'direct')->values();
+
+        if ($direct->count() === 1) {
+            $message = $direct->first();
+            $peer = $message['peer']['name'] ?? 'Ops teammate';
+
+            $items[] = $this->withReadState($user, [
+                'key' => 'ops:dm:'.$message['uid'],
+                'signature' => $this->signature([
+                    $message['uid'],
+                    $message['when_iso'] ?? '',
+                ]),
+                'urgency' => 50,
+                'sort_at' => strtotime((string) ($message['when_iso'] ?? '')) ?: now()->timestamp,
+                'title' => 'Message from '.$peer,
+                'subtitle' => $message['subtitle'] ?? 'Direct message',
+                'href' => $message['href'],
+                'icon' => 'ti ti-message',
+                'tone' => 'medium',
+                'queue' => 'Ops chat',
+                'group' => 'ops_chat',
+                'priority' => 'medium',
+                'count' => 1,
+            ]);
+        } elseif ($direct->count() > 1) {
+            $latest = $direct->sortByDesc(fn (array $item) => strtotime((string) ($item['when_iso'] ?? '')) ?: 0)->first();
+            $count = $direct->count();
+
+            $items[] = $this->withReadState($user, [
+                'key' => 'ops:messages',
+                'signature' => $this->signature([
+                    $count,
+                    $direct->pluck('uid')->join(','),
+                ]),
+                'urgency' => 50,
+                'sort_at' => strtotime((string) ($latest['when_iso'] ?? '')) ?: now()->timestamp,
+                'title' => 'Ops messages ('.$count.')',
+                'subtitle' => ($latest['peer']['name'] ?? 'Teammates').' · '.$this->waitingLabel(
+                    filled($latest['when_iso'] ?? null) ? Carbon::parse($latest['when_iso']) : null,
+                ),
+                'href' => route('admin.asap.index'),
+                'icon' => 'ti ti-messages',
+                'tone' => 'medium',
+                'queue' => 'Ops chat',
+                'group' => 'ops_chat',
+                'priority' => 'medium',
+                'count' => $count,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function withoutMessages(array $items): array
+    {
+        return array_values(array_filter(
+            $items,
+            fn (array $item) => ! in_array((string) ($item['group'] ?? ''), ['asap', 'ops_chat'], true),
+        ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function priorityGroups(array $items): array
+    {
+        $catalog = [
+            'escalations' => ['label' => 'Staff escalations', 'icon' => 'ti ti-arrow-up-right-circle'],
+            'approvals' => ['label' => 'Pending approvals', 'icon' => 'ti ti-shield-check'],
+            'moderation' => ['label' => 'Moderation', 'icon' => 'ti ti-shield-check'],
+            'assigned' => ['label' => 'Assigned to me', 'icon' => 'ti ti-user-check'],
+            'my_approvals' => ['label' => 'My approvals', 'icon' => 'ti ti-clock-hour-4'],
+            'patrol_jobs' => ['label' => 'Job logs patrol', 'icon' => 'ti ti-binoculars'],
+            'patrol_reviews' => ['label' => 'Reviews patrol', 'icon' => 'ti ti-star-half'],
+            'support' => ['label' => 'Customer support', 'icon' => 'ti ti-headset'],
+            'asap' => ['label' => 'ASAP', 'icon' => 'ti ti-bolt'],
+            'ops_chat' => ['label' => 'Ops chat', 'icon' => 'ti ti-messages'],
+        ];
+
+        $grouped = collect($items)
+            ->groupBy(fn (array $item) => (string) ($item['group'] ?? 'other'))
+            ->map(function (Collection $rows, string $key) use ($catalog) {
+                $meta = $catalog[$key] ?? ['label' => Str::headline($key), 'icon' => 'ti ti-circle'];
+
+                return [
+                    'key' => $key,
+                    'label' => $meta['label'],
+                    'icon' => $meta['icon'],
+                    'count' => (int) $rows->sum(fn (array $item) => (int) ($item['count'] ?? 1)),
+                    'items' => $rows->values()->all(),
+                ];
+            });
+
+        return collect(array_keys($catalog))
+            ->filter(fn (string $key) => $grouped->has($key))
+            ->map(fn (string $key) => $grouped->get($key))
+            ->values()
+            ->all();
     }
 
     /**
@@ -380,6 +765,10 @@ class OpsAttentionFeed
      */
     private function canSeeShortcut(User $user, array $item): bool
     {
+        if (! empty($item['opsOnly']) && $user->isSuperAdmin()) {
+            return false;
+        }
+
         if (! empty($item['abilitiesAny'])) {
             return collect($item['abilitiesAny'])->contains(fn (string $ability) => $user->canDo($ability));
         }
@@ -407,9 +796,13 @@ class OpsAttentionFeed
         }
 
         if ($user->canDo('patrol.view') && Schema::hasTable('patrol_cases')) {
-            $counts['patrol'] = PatrolCase::query()
+            $counts['patrol_jobs'] = PatrolCase::query()
                 ->open()
                 ->jobs()
+                ->count();
+            $counts['patrol_reviews'] = PatrolCase::query()
+                ->open()
+                ->reviews()
                 ->count();
         }
 
@@ -471,6 +864,14 @@ class OpsAttentionFeed
             $counts['approvals'] = AdminApproval::query()
                 ->where('status', AdminApproval::STATUS_PENDING)
                 ->count();
+        }
+
+        if (! $user->isSuperAdmin() && Schema::hasTable('admin_approvals')) {
+            $counts['my_approvals'] = app(ApprovalService::class)->pendingCountFor($user);
+        }
+
+        if (app(\App\Support\Admin\ModerationDesk\ModerationDeskService::class)->canAccess($user)) {
+            $counts['moderation_desk'] = app(\App\Support\Admin\ModerationDesk\ModerationDeskService::class)->stats($user)['all'] ?? 0;
         }
 
         return $counts;
@@ -615,7 +1016,7 @@ class OpsAttentionFeed
     private function escalate(User $user): ?array
     {
         $targets = [
-            ['ability' => 'patrol.view', 'route' => 'admin.patrol.index'],
+            ['ability' => 'patrol.view', 'route' => 'admin.patrol.jobs'],
             ['ability' => 'admin.content.manage', 'route' => 'admin.jobs.index'],
         ];
 
@@ -636,7 +1037,7 @@ class OpsAttentionFeed
      */
     private function escalations(User $user): array
     {
-        $items = [];
+        $items = app(StaffCaseReferralService::class)->outboundEscalations($user);
 
         if ($user->canDo('patrol.view') && Schema::hasTable('patrol_cases')) {
             $pending = PatrolCase::query()
@@ -684,7 +1085,7 @@ class OpsAttentionFeed
                         'label' => 'Job '.($log->uid ?: '#'.$log->id),
                         'status' => 'In review',
                         'tone' => 'review',
-                        'href' => route('admin.jobs.index'),
+                        'href' => route('admin.jobs.index', ['job' => $log->uid, 'tab' => 'flagged']),
                     ];
                 });
         }

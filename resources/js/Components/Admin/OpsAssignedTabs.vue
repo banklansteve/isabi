@@ -2,7 +2,7 @@
     <nav
         v-if="items.length > 1"
         class="mb-4 flex gap-1 rounded-xl bg-white p-1 shadow-premium ring-1 ring-ink/[0.05]"
-        aria-label="My work"
+        aria-label="Assigned work"
     >
         <Link
             v-for="item in items"
@@ -22,10 +22,7 @@ import { computed } from 'vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
-const abilities = computed(() => user.value?.abilities || []);
-const canSupport = computed(() =>
-    abilities.value.includes('admin.support.manage') || !!user.value?.is_super_admin,
-);
+const pendingApprovals = computed(() => Number(page.props.my_approvals_pending || 0));
 
 const current = computed(() => {
     try {
@@ -38,17 +35,17 @@ const current = computed(() => {
 const items = computed(() => {
     const list = [
         {
-            label: 'My stats',
-            href: route('admin.insights.index'),
-            active: String(current.value).startsWith('admin.insights'),
+            label: 'Assigned to me',
+            href: route('admin.assigned.index', { queue: 'moderation' }),
+            active: String(current.value).startsWith('admin.assigned'),
         },
     ];
 
-    if (canSupport.value) {
+    if (!user.value?.is_super_admin) {
         list.push({
-            label: 'Support reports',
-            href: route('admin.support.reports'),
-            active: current.value === 'admin.support.reports',
+            label: pendingApprovals.value > 0 ? `My approvals (${pendingApprovals.value})` : 'My approvals',
+            href: route('admin.my-approvals.index'),
+            active: String(current.value).startsWith('admin.my-approvals'),
         });
     }
 

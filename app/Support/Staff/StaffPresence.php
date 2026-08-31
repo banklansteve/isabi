@@ -4,6 +4,7 @@ namespace App\Support\Staff;
 
 use App\Enums\StaffStatus;
 use App\Models\LeaveRequest;
+use App\Models\StaffIdleEvent;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -18,6 +19,19 @@ class StaffPresence
         }
 
         $now = now();
+        $previous = $this->lastSeenAt($user);
+
+        if ($previous && $this->shouldTrackIdle($user, $previous)) {
+            $gap = max(0, $now->getTimestamp() - $previous->getTimestamp());
+
+            if ($gap >= $this->idleAfterSeconds()) {
+                $idleStart = $previous->copy()->addSeconds($this->idleAfterSeconds());
+                $this->recordIdleGap($user, $idleStart, $now);
+            }
+        }
+
+        $this->closeOpenIdle($user, $now);
+
         Cache::put($this->key($user->id), $now->timestamp, now()->addMinutes(20));
 
         $throttleKey = 'staff.seen.write.'.$user->id;
@@ -30,6 +44,51 @@ class StaffPresence
         Cache::put($throttleKey, 1, $seconds);
 
         $user->forceFill(['last_seen_at' => $now])->saveQuietly();
+    }
+
+    public function reconcileIdle(User $user): void
+    {
+        if (! $user->isStaff() || $user->staff_status !== StaffStatus::Active || $user->isSuspended()) {
+            return;
+        }
+
+        if (! StaffShift::onDuty($user) || StaffShift::onBreak($user) || $this->onLeave($user)) {
+            $this->closeOpenIdle($user, now());
+
+            return;
+        }
+
+        $lastSeen = $this->lastSeenAt($user);
+        $idle = $this->idleSeconds($user, $lastSeen);
+
+        if ($idle === null || $idle < $this->idleAfterSeconds()) {
+            return;
+        }
+
+        $started = $lastSeen->copy()->addSeconds($this->idleAfterSeconds());
+        $open = $this->openIdleEvent($user);
+
+        if ($open) {
+            return;
+        }
+
+        StaffIdleEvent::query()->create([
+            'user_id' => $user->id,
+            'work_date' => $started->toDateString(),
+            'started_at' => $started,
+            'ended_at' => null,
+            'duration_seconds' => null,
+        ]);
+    }
+
+    /**
+     * @param  Collection<int, User>|list<User>  $staff
+     */
+    public function reconcileIdleForStaff(Collection|array $staff): void
+    {
+        foreach ($staff as $user) {
+            $this->reconcileIdle($user);
+        }
     }
 
     public function lastSeenAt(User $user): ?Carbon
@@ -71,7 +130,7 @@ class StaffPresence
 
     public function isAway(User $user, ?Carbon $lastSeen = null, bool $onDuty = false, bool $onLeave = false): bool
     {
-        if (! $onDuty || $onLeave) {
+        if (! $onDuty || $onLeave || StaffShift::onBreak($user)) {
             return false;
         }
 
@@ -151,6 +210,7 @@ class StaffPresence
         $status = match (true) {
             $onLeave => 'leave',
             ! $onDuty => 'off_duty',
+            StaffShift::onBreak($user) => 'break',
             $lastSeen === null => 'unknown',
             $away => 'away',
             $idle !== null && $idle < 90 => 'active',
@@ -163,6 +223,7 @@ class StaffPresence
                 'active' => 'Active',
                 'idle' => 'Idle',
                 'away' => 'Away',
+                'break' => 'On break',
                 'leave' => 'On leave',
                 'off_duty' => 'Off duty',
                 default => 'Unknown',
@@ -192,6 +253,69 @@ class StaffPresence
         $rest = $minutes % 60;
 
         return $rest > 0 ? $hours.'h '.$rest.'m' : $hours.'h';
+    }
+
+    private function shouldTrackIdle(User $user, Carbon $at): bool
+    {
+        if ($user->staff_status !== StaffStatus::Active || $user->isSuspended()) {
+            return false;
+        }
+
+        if ($this->onLeave($user)) {
+            return false;
+        }
+
+        if (! StaffShift::onDuty($user, $at) && ! StaffShift::onDuty($user, now())) {
+            return false;
+        }
+
+        return ! StaffShift::onBreak($user, $at) && ! StaffShift::onBreak($user, now());
+    }
+
+    private function onLeave(User $user): bool
+    {
+        return $user->isOnLeaveOn();
+    }
+
+    private function recordIdleGap(User $user, Carbon $startedAt, Carbon $endedAt): void
+    {
+        $open = $this->openIdleEvent($user);
+
+        if ($open) {
+            $open->close($endedAt);
+
+            return;
+        }
+
+        if ($endedAt->lessThanOrEqualTo($startedAt)) {
+            return;
+        }
+
+        StaffIdleEvent::query()->create([
+            'user_id' => $user->id,
+            'work_date' => $startedAt->toDateString(),
+            'started_at' => $startedAt,
+            'ended_at' => $endedAt,
+            'duration_seconds' => max(0, $endedAt->getTimestamp() - $startedAt->getTimestamp()),
+        ]);
+    }
+
+    private function closeOpenIdle(User $user, Carbon $endedAt): void
+    {
+        $open = $this->openIdleEvent($user);
+
+        if ($open) {
+            $open->close($endedAt);
+        }
+    }
+
+    private function openIdleEvent(User $user): ?StaffIdleEvent
+    {
+        return StaffIdleEvent::query()
+            ->where('user_id', $user->id)
+            ->whereNull('ended_at')
+            ->latest('id')
+            ->first();
     }
 
     private function key(int $id): string

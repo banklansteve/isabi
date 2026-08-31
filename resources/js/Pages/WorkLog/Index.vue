@@ -45,7 +45,7 @@
                             class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white ring-1 ring-white/15 transition-colors hover:bg-white/16"
                         >
                             <i class="ti ti-file-type-pdf" aria-hidden="true" />
-                            Export PDF
+                            Export references PDF
                         </a>
                         <Link
                             :href="route('work-log.create')"
@@ -293,6 +293,12 @@
                                 >
                                     <i :class="statusIcon(entry)" class="text-[12px]" aria-hidden="true" />
                                     {{ statusLabel(entry) }}
+                                </span>
+                                <span
+                                    v-if="entry.reference"
+                                    class="inline-flex items-center rounded-full bg-tint px-2.5 py-1 font-mono text-[10px] font-bold text-deep"
+                                >
+                                    {{ entry.reference }}
                                 </span>
                                 <span
                                     v-if="entry.amount_naira != null"

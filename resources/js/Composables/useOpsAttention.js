@@ -16,6 +16,31 @@ const dropInboxItem = (inbox, key) => {
     }
 };
 
+const markGroupItemRead = (groups, key) => {
+    if (!Array.isArray(groups) || !key) {
+        return groups;
+    }
+
+    return groups.map((group) => ({
+        ...group,
+        items: (group.items || []).map((entry) =>
+            entry.key === key ? { ...entry, unread: false } : entry,
+        ),
+    }));
+};
+
+const markAttentionItems = (items, key) => {
+    if (!Array.isArray(items) || !key) {
+        return;
+    }
+
+    const hit = items.find((entry) => entry.key === key);
+
+    if (hit?.unread) {
+        hit.unread = false;
+    }
+};
+
 const markPageItems = (page, key) => {
     const items = page.props.items;
 
@@ -45,6 +70,15 @@ export function useOpsAttention() {
         }
 
         dropInboxItem(page.props.ops_inbox, item.key);
+
+        if (page.props.ops_inbox) {
+            page.props.ops_inbox.priority_groups = markGroupItemRead(
+                page.props.ops_inbox.priority_groups,
+                item.key,
+            );
+            markAttentionItems(page.props.ops_inbox.attention_items, item.key);
+        }
+
         markPageItems(page, item.key);
 
         if (!item.unread || !item.signature) {

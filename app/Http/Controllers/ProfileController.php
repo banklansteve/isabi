@@ -55,7 +55,9 @@ class ProfileController extends Controller
                 'whatsapp' => $user->whatsapp,
                 'bio' => $user->bio,
                 'avatar_url' => $user->avatar_url,
+                'logo_url' => $user->logo_url,
                 'public_url' => $user->publicUrl(),
+                'embed_url' => $user->slug ? route('embed.profile', $user->slug) : null,
                 'slug_changes_remaining' => $user->slugChangesRemaining(),
                 'max_slug_changes' => (int) config('profiles.max_slug_changes', 3),
                 'review_invite_template' => $user->review_invite_template,
@@ -113,6 +115,52 @@ class ProfileController extends Controller
             'type' => 'success',
             'title' => 'Photo updated',
             'message' => 'Your profile photo is live on your page.',
+            'duration' => 4200,
+        ]);
+    }
+
+    public function updateLogo(Request $request, CloudinaryMediaService $cloudinary): RedirectResponse
+    {
+        $request->validate([
+            'logo' => ['required', 'image', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+
+        try {
+            $uploaded = $cloudinary->uploadBusinessLogo($request->file('logo'), $user->id);
+        } catch (RuntimeException $e) {
+            return Redirect::route('profile.edit')->with('toast', [
+                'type' => 'error',
+                'title' => 'Upload failed',
+                'message' => $e->getMessage(),
+                'duration' => 5000,
+            ]);
+        }
+
+        if (filled($user->logo_path)) {
+            try {
+                $cloudinary->delete($user->logo_path);
+            } catch (RuntimeException) {
+                // Ignore cleanup failures — new logo still wins.
+            }
+        }
+
+        $user->forceFill([
+            'logo_path' => $uploaded['public_id'] ?? $user->logo_path,
+            'logo_url' => $uploaded['url'] ?? $user->logo_url,
+        ])->save();
+
+        ActivityLogger::log(
+            action: 'profile.logo_updated',
+            summary: "{$user->name} updated their business logo.",
+            user: $user,
+        );
+
+        return Redirect::route('profile.edit')->with('toast', [
+            'type' => 'success',
+            'title' => 'Logo updated',
+            'message' => 'Your logo now appears on exports and embeds.',
             'duration' => 4200,
         ]);
     }

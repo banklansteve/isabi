@@ -27,7 +27,9 @@ class PublicJobController extends Controller
         $log = WorkLog::query()
             ->where('user_id', $artisan->id)
             ->where(function ($query) use ($job) {
-                $query->where('slug', $job)->orWhere('uid', $job);
+                $query->where('reference', strtolower($job))
+                    ->orWhere('slug', $job)
+                    ->orWhere('uid', $job);
             })
             ->with(['media', 'review'])
             ->firstOrFail();
@@ -39,12 +41,12 @@ class PublicJobController extends Controller
             abort(404);
         }
 
-        if (filled($log->slug) && $log->slug !== $job) {
-            return redirect()->route('public.job', [$artisan->slug, $log->slug], 301);
+        if (filled($log->reference) && strtolower($job) !== (string) $log->reference) {
+            return redirect()->route('public.job', [$artisan->slug, $log->reference], 301);
         }
 
         $seo = app(Seo::class);
-        $url = route('public.job', [$artisan->slug, $log->slug]);
+        $url = route('public.job', [$artisan->slug, $log->reference]);
         $location = collect([$log->service_city, $log->service_lga, $log->service_state])
             ->filter()
             ->implode(', ');
@@ -54,6 +56,8 @@ class PublicJobController extends Controller
                 .($location ? ' in '.$location : '').'.';
 
         $firstImage = $log->media->first(fn ($m) => $m->isImage());
+
+        $wa = preg_replace('/\D+/', '', (string) $artisan->whatsapp) ?? '';
 
         $seo->title($log->description.' · '.$artisan->displayBusinessName())
             ->description($description)
@@ -80,12 +84,16 @@ class PublicJobController extends Controller
                 'public_url' => $artisan->publicUrl(),
                 'trade' => $artisan->trade,
                 'avatar_url' => $artisan->avatar_url,
+                'logo_url' => $artisan->logo_url,
+                'whatsapp_url' => $wa !== '' ? "https://wa.me/{$wa}" : null,
                 'area_label' => collect([$artisan->lga, $artisan->state])->filter()->implode(', ') ?: null,
             ],
             'job' => [
                 'uid' => $log->uid,
+                'reference' => $log->reference,
                 'slug' => $log->slug,
                 'public_url' => $url,
+                'embed_url' => route('embed.job', [$artisan->slug, $log->reference]),
                 'description' => $log->description,
                 'job_category' => $log->job_category,
                 'job_subcategory' => $log->job_subcategory,
@@ -122,6 +130,7 @@ class PublicJobController extends Controller
                 ] : null,
             ],
             'viewerIsOwner' => $viewer !== null && (int) $viewer->id === (int) $artisan->id,
+            'quoteUrl' => route('public.job.quote', [$artisan->slug, $log->reference]),
         ]);
     }
 }

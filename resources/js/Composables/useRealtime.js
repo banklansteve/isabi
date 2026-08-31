@@ -93,6 +93,10 @@ export function useRealtime() {
                         unread_count: payload.unread_count ?? current.unread_count,
                         items,
                     };
+
+                    if (isStaff() && !page.props.auth?.user?.is_super_admin && !page.props.auth?.user?.restricted) {
+                        window.dispatchEvent(new CustomEvent('isabi:ops-attention-refresh'));
+                    }
                 });
 
             if (isStaff()) {

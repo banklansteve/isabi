@@ -5,10 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\FlagContentRequest;
 use App\Models\Review;
+use App\Models\StaffCaseReferral;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\ApprovalService;
 use App\Support\Admin\DashboardMetrics;
+use App\Support\Admin\JobAdminPresenter;
+use App\Support\Admin\ReviewAdminPresenter;
+use App\Support\Admin\StaffCaseReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,27 +21,22 @@ use Inertia\Response;
 
 class ReviewAdminController extends Controller
 {
-    public function index(DashboardMetrics $metrics): Response
+    public function index(Request $request, DashboardMetrics $metrics): Response
     {
-        $reviews = Review::query()
-            ->with([
-                'artisan:id,name,email,business_name,slug,trade,state,whatsapp,avatar_url',
-                'workLog:id,uid,user_id,description,client_name,worked_on,job_category,review_requested_at',
-            ])
-            ->latest('submitted_at')
-            ->latest('id')
-            ->limit(2500)
-            ->get()
-            ->map(fn (Review $review) => $this->payload($review))
-            ->values();
+        return Inertia::render('Admin/Reviews/Index', $this->indexProps($request, $metrics));
+    }
 
-        $insights = $metrics->reviewInsights();
+    public function show(Request $request, Review $review): Response|JsonResponse
+    {
+        abort_unless($request->user()?->canDo('admin.content.manage'), 403);
+
+        if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(ReviewAdminPresenter::panel($review, $request->user()));
+        }
 
         return Inertia::render('Admin/Reviews/Index', [
-            'reviews' => $reviews,
-            'completion' => $insights['completion'],
-            'ratings' => $insights['ratings'],
-            'flagged_trend' => $insights['flagged'],
+            ...$this->indexProps($request, app(DashboardMetrics::class)),
+            'opened_uid' => $review->uid,
         ]);
     }
 
@@ -53,17 +52,24 @@ class ReviewAdminController extends Controller
 
         AdminAudit::record(
             'reviews.flagged',
-            "{$request->user()->name} flagged a review on {$review->artisan?->email}.",
+            "{$request->user()->name} flagged a review on {$review->artisan?->email}: {$data['reason']}",
             $review,
             $old,
             ['reason' => $data['reason']],
         );
 
-        return AdminResponse::mutation($request, [
+        app(StaffCaseReferralService::class)->notifySuperAdminsOfFlag(
+            $request->user(),
+            StaffCaseReferral::SUBJECT_REVIEW,
+            $review,
+            $data['reason'],
+        );
+
+        return $this->mutated($request, $review, [
             'type' => 'success',
             'title' => 'Review flagged',
             'message' => 'This review is in the moderation queue.',
-        ], ['flagged' => true, 'flag_reason' => $review->flag_reason]);
+        ]);
     }
 
     public function unflag(Request $request, Review $review): JsonResponse|RedirectResponse
@@ -73,11 +79,11 @@ class ReviewAdminController extends Controller
 
         AdminAudit::record('reviews.unflagged', "{$request->user()->name} cleared a review flag.", $review, $old, ['flagged_at' => null]);
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $review, [
             'type' => 'success',
             'title' => 'Flag cleared',
             'message' => 'This review is no longer flagged.',
-        ], ['flagged' => false]);
+        ]);
     }
 
     public function hide(FlagContentRequest $request, Review $review, ApprovalService $approvals): JsonResponse|RedirectResponse
@@ -122,11 +128,11 @@ class ReviewAdminController extends Controller
             ]);
         }
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $review, [
             'type' => 'success',
             'title' => 'Review hidden',
             'message' => 'It will no longer show on the public page.',
-        ], ['hidden' => true]);
+        ]);
     }
 
     public function remove(FlagContentRequest $request, Review $review, ApprovalService $approvals): JsonResponse|RedirectResponse
@@ -168,55 +174,58 @@ class ReviewAdminController extends Controller
             return AdminResponse::mutation($request, [
                 'type' => 'info',
                 'title' => 'Approval requested',
-                'message' => 'A Super Admin must approve removing this review.',
+                'message' => 'A Super Admin must approve deleting this review before it takes effect.',
             ]);
         }
 
-        return AdminResponse::mutation($request, [
+        return $this->mutated($request, $review, [
             'type' => 'success',
-            'title' => 'Review removed',
+            'title' => 'Review deleted',
             'message' => 'It is no longer available on the public page.',
-        ], ['removed' => true]);
+        ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function payload(Review $review): array
+    private function indexProps(Request $request, DashboardMetrics $metrics): array
     {
-        $submitted = $review->submitted_at ?? $review->created_at;
+        $reviews = Review::query()
+            ->with([
+                'artisan:id,name,email,business_name,slug,trade,state,whatsapp,avatar_url,suspended_at',
+                'workLog:id,uid,user_id,description,client_name,worked_on,job_category,review_requested_at',
+            ])
+            ->latest('submitted_at')
+            ->latest('id')
+            ->limit(2500)
+            ->get()
+            ->map(fn (Review $review) => ReviewAdminPresenter::listRow($review))
+            ->values();
+
+        $insights = $metrics->reviewInsights();
+        $openedUid = trim((string) $request->query('review', ''));
 
         return [
-            'id' => $review->id,
-            'uid' => $review->uid,
-            'rating' => $review->rating,
-            'comment' => $review->comment,
-            'client' => $review->client_display_name,
-            'would_recommend' => $review->would_recommend,
-            'referred_by' => $review->referred_by,
-            'photo_url' => $review->photoThumbUrl(900),
-            'submitted_at' => $submitted?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
-            'submitted_iso' => $submitted?->toIso8601String(),
-            'flagged' => $review->flagged_at !== null,
-            'flag_reason' => $review->flag_reason,
-            'hidden' => $review->hidden_at !== null,
-            'user' => $review->artisan ? [
-                'id' => $review->artisan->id,
-                'name' => $review->artisan->displayBusinessName(),
-                'email' => $review->artisan->email,
-                'trade' => $review->artisan->trade,
-                'state' => $review->artisan->state,
-                'whatsapp' => $review->artisan->whatsapp,
-                'avatar_url' => $review->artisan->avatar_url,
-            ] : null,
-            'job' => $review->workLog ? [
-                'id' => $review->workLog->id,
-                'uid' => $review->workLog->uid,
-                'description' => $review->workLog->description,
-                'client_name' => $review->workLog->client_name,
-                'category' => $review->workLog->job_category,
-                'worked_on' => $review->workLog->worked_on?->format('j M Y'),
-            ] : null,
+            'reviews' => $reviews,
+            'completion' => $insights['completion'],
+            'ratings' => $insights['ratings'],
+            'flagged_trend' => $insights['flagged'],
+            'opened_uid' => $openedUid !== '' ? $openedUid : null,
+            'can' => ReviewAdminPresenter::abilities($request->user()),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $toast
+     */
+    private function mutated(Request $request, Review $review, array $toast): JsonResponse|RedirectResponse
+    {
+        $fresh = $review->fresh(['artisan', 'workLog']);
+        $panel = ReviewAdminPresenter::panel($fresh, $request->user());
+
+        return AdminResponse::mutation($request, $toast, [
+            'review' => ReviewAdminPresenter::listRow($fresh),
+            'record' => $panel['record'],
+        ]);
     }
 }

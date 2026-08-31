@@ -100,35 +100,18 @@ import { computed } from 'vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
-const abilities = computed(() => user.value?.abilities || []);
 const pendingNotices = computed(() => Number(user.value?.pending_notices || 0));
-const canSupport = computed(() =>
-    abilities.value.includes('admin.support.manage') || !!user.value?.is_super_admin,
-);
 
-const menuItems = computed(() => {
-    const items = [
-        { label: 'Profile & settings', icon: 'ti ti-settings', href: route('admin.account') },
-        { label: 'My stats', icon: 'ti ti-chart-bar', href: route('admin.insights.index') },
-    ];
-
-    if (canSupport.value) {
-        items.push({
-            label: 'Support reports',
-            icon: 'ti ti-report-analytics',
-            href: route('admin.support.reports'),
-        });
-    }
-
-    items.push({
+const menuItems = computed(() => [
+    { label: 'Profile & settings', icon: 'ti ti-settings', href: route('admin.account') },
+    { label: 'My stats', icon: 'ti ti-chart-bar', href: route('admin.insights.index') },
+    {
         label: 'Notices',
         icon: 'ti ti-mail',
         href: route('admin.notices.index'),
         badge: pendingNotices.value > 0 ? pendingNotices.value : 0,
-    });
-
-    return items;
-});
+    },
+]);
 </script>
 
 <style scoped>

@@ -34,6 +34,12 @@
                         <p class="mt-2 text-sm font-semibold text-ink">{{ record.artisan?.name || '—' }}</p>
                         <p v-if="record.artisan?.trade" class="mt-0.5 text-xs font-medium text-ink/45">{{ record.artisan.trade }}</p>
                         <p v-if="record.artisan?.email" class="mt-0.5 text-xs font-medium text-ink/40">{{ record.artisan.email }}</p>
+                        <span
+                            v-if="record.artisan?.suspended"
+                            class="mt-2 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600"
+                        >
+                            Suspended
+                        </span>
                     </div>
                     <Link
                         v-if="record.artisan?.user_url && can.view_users"
@@ -197,6 +203,20 @@
                         @click="openRefer"
                     />
                     <FormButton
+                        v-if="can.remove && record?.visibility !== 'removed'"
+                        variant="secondary"
+                        class="w-full"
+                        label="Delete"
+                        @click="removeOpen = true"
+                    />
+                    <FormButton
+                        v-if="can.suspend_user && record?.artisan && !record.artisan.suspended"
+                        variant="secondary"
+                        class="w-full"
+                        label="Suspend artisan"
+                        @click="suspendOpen = true"
+                    />
+                    <FormButton
                         v-if="can.message"
                         variant="primary"
                         class="w-full"
@@ -208,53 +228,64 @@
         </template>
     </AdminDrawer>
 
-    <AdminDrawer :open="messageOpen" title="Message artisan" eyebrow="Email, WhatsApp, or in-app" @close="messageOpen = false">
-        <form class="space-y-4" @submit.prevent="submitMessage">
-            <div class="flex flex-wrap gap-1.5">
-                <button
-                    v-for="item in channels"
-                    :key="item.value"
-                    type="button"
-                    class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150"
-                    :class="messageForm.channel === item.value
-                        ? 'bg-base-action text-white'
-                        : 'bg-pale text-ink/55 hover:bg-tint'"
-                    :disabled="item.value === 'whatsapp' && !record?.artisan?.whatsapp_url"
-                    @click="messageForm.channel = item.value"
-                >
-                    {{ item.label }}
-                </button>
-            </div>
-            <p v-if="messageForm.channel === 'whatsapp' && !record?.artisan?.whatsapp_url" class="text-[13px] font-medium text-coral">
-                This artisan has no WhatsApp number on file.
-            </p>
-            <p class="text-[13px] font-medium text-ink/50">{{ channelHint }}</p>
-            <FormTextInput
-                v-if="messageForm.channel !== 'whatsapp'"
-                id="job-message-subject"
-                v-model="messageForm.subject"
-                label="Subject"
-                :error="messageForm.errors.subject"
-            />
-            <FormTextarea
-                id="job-message-body"
-                v-model="messageForm.body"
-                label="Message"
-                :error="messageForm.errors.body"
-                required
-            />
-            <div class="flex justify-end gap-2">
-                <FormButton type="button" variant="secondary" label="Cancel" @click="messageOpen = false" />
-                <FormButton
-                    type="submit"
-                    variant="primary"
-                    :label="messageForm.channel === 'whatsapp' ? 'Open WhatsApp' : 'Send'"
-                    :loading="busy === 'message'"
-                    loading-label="Sending…"
-                />
-            </div>
-        </form>
-    </AdminDrawer>
+    <AdminConfirmDialog
+        :open="removeOpen"
+        title="Delete this job log?"
+        description="Soft-removes it from the public page. Super Admin approval is required for operations staff."
+        confirm-label="Delete job"
+        tone="danger"
+        confirm-phrase="DELETE"
+        :processing="busy === 'remove'"
+        @close="removeOpen = false"
+        @confirm="submitRemove"
+    />
+
+    <AdminConfirmDialog
+        :open="messageOpen"
+        title="Message this artisan?"
+        description="Sends through email, WhatsApp, or in-app depending on the channel you pick."
+        confirm-label="Send message"
+        reason-placeholder="Why you are reaching out…"
+        :processing="busy === 'message'"
+        @close="messageOpen = false"
+        @confirm="submitMessage"
+    >
+        <div class="mt-4 flex flex-wrap gap-1.5">
+            <button
+                v-for="item in channels"
+                :key="item.value"
+                type="button"
+                class="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150"
+                :class="messageForm.channel === item.value
+                    ? 'bg-base-action text-white'
+                    : 'bg-pale text-ink/55 hover:bg-tint'"
+                :disabled="item.value === 'whatsapp' && !record?.artisan?.whatsapp_url"
+                @click="messageForm.channel = item.value"
+            >
+                {{ item.label }}
+            </button>
+        </div>
+        <p v-if="messageForm.channel === 'whatsapp' && !record?.artisan?.whatsapp_url" class="mt-2 text-[13px] font-medium text-coral">
+            This artisan has no WhatsApp number on file.
+        </p>
+        <p class="mt-2 text-[13px] font-medium text-ink/50">{{ channelHint }}</p>
+        <FormTextInput
+            v-if="messageForm.channel !== 'whatsapp'"
+            id="job-message-subject"
+            v-model="messageForm.subject"
+            label="Subject"
+            :error="messageForm.errors.subject"
+            class="mt-3"
+        />
+        <FormTextarea
+            id="job-message-body"
+            v-model="messageForm.body"
+            label="Message"
+            :error="messageForm.errors.body"
+            required
+            class="mt-2"
+        />
+    </AdminConfirmDialog>
 
     <AdminConfirmDialog
         :open="flagOpen"
@@ -295,6 +326,17 @@
         :processing="busy === 'unhide'"
         @close="unhideOpen = false"
         @confirm="submitUnhide"
+    />
+
+    <AdminConfirmDialog
+        :open="suspendOpen"
+        title="Suspend this artisan?"
+        description="They will be signed out and blocked from signing in."
+        confirm-label="Suspend account"
+        tone="danger"
+        :processing="busy === 'suspend'"
+        @close="suspendOpen = false"
+        @confirm="submitSuspend"
     />
 
     <AdminConfirmDialog
@@ -380,6 +422,8 @@ const flagOpen = ref(false);
 const unflagOpen = ref(false);
 const hideOpen = ref(false);
 const unhideOpen = ref(false);
+const removeOpen = ref(false);
+const suspendOpen = ref(false);
 const referOpen = ref(false);
 const messageOpen = ref(false);
 const referAssigneeId = ref('');
@@ -429,6 +473,8 @@ const resetOverlays = () => {
     unflagOpen.value = false;
     hideOpen.value = false;
     unhideOpen.value = false;
+    removeOpen.value = false;
+    suspendOpen.value = false;
     referOpen.value = false;
     messageOpen.value = false;
     referAssigneeId.value = '';
@@ -495,6 +541,18 @@ const submitUnhide = ({ reason }) => {
     });
 };
 
+const submitRemove = ({ reason }) => {
+    submitAxios('remove', () => axios.post(route('admin.jobs.remove', record.value.uid), { reason }), () => {
+        removeOpen.value = false;
+    });
+};
+
+const submitSuspend = ({ reason }) => {
+    submitAxios('suspend', () => axios.post(route('admin.users.suspend', record.value.artisan.id), { reason }), () => {
+        suspendOpen.value = false;
+    });
+};
+
 const submitRefer = ({ reason }) => {
     if (!referAssigneeId.value) {
         referError.value = 'Pick an operations staff member.';
@@ -513,11 +571,18 @@ const submitRefer = ({ reason }) => {
     );
 };
 
-const submitMessage = async () => {
+const submitMessage = async ({ reason }) => {
     messageForm.clearErrors();
+    if (!messageForm.body.trim()) {
+        toast({ type: 'error', message: 'Write a message before sending.' });
+        return;
+    }
     const error = await submitAxios(
         'message',
-        () => axios.post(route('admin.jobs.message', record.value.uid), { ...messageForm.data() }),
+        () => axios.post(route('admin.jobs.message', record.value.uid), {
+            ...messageForm.data(),
+            reason,
+        }),
         (data) => {
             if (data?.whatsapp_url) {
                 window.open(data.whatsapp_url, '_blank', 'noopener,noreferrer');

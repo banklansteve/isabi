@@ -44,7 +44,7 @@ class StaffShift
     }
 
     /**
-     * @return array{days: list<int>, start: string, end: string, timezone: string, custom: bool}
+     * @return array{days: list<int>, start: string, end: string, breaks: list<array{start: string, end: string, label: string}>, timezone: string, custom: bool}
      */
     public static function for(User $user): array
     {
@@ -56,19 +56,101 @@ class StaffShift
             ->sort()
             ->values()
             ->all();
-        $custom = $days !== [] || filled($user->shift_starts_at) || filled($user->shift_ends_at);
+        $start = filled($user->shift_starts_at)
+            ? self::normalizeTime((string) $user->shift_starts_at)
+            : $defaults['start'];
+        $end = filled($user->shift_ends_at)
+            ? self::normalizeTime((string) $user->shift_ends_at)
+            : $defaults['end'];
+        $custom = $days !== [] || filled($user->shift_starts_at) || filled($user->shift_ends_at) || filled($user->shift_breaks);
 
         return [
             'days' => $days !== [] ? $days : $defaults['days'],
-            'start' => filled($user->shift_starts_at)
-                ? self::normalizeTime((string) $user->shift_starts_at)
-                : $defaults['start'],
-            'end' => filled($user->shift_ends_at)
-                ? self::normalizeTime((string) $user->shift_ends_at)
-                : $defaults['end'],
+            'start' => $start,
+            'end' => $end,
+            'breaks' => self::normalizeBreaks($user->shift_breaks ?? [], $start, $end),
             'timezone' => $defaults['timezone'],
             'custom' => $custom,
         ];
+    }
+
+    /**
+     * @return array{start: Carbon, end: Carbon, breaks: list<array{start: Carbon, end: Carbon, label: string}>, timezone: string}|null
+     */
+    public static function windowForDate(User $user, Carbon $date): ?array
+    {
+        $schedule = self::for($user);
+        $tz = $schedule['timezone'];
+        $at = $date->copy()->timezone($tz);
+
+        if (! in_array((int) $at->dayOfWeekIso, $schedule['days'], true)) {
+            return null;
+        }
+
+        $start = Carbon::parse($at->toDateString().' '.$schedule['start'], $tz);
+        $end = Carbon::parse($at->toDateString().' '.$schedule['end'], $tz);
+
+        if ($end->lessThanOrEqualTo($start)) {
+            $end->addDay();
+        }
+
+        $breaks = collect($schedule['breaks'])
+            ->map(function (array $break) use ($at, $tz) {
+                return [
+                    'start' => Carbon::parse($at->toDateString().' '.$break['start'], $tz),
+                    'end' => Carbon::parse($at->toDateString().' '.$break['end'], $tz),
+                    'label' => $break['label'],
+                ];
+            })
+            ->all();
+
+        return [
+            'start' => $start,
+            'end' => $end,
+            'breaks' => $breaks,
+            'timezone' => $tz,
+        ];
+    }
+
+    public static function onBreak(User $user, ?Carbon $at = null): bool
+    {
+        $schedule = self::for($user);
+        $at = ($at ?? now())->timezone($schedule['timezone']);
+
+        if (! in_array((int) $at->dayOfWeekIso, $schedule['days'], true)) {
+            return false;
+        }
+
+        foreach ($schedule['breaks'] as $break) {
+            $start = Carbon::parse($at->toDateString().' '.$break['start'], $schedule['timezone']);
+            $end = Carbon::parse($at->toDateString().' '.$break['end'], $schedule['timezone']);
+
+            if ($at->betweenIncluded($start, $end)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>|null  $breaks
+     * @return list<array{start: string, end: string, label: string}>
+     */
+    public static function normalizeBreaks(?array $breaks, string $shiftStart, string $shiftEnd): array
+    {
+        return collect($breaks ?? [])
+            ->map(function (array $break) {
+                return [
+                    'start' => self::normalizeTime((string) ($break['start'] ?? '')),
+                    'end' => self::normalizeTime((string) ($break['end'] ?? '')),
+                    'label' => filled($break['label'] ?? null) ? trim((string) $break['label']) : 'Break',
+                ];
+            })
+            ->filter(fn (array $break) => $break['start'] !== $break['end'])
+            ->sortBy('start')
+            ->values()
+            ->all();
     }
 
     public static function onDuty(User $user, ?Carbon $at = null): bool
@@ -122,12 +204,29 @@ class StaffShift
         $expectedStart = Carbon::parse($now->toDateString().' '.$schedule['start'], $tz);
         $login = $user->last_login_at?->timezone($tz);
         $logout = $user->last_logout_at?->timezone($tz);
-        $signedInToday = $login && $login->isSameDay($now);
-        $signedOutAfterLogin = $logout && $login && $logout->greaterThan($login);
-        $late = $signedInToday && $login->greaterThan($expectedStart->copy()->addMinutes(5));
         $presence ??= app(StaffPresence::class);
-        $idle = $presence->idleSeconds($user);
+        $lastSeen = $presence->lastSeenAt($user);
+        $activeToday = $lastSeen && $lastSeen->timezone($tz)->isSameDay($now);
+        $loggedInToday = $login && $login->isSameDay($now);
+        $signedOutAfterLogin = $logout && $login && $logout->greaterThan($login);
+        $sessionStillOpen = $activeToday && (
+            ! $signedOutAfterLogin
+            || ($lastSeen && $logout && $lastSeen->greaterThan($logout))
+        );
+        $signedInToday = $loggedInToday || $sessionStillOpen;
+        $late = $loggedInToday && $login->greaterThan($expectedStart->copy()->addMinutes(5));
+        $idle = $presence->idleSeconds($user, $lastSeen);
         $idleLabel = $idle === null ? '—' : $presence->humanDuration($idle);
+        $onShiftNow = self::onDuty($user, $now) && $sessionStillOpen && $idle !== null && $idle < $presence->idleAfterSeconds();
+        $presenceSnapshot = $presence->snapshot($user, $lastSeen);
+
+        $loggedInLabel = match (true) {
+            $onShiftNow => 'Active now · '.$lastSeen?->timezone($tz)->format('H:i'),
+            $sessionStillOpen && $activeToday && ! $loggedInToday => 'Active today · '.$lastSeen?->timezone($tz)->format('H:i'),
+            $loggedInToday => $login->format('H:i'),
+            $login => $login->format('j M · H:i'),
+            default => '—',
+        };
 
         return [
             'days' => $schedule['days'],
@@ -138,19 +237,28 @@ class StaffShift
             'custom' => $schedule['custom'],
             'on_duty_today' => $onDutyToday,
             'on_duty_now' => self::onDuty($user, $now),
+            'on_shift_now' => $onShiftNow,
             'expected_in' => $schedule['start'],
             'expected_out' => $schedule['end'],
-            'logged_in' => $signedInToday ? $login->format('H:i') : ($login ? $login->format('j M · H:i') : '—'),
-            'logged_in_at' => $login?->toIso8601String(),
-            'logged_out' => $signedOutAfterLogin
-                ? ($logout->isSameDay($now) ? $logout->format('H:i') : $logout->format('j M · H:i'))
+            'logged_in' => $loggedInLabel,
+            'logged_in_at' => ($loggedInToday ? $login : $lastSeen)?->toIso8601String(),
+            'last_activity' => $lastSeen
+                ? ($lastSeen->timezone($tz)->isSameDay($now)
+                    ? $lastSeen->timezone($tz)->format('H:i')
+                    : $lastSeen->timezone($tz)->format('j M · H:i'))
                 : '—',
-            'logged_out_at' => $signedOutAfterLogin ? $logout?->toIso8601String() : null,
+            'last_activity_at' => $lastSeen?->toIso8601String(),
+            'logged_out' => $signedOutAfterLogin && ! $sessionStillOpen
+                ? ($logout->isSameDay($now) ? $logout->format('H:i') : $logout->format('j M · H:i'))
+                : ($sessionStillOpen ? 'Still signed in' : '—'),
+            'logged_out_at' => $signedOutAfterLogin && ! $sessionStillOpen ? $logout?->toIso8601String() : null,
             'signed_in_today' => $signedInToday,
             'late' => $late,
             'missed' => $onDutyToday && ! $signedInToday && $now->greaterThan($expectedStart),
             'idle_seconds' => $idle,
             'idle_label' => $idleLabel,
+            'presence_status' => $presenceSnapshot['status'],
+            'presence_label' => $presenceSnapshot['label'],
             'shift_label' => $schedule['start'].'–'.$schedule['end'].' · '.self::daysLabel($schedule['days']),
         ];
     }

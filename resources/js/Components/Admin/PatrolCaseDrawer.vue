@@ -129,7 +129,7 @@
             <section>
                 <div class="mb-3 flex items-center justify-between gap-2">
                     <h3 class="text-sm font-bold uppercase tracking-[0.14em] text-ink/40">Notes</h3>
-                    <FormButton
+                    <button
                         v-if="can.investigate && isOpen"
                         variant="secondary"
                         icon-left="ti ti-note"
@@ -177,7 +177,7 @@
                 :can="can"
                 :busy="busy"
                 :approve-label="approveLabel"
-                @review="startReview"
+                @review="reviewOpen = true"
                 @recommend="askRecommend"
                 @dismiss="askDismiss"
                 @hide="hideOpen = true"
@@ -185,20 +185,31 @@
                 @handoff="handoffOpen = true"
                 @approve="approveOpen = true"
                 @reject="rejectOpen = true"
+                @refer="referOpen = true"
             />
         </template>
     </AdminDrawer>
 
-    <AdminDrawer :open="noteOpen" title="Add a case note" eyebrow="Append-only" @close="noteOpen = false">
-        <form class="space-y-4" @submit.prevent="submitNote">
-            <p class="text-[13px] font-medium text-ink/50">Notes cannot be edited or removed. Add a further note if a correction is needed.</p>
-            <FormTextarea id="patrol-note" v-model="noteForm.body" label="Note" :error="noteForm.errors.body" required />
-            <div class="flex justify-end gap-2">
-                <FormButton type="button" variant="secondary" label="Cancel" @click="noteOpen = false" />
-                <FormButton type="submit" variant="primary" label="Add note" :loading="busy === 'note'" loading-label="Saving…" />
-            </div>
-        </form>
-    </AdminDrawer>
+    <AdminConfirmDialog
+        :open="noteOpen"
+        title="Add a case note?"
+        description="Notes are append-only and become part of the permanent case record."
+        confirm-label="Add note"
+        reason-placeholder="What did you find or decide…"
+        :processing="busy === 'note'"
+        @close="noteOpen = false"
+        @confirm="submitNote"
+    />
+
+    <AdminConfirmDialog
+        :open="reviewOpen"
+        title="Mark this case in review?"
+        description="Moves the case into active investigation. Nothing is hidden or removed yet."
+        confirm-label="Mark in review"
+        :processing="busy === 'review'"
+        @close="reviewOpen = false"
+        @confirm="submitReview"
+    />
 
     <AdminConfirmDialog
         :open="recommendOpen"
@@ -228,8 +239,9 @@
         :description="isReview
             ? 'The review is archived and hidden from the public page. It is never hard-deleted.'
             : 'The entry is archived and hidden from the public page. It is never hard-deleted.'"
-        :confirm-label="isReview ? 'Remove review' : 'Remove entry'"
+        confirm-label="Remove review"
         tone="danger"
+        confirm-phrase="DELETE"
         :processing="busy === 'remove'"
         @close="removeOpen = false"
         @confirm="submitRemove"
@@ -274,6 +286,19 @@
         @close="rejectOpen = false"
         @confirm="submitReject"
     />
+
+    <ReferToStaffDialog
+        :open="referOpen"
+        title="Refer this patrol case?"
+        description="Assign a colleague to continue the investigation."
+        confirm-label="Refer case"
+        :staff="staff"
+        default-queue="patrol"
+        :show-queue="false"
+        :processing="busy === 'refer'"
+        @close="referOpen = false"
+        @confirm="submitRefer"
+    />
 </template>
 
 <script setup>
@@ -281,8 +306,8 @@ import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import PatrolCaseActions from '@/Components/Admin/PatrolCaseActions.vue';
+import ReferToStaffDialog from '@/Components/Admin/ReferToStaffDialog.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
-import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { toast } from '@/utils/adminRange';
 import { patrolPill, patrolSeverityMeta, patrolStatusMeta, patrolVisibilityMeta } from '@/utils/patrolStatus';
 import { Link, useForm } from '@inertiajs/vue3';
@@ -294,6 +319,7 @@ const props = defineProps({
     row: { type: Object, default: null },
     panel: { type: Object, default: null },
     fallbackCan: { type: Object, default: () => ({}) },
+    staff: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['close', 'refresh', 'updated']);
@@ -323,6 +349,7 @@ const approveLabel = computed(() => {
 
 const caseEntered = ref(false);
 const noteOpen = ref(false);
+const reviewOpen = ref(false);
 const recommendOpen = ref(false);
 const dismissOpen = ref(false);
 const removeOpen = ref(false);
@@ -330,6 +357,7 @@ const hideOpen = ref(false);
 const approveOpen = ref(false);
 const rejectOpen = ref(false);
 const handoffOpen = ref(false);
+const referOpen = ref(false);
 const pendingOutcome = ref('');
 const busy = ref('');
 
@@ -381,6 +409,7 @@ const submitAxios = async (form, key, request, onSuccess) => {
 
 const resetOverlays = () => {
     noteOpen.value = false;
+    reviewOpen.value = false;
     recommendOpen.value = false;
     dismissOpen.value = false;
     removeOpen.value = false;
@@ -388,6 +417,7 @@ const resetOverlays = () => {
     approveOpen.value = false;
     rejectOpen.value = false;
     handoffOpen.value = false;
+    referOpen.value = false;
     pendingOutcome.value = '';
 };
 
@@ -403,17 +433,18 @@ watch(() => record.value?.id, () => {
     resetOverlays();
 });
 
-const submitNote = () => {
+const submitNote = ({ reason }) => {
     submitAxios(noteForm, 'note', () => axios.post(route('admin.patrol.notes.store', record.value.id), {
-        body: noteForm.body,
+        body: reason,
     }), () => {
-        noteForm.reset();
         noteOpen.value = false;
     });
 };
 
-const startReview = () => {
-    submitAxios(reasonForm, 'review', () => axios.post(route('admin.patrol.review', record.value.id)));
+const submitReview = ({ reason }) => {
+    submitAxios(reasonForm, 'review', () => axios.post(route('admin.patrol.review', record.value.id), { reason }), () => {
+        reviewOpen.value = false;
+    });
 };
 
 const askRecommend = (outcome) => {
@@ -453,6 +484,37 @@ const submitHandoff = ({ reason }) => {
             window.location.assign(data.user_url);
         }
     });
+};
+
+const submitRefer = async ({ assignee_id, note }) => {
+    const caseId = record.value?.id || props.row?.id;
+    if (!caseId) {
+        return;
+    }
+    busy.value = 'refer';
+    try {
+        const { data } = await axios.post(route('admin.referrals.store'), {
+            subject_type: 'patrol',
+            subject_uid: String(caseId),
+            assignee_id,
+            note,
+            queue: 'patrol',
+        });
+        referOpen.value = false;
+        toast(data.toast || { type: 'success', title: 'Referred', message: 'Case handed to a colleague.' });
+        emit('updated', data?.referral || record.value);
+        emit('refresh');
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t refer',
+            message: error?.response?.data?.errors?.assignee_id?.[0]
+                || error?.response?.data?.message
+                || 'Try that again in a moment.',
+        });
+    } finally {
+        busy.value = '';
+    }
 };
 
 const submitHide = ({ reason }) => {
