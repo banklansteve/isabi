@@ -46,7 +46,7 @@ class StaffManagementTest extends TestCase
         ]);
 
         $user = User::factory()->operationsAdmin()->create([
-            'email' => 'ops-'.uniqid().'@isabi.dev',
+            'email' => 'ops-'.uniqid().'@kraftrack.test',
         ]);
         $user->staffRoles()->attach($role->id, [
             'assigned_by_user_id' => $user->id,
@@ -150,10 +150,10 @@ class StaffManagementTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.staff.store'), [
             'name' => 'Ngozi Adeyemi',
-            'email' => 'ngozi-invite@isabi.dev',
+            'email' => 'ngozi-invite@kraftrack.test',
         ]);
 
-        $invited = User::query()->where('email', 'ngozi-invite@isabi.dev')->first();
+        $invited = User::query()->where('email', 'ngozi-invite@kraftrack.test')->first();
         $this->assertNotNull($invited);
         $invited->latestStaffInvitation?->forceFill(['last_sent_at' => now()->subMinutes(5)])->save();
 
@@ -169,7 +169,7 @@ class StaffManagementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('toast.title', 'Invite revoked');
 
-        $this->assertNull(User::query()->where('email', 'ngozi-invite@isabi.dev')->first());
+        $this->assertNull(User::query()->where('email', 'ngozi-invite@kraftrack.test')->first());
     }
 
     public function test_super_can_assign_roles(): void

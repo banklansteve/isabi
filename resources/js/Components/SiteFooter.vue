@@ -16,7 +16,7 @@
                     class="pointer-events-none absolute -right-8 top-0 font-display text-[6.5rem] font-extrabold leading-none text-white/[0.04] sm:text-[8rem]"
                     aria-hidden="true"
                 >
-                    Isabi
+                    Kraftrack
                 </div>
                 <div
                     class="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-coral/20 blur-3xl"
@@ -31,9 +31,10 @@
                     <div class="max-w-lg">
                         <Link
                             :href="route('home')"
-                            class="font-display text-2xl font-extrabold tracking-tight text-white"
+                            class="inline-flex items-center gap-3 font-display text-2xl font-extrabold tracking-tight text-white"
                         >
-                            Isabi
+                            <BrandMark variant="mark" color="#FFFFFF" class="h-9 w-9" />
+                            Kraftrack
                         </Link>
                         <p class="mt-3 font-voice text-xl leading-snug text-white/85 sm:text-2xl">
                             Proof of work for skilled trades.
@@ -59,10 +60,10 @@
                             Open dashboard
                         </Link>
                         <a
-                            href="mailto:hello@isabi.dev"
+                            href="mailto:hello@kraftrack.com"
                             class="tap-target inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 text-sm font-semibold text-white ring-1 ring-white/15 transition-colors duration-300 hover:bg-white/15"
                         >
-                            hello@isabi.dev
+                            hello@kraftrack.com
                         </a>
                     </div>
                 </div>
@@ -135,7 +136,7 @@
                 class="mt-12 flex flex-col gap-4 border-t border-ink/10 py-6 sm:flex-row sm:items-center sm:justify-between lg:mt-14"
             >
                 <p class="text-xs font-medium text-ink/40">
-                    © {{ currentYear }} Isabi. All rights reserved.
+                    © {{ currentYear }} Kraftrack. All rights reserved.
                 </p>
                 <p class="text-xs font-medium text-ink/40">
                     Made for artisans across Nigeria who let the work speak.
@@ -146,6 +147,7 @@
 </template>
 
 <script setup>
+import BrandMark from '@/Components/BrandMark.vue';
 import { Link } from '@inertiajs/vue3';
 
 defineProps({
@@ -167,7 +169,7 @@ const currentYear = new Date().getFullYear();
 const homeHash = (hash) => `/#${hash}`;
 
 const openCookiePreferences = () => {
-    window.dispatchEvent(new CustomEvent('isabi:open-cookie-consent'));
+    window.dispatchEvent(new CustomEvent('kraftrack:open-cookie-consent'));
 };
 
 const columns = [
@@ -188,7 +190,7 @@ const columns = [
             { type: 'route', name: 'about', label: 'About' },
             { type: 'route', name: 'contact', label: 'Contact' },
             { type: 'route', name: 'careers', label: 'Careers' },
-            { type: 'external', href: 'mailto:hello@isabi.dev', label: 'hello@isabi.dev' },
+            { type: 'external', href: 'mailto:hello@kraftrack.com', label: 'hello@kraftrack.com' },
         ],
     },
     {

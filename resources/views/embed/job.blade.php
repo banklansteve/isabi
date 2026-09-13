@@ -151,7 +151,7 @@
             </div>
 
             <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="cta">View job &amp; request quote</a>
-            <div class="foot">Powered by <a href="{{ url('/') }}" target="_blank" rel="noopener">Isabi</a></div>
+            <div class="foot">Powered by <a href="{{ url('/') }}" target="_blank" rel="noopener">Kraftrack</a></div>
         </div>
     </div>
 </body>

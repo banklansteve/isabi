@@ -23,15 +23,16 @@
                 class="pointer-events-none absolute -right-8 top-28 font-display text-[8.5rem] font-extrabold leading-none tracking-tight text-white/[0.035]"
                 aria-hidden="true"
             >
-                Isabi
+                Kraftrack
             </div>
 
             <div class="relative flex justify-center">
                 <Link
                     :href="route('home')"
-                    class="font-display text-2xl font-extrabold tracking-tight text-white"
+                    class="inline-flex items-center gap-3 font-display text-2xl font-extrabold tracking-tight text-white"
                 >
-                    Isabi
+                    <BrandMark variant="mark" color="#FFFFFF" class="h-10 w-10" />
+                    Kraftrack
                 </Link>
             </div>
 
@@ -74,9 +75,10 @@
             >
                 <Link
                     :href="route('home')"
-                    class="font-display text-xl font-extrabold tracking-tight text-ink lg:hidden"
+                    class="inline-flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-ink lg:hidden"
                 >
-                    Isabi
+                    <BrandMark variant="mark" class="h-8 w-8 shrink-0" />
+                    Kraftrack
                 </Link>
                 <Link
                     :href="route('home')"
@@ -109,6 +111,7 @@
 </template>
 
 <script setup>
+import BrandMark from '@/Components/BrandMark.vue';
 import { Link } from '@inertiajs/vue3';
 
 defineProps({

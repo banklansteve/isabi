@@ -24,7 +24,7 @@ class FinancialAdminController extends Controller
 
     public function export(): StreamedResponse
     {
-        $filename = 'isabi-revenue-'.now()->format('Y-m-d').'.csv';
+        $filename = 'Kraftrack-revenue-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () {
             $handle = fopen('php://output', 'w');

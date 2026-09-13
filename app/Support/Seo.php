@@ -84,7 +84,7 @@ class Seo
 
     public function resolvedTitle(): string
     {
-        $name = config('app.name', 'Isabi');
+        $name = config('app.name', 'Kraftrack');
 
         if (blank($this->title)) {
             return $name.' — proof of work for skilled trades';
@@ -99,7 +99,7 @@ class Seo
     public function resolvedDescription(): string
     {
         return $this->description
-            ?: 'Isabi gives Nigerian artisans a public page built from real finished jobs and reviews written by the clients themselves.';
+            ?: 'Kraftrack gives Nigerian artisans a public page built from real finished jobs and reviews written by the clients themselves.';
     }
 
     public function resolvedCanonical(): string
@@ -136,7 +136,7 @@ class Seo
         $description = e($this->resolvedDescription());
         $canonical = e($this->resolvedCanonical());
         $image = $this->image ? e($this->image) : '';
-        $siteName = e(config('app.name', 'Isabi'));
+        $siteName = e(config('app.name', 'Kraftrack'));
 
         $tags[] = '<meta name="description" content="'.$description.'">';
         $tags[] = '<link rel="canonical" href="'.$canonical.'">';

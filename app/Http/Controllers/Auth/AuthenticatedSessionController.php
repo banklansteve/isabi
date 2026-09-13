@@ -53,7 +53,7 @@ class AuthenticatedSessionController extends Controller
 
         ActivityLogger::log(
             action: 'auth.login',
-            summary: "{$user->name} signed in to Isabi.",
+            summary: "{$user->name} signed in to Kraftrack.",
             user: $user,
         );
 
@@ -72,7 +72,7 @@ class AuthenticatedSessionController extends Controller
         if ($user) {
             ActivityLogger::log(
                 action: 'auth.logout',
-                summary: "{$user->name} signed out of Isabi.",
+                summary: "{$user->name} signed out of Kraftrack.",
                 user: $user,
             );
         }

@@ -27,7 +27,7 @@
                             <p class="mt-1 text-sm font-medium text-ink/50">
                                 {{
                                     isAuthenticated
-                                        ? 'Browse popular answers or chat with the Isabi team.'
+                                        ? 'Browse popular answers or chat with the Kraftrack team.'
                                         : 'Browse popular answers — or create a free page to get started.'
                                 }}
                             </p>
@@ -233,7 +233,7 @@ const togglePanel = () => {
     panelOpen.value = !panelOpen.value;
     if (panelOpen.value) {
         try {
-            localStorage.setItem('isabi:support-fab-opened', '1');
+            localStorage.setItem('kraftrack:support-fab-opened', '1');
         } catch {
             // ignore
         }

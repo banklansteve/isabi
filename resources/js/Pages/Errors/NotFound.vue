@@ -27,9 +27,10 @@
         >
             <Link
                 :href="route('home')"
-                class="font-display text-[1.35rem] font-extrabold tracking-tight text-white"
+                class="inline-flex items-center gap-2.5 font-display text-[1.35rem] font-extrabold tracking-tight text-white"
             >
-                Isabi
+                <BrandMark variant="mark" color="#FFFFFF" class="h-8 w-8 shrink-0" />
+                Kraftrack
             </Link>
             <div class="flex items-center gap-2">
                 <Link
@@ -113,7 +114,7 @@
                 style="animation-delay: 180ms"
             >
                 The page you’re looking for isn’t here — maybe the link aged out, the URL took a
-                wrong turn, or this work never made it onto someone’s Isabi page.
+                wrong turn, or this work never made it onto someone’s Kraftrack page.
             </p>
 
             <div
@@ -193,6 +194,7 @@
 </template>
 
 <script setup>
+import BrandMark from '@/Components/BrandMark.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -207,7 +209,7 @@ const quickLinks = [
     {
         href: route('faq'),
         label: 'FAQ',
-        hint: 'How Isabi works',
+        hint: 'How Kraftrack works',
         icon: 'ti ti-help',
     },
     {

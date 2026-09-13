@@ -10,7 +10,7 @@
                     :href="route('home')"
                     class="font-display text-[1.35rem] font-extrabold tracking-tight text-ink"
                 >
-                    Isabi
+                    Kraftrack
                 </Link>
             </div>
         </header>
@@ -48,7 +48,7 @@
             </div>
 
             <p class="mt-10 text-xs font-medium leading-relaxed text-ink/40">
-                Hire artisans often? You can build your own proof-of-work page on Isabi later —
+                Hire artisans often? You can build your own proof-of-work page on Kraftrack later —
                 optional, whenever you’re ready.
             </p>
         </main>

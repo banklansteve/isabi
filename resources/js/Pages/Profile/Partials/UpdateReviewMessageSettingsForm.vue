@@ -65,7 +65,7 @@
             </div>
 
             <p class="rounded-2xl bg-tint/50 px-4 py-3 text-xs font-medium leading-relaxed text-ink/55">
-                Isabi fills in the client’s name, the job, and your review link when you open WhatsApp.
+                Kraftrack fills in the client’s name, the job, and your review link when you open WhatsApp.
                 You still tap send yourself — nothing goes out on its own.
             </p>
         </div>
@@ -203,7 +203,7 @@ const renderPreview = (template) => {
     const name = 'Ada';
     const greeting = `Hi ${name},`;
     const job = 'rewiring';
-    const link = 'https://isabi.dev/r/…';
+    const link = 'https://kraftrack.com/r/…';
 
     return String(template || '')
         .replaceAll('{greeting}', greeting)

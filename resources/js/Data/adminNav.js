@@ -60,7 +60,7 @@ export const adminNavGroups = [
                 ability: 'admin.staff.manage',
                 tabs: [
                     { label: 'Team', route: 'admin.staff.index' },
-                    { label: 'Roles', route: 'admin.roles.index' },
+                    { label: 'Duties', route: 'admin.roles.index' },
                 ],
             },
             {
@@ -157,17 +157,56 @@ export const adminNavGroups = [
                 abilitiesAny: ['admin.content.manage', 'admin.moderation.manage', 'patrol.view', 'admin.users.view'],
                 preview: true,
             },
+        ],
+    },
+    {
+        label: 'Growth',
+        items: [
             {
                 key: 'referrals',
                 label: 'Referrals',
                 icon: 'ti ti-gift',
                 route: 'admin.referrals.index',
                 match: ['admin.referrals.*'],
-                ability: 'admin.users.view',
+                ability: 'admin.referrals.view',
                 tabs: [
                     { label: 'Performance', route: 'admin.referrals.index' },
                     { label: 'Signals', route: 'admin.referrals.index', params: { tab: 'signals' } },
                 ],
+            },
+            {
+                key: 'verification',
+                label: 'Verification',
+                icon: 'ti ti-rosette-discount-check',
+                route: 'admin.verification.index',
+                match: ['admin.verification.*'],
+                ability: 'ops.verification.manage',
+            },
+            {
+                key: 'onboarding',
+                label: 'Onboarding follow-up',
+                shortLabel: 'Onboarding',
+                icon: 'ti ti-route',
+                route: 'admin.onboarding.index',
+                match: ['admin.onboarding.*'],
+                ability: 'ops.onboarding.manage',
+            },
+            {
+                key: 'reengagement',
+                label: 'Re-engagement',
+                icon: 'ti ti-flame',
+                route: 'admin.reengagement.index',
+                match: ['admin.reengagement.*'],
+                ability: 'ops.reengagement.manage',
+            },
+            {
+                key: 'knowledge',
+                label: 'Knowledge base',
+                shortLabel: 'Knowledge',
+                icon: 'ti ti-books',
+                route: 'admin.knowledge.index',
+                match: ['admin.knowledge.*'],
+                ability: 'ops.knowledge.manage',
             },
         ],
     },
@@ -218,11 +257,42 @@ export const adminNavGroups = [
         label: 'Ops',
         items: [
             {
+                key: 'faqs',
+                label: 'FAQs',
+                icon: 'ti ti-help',
+                route: 'admin.faqs.index',
+                match: ['admin.faqs.*'],
+                super: true,
+                tabs: [{ label: 'All FAQs', route: 'admin.faqs.index' }],
+            },
+            {
+                key: 'careers',
+                label: 'Careers',
+                icon: 'ti ti-id',
+                route: 'admin.careers.index',
+                match: ['admin.careers.*'],
+                super: true,
+                tabs: [{ label: 'Vacancies', route: 'admin.careers.index' }],
+            },
+            {
+                key: 'taxonomy',
+                label: 'Trades & skills',
+                icon: 'ti ti-briefcase',
+                route: 'admin.taxonomy.index',
+                match: ['admin.taxonomy.*'],
+                super: true,
+                tabs: [
+                    { label: 'Categories', route: 'admin.taxonomy.index', params: { tab: 'categories' } },
+                    { label: 'Skills', route: 'admin.taxonomy.index', params: { tab: 'skills' } },
+                ],
+            },
+            {
                 key: 'messaging',
                 label: 'Announcements',
                 icon: 'ti ti-megaphone',
                 route: 'admin.messaging.index',
                 match: ['admin.messaging.*'],
+                super: true,
                 ability: 'admin.messaging.manage',
                 tabs: [
                     { label: 'Users', route: 'admin.messaging.index', params: { audience: 'users' } },
@@ -269,8 +339,8 @@ export const adminNavGroups = [
             },
             {
                 key: 'asap',
-                label: 'ASAP',
-                icon: 'ti ti-bolt',
+                label: 'Team',
+                icon: 'ti ti-messages',
                 route: 'admin.asap.index',
                 match: ['admin.asap.*'],
                 tabs: [
@@ -310,6 +380,121 @@ export const adminNavGroups = [
 ];
 
 export const mobilePrimaryNav = ['overview', 'users', 'jobs', 'support'];
+
+/**
+ * Operations console hubs. The long ops menu is collapsed into a handful of
+ * hubs; each hub exposes its member pages as a top-tab row so staff can switch
+ * between related pages seamlessly. Hubs with a `route` are single landing
+ * pages (Home, Insights); hubs with `items` fan out into page tabs.
+ */
+export const opsHubs = [
+    {
+        key: 'home',
+        label: 'Home',
+        icon: 'ti ti-home',
+        route: 'admin.dashboard',
+        match: ['admin.dashboard', 'admin.tasks'],
+    },
+    {
+        key: 'queues',
+        label: 'Queues',
+        icon: 'ti ti-inbox',
+        items: [
+            'assigned',
+            'my-approvals',
+            'support',
+            'patrol-jobs',
+            'patrol-reviews',
+            'jobs',
+            'reviews',
+            'moderation-desk',
+            'billing_issues',
+        ],
+    },
+    {
+        key: 'growth',
+        label: 'Growth',
+        icon: 'ti ti-trending-up',
+        items: ['referrals', 'verification', 'onboarding', 'reengagement'],
+    },
+    {
+        key: 'comms',
+        label: 'Comms',
+        icon: 'ti ti-messages',
+        items: ['knowledge', 'asap'],
+    },
+    {
+        key: 'insights',
+        label: 'Insights',
+        icon: 'ti ti-chart-bar',
+        route: 'admin.insights.index',
+        match: ['admin.insights.*'],
+    },
+];
+
+function navItemByKey(key) {
+    for (const group of adminNavGroups) {
+        const found = group.items.find((item) => item.key === key);
+        if (found) {
+            return found;
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve hubs to only those visible to the current user, each carrying its
+ * visible member pages. Single-route hubs are always kept.
+ */
+export function visibleOpsHubs(isSuperAdmin = false, abilities = []) {
+    return opsHubs
+        .map((hub) => {
+            if (hub.route) {
+                return { ...hub, pages: [] };
+            }
+
+            const pages = (hub.items || [])
+                .map((key) => navItemByKey(key))
+                .filter((item) => item && canSeeNavItem(item, isSuperAdmin, abilities));
+
+            return { ...hub, pages };
+        })
+        .filter((hub) => hub.route || hub.pages.length > 0);
+}
+
+function hubMatchesRoute(hub, current) {
+    if (hub.route) {
+        return (hub.match || [hub.route]).some((pattern) => {
+            if (pattern.endsWith('.*')) {
+                return String(current || '').startsWith(pattern.slice(0, -2));
+            }
+            return current === pattern;
+        });
+    }
+
+    return (hub.pages || []).some((item) => matchNavItem(item, current));
+}
+
+/**
+ * The hub that owns the current route (falls back to the first hub).
+ */
+export function activeOpsHub(current, isSuperAdmin = false, abilities = []) {
+    const hubs = visibleOpsHubs(isSuperAdmin, abilities);
+    return hubs.find((hub) => hubMatchesRoute(hub, current)) || hubs[0] || null;
+}
+
+export function opsHubHref(hub, isSuperAdmin = false, abilities = []) {
+    if (hub.route) {
+        try {
+            return route(hub.route);
+        } catch {
+            return '#';
+        }
+    }
+
+    const first = hub.pages?.[0];
+    return first ? navItemHref(first, isSuperAdmin, abilities) : '#';
+}
 
 export function flattenAdminNav(isSuperAdmin = false, abilities = []) {
     return adminNavGroups.flatMap((group) =>

@@ -2,34 +2,33 @@
 
 namespace App\Support;
 
+use App\Models\JobCategory;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
+
 class JobCategories
 {
+    public const CACHE_KEY = 'kraftrack.job_categories.map';
+
     /**
-     * Raw config: category => [ subcategory => review_phrase ]
+     * Raw map: category => [ subcategory => review_phrase ]
      *
      * @return array<string, array<string, string>>
      */
     public static function all(): array
     {
-        /** @var array<string, array<string, string>|list<string>> $groups */
-        $groups = config('job_categories', []);
-
-        $normalized = [];
-
-        foreach ($groups as $parent => $subs) {
-            $map = [];
-            foreach ($subs as $key => $value) {
-                if (is_string($key) && ! is_int($key)) {
-                    $map[$key] = (string) $value;
-                } else {
-                    // Legacy list format — phrase equals a safe fallback.
-                    $map[(string) $value] = self::fallbackPhrase((string) $value);
-                }
+        return Cache::remember(self::CACHE_KEY, now()->addHour(), function () {
+            if (Schema::hasTable('job_categories') && JobCategory::query()->exists()) {
+                return self::fromDatabase();
             }
-            $normalized[$parent] = $map;
-        }
 
-        return $normalized;
+            return self::fromConfig();
+        });
+    }
+
+    public static function forgetCache(): void
+    {
+        Cache::forget(self::CACHE_KEY);
     }
 
     /**
@@ -41,8 +40,6 @@ class JobCategories
     }
 
     /**
-     * Subcategory labels for a parent category.
-     *
      * @return list<string>
      */
     public static function subcategoriesFor(?string $parent): array
@@ -52,6 +49,30 @@ class JobCategories
         }
 
         return array_keys(self::all()[$parent] ?? []);
+    }
+
+    /**
+     * Flat trade labels for registration / profile (subcategories + Other).
+     *
+     * @return list<string>
+     */
+    public static function tradeLabels(): array
+    {
+        $labels = [];
+        foreach (self::all() as $subs) {
+            foreach (array_keys($subs) as $sub) {
+                $labels[$sub] = true;
+            }
+        }
+
+        $list = array_keys($labels);
+        sort($list, SORT_NATURAL | SORT_FLAG_CASE);
+
+        if (! in_array('Other', $list, true)) {
+            $list[] = 'Other';
+        }
+
+        return array_values($list);
     }
 
     public static function isValidParent(?string $parent): bool
@@ -70,9 +91,6 @@ class JobCategories
         return array_key_exists($subcategory, self::all()[$parent] ?? []);
     }
 
-    /**
-     * Private WhatsApp phrase for a subcategory (never public).
-     */
     public static function reviewPhrase(?string $parent, ?string $subcategory): ?string
     {
         if (! self::isValidPair($parent, $subcategory)) {
@@ -85,8 +103,6 @@ class JobCategories
     }
 
     /**
-     * Payload shape for Inertia forms (labels only — phrases stay server-side).
-     *
      * @return array{parents: list<string>, groups: array<string, list<string>>}
      */
     public static function forFrontend(): array
@@ -117,6 +133,60 @@ class JobCategories
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    private static function fromDatabase(): array
+    {
+        $normalized = [];
+
+        $categories = JobCategory::query()
+            ->active()
+            ->with(['subcategories' => fn ($q) => $q->active()->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        foreach ($categories as $category) {
+            $map = [];
+            foreach ($category->subcategories as $sub) {
+                $map[$sub->name] = filled($sub->review_phrase)
+                    ? (string) $sub->review_phrase
+                    : self::fallbackPhrase($sub->name);
+            }
+            if ($map !== []) {
+                $normalized[$category->name] = $map;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    private static function fromConfig(): array
+    {
+        /** @var array<string, array<string, string>|list<string>> $groups */
+        $groups = config('job_categories', []);
+
+        $normalized = [];
+
+        foreach ($groups as $parent => $subs) {
+            $map = [];
+            foreach ($subs as $key => $value) {
+                if (is_string($key) && ! is_int($key)) {
+                    $map[$key] = (string) $value;
+                } else {
+                    $map[(string) $value] = self::fallbackPhrase((string) $value);
+                }
+            }
+            $normalized[$parent] = $map;
+        }
+
+        return $normalized;
     }
 
     private static function fallbackPhrase(string $label): string

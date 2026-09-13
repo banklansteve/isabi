@@ -57,7 +57,7 @@ class StaffChatAttachmentService
 
     private function cloudinaryFolder(int $conversationId): string
     {
-        $root = trim((string) config('cloudinary.folders.root', 'isabi'), '/');
+        $root = trim((string) config('cloudinary.folders.root', 'Kraftrack'), '/');
 
         return $root.'/staff-chat/'.$conversationId;
     }

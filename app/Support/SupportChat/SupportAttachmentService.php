@@ -57,7 +57,7 @@ class SupportAttachmentService
 
     private function cloudinaryFolder(int $ticketId): string
     {
-        $root = trim((string) config('cloudinary.folders.root', 'isabi'), '/');
+        $root = trim((string) config('cloudinary.folders.root', 'Kraftrack'), '/');
 
         return $root.'/support/'.$ticketId;
     }

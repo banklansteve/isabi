@@ -61,7 +61,7 @@ class CloudinaryMediaService
     }
 
     /**
-     * Profile photos live under isabi/profiles/{userId}
+     * Profile photos live under Kraftrack/profiles/{userId}
      *
      * @return array{public_id: string, url: string, bytes: int, resource_type: string, format: ?string, mime_type: ?string}
      */
@@ -85,7 +85,7 @@ class CloudinaryMediaService
     }
 
     /**
-     * Job media lives under isabi/work-logs/{userId}/{workLogId}
+     * Job media lives under Kraftrack/work-logs/{userId}/{workLogId}
      *
      * @return array{public_id: string, url: string, bytes: int, resource_type: string, format: ?string, mime_type: ?string}
      */
@@ -100,7 +100,7 @@ class CloudinaryMediaService
     }
 
     /**
-     * Client review photos live under isabi/reviews/{userId}/{workLogUid}
+     * Client review photos live under Kraftrack/reviews/{userId}/{workLogUid}
      *
      * @return array{public_id: string, url: string, bytes: int, resource_type: string, format: ?string, mime_type: ?string}
      */
@@ -188,7 +188,7 @@ class CloudinaryMediaService
      */
     public function folder(array $segments): string
     {
-        $root = trim((string) config('cloudinary.folders.root', 'isabi'), '/');
+        $root = trim((string) config('cloudinary.folders.root', 'Kraftrack'), '/');
 
         $parts = array_values(array_filter(
             array_map(

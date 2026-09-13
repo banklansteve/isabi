@@ -24,7 +24,7 @@
     <table class="row">
         <tr>
             <td>
-                <div class="brand">iSabi</div>
+                <div class="brand">Kraftrack</div>
                 <div class="muted">Payslip</div>
             </td>
             <td class="amount">

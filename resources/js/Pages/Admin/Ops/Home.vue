@@ -37,9 +37,44 @@
 
         <OpsEscalateBanner :escalate="escalate" />
 
-        <OpsQueueGrid :queues="queueShortcuts" />
-
         <OpsPriorityPanel :groups="priorityGroups" :open-count="attentionOpenCount" />
+
+        <!-- Launcher: reach any page you're allowed to work in -->
+        <section v-if="launcher.length" class="space-y-5">
+            <OpsSectionLabel label="Your workspace" />
+
+            <div v-for="hub in launcher" :key="hub.key" class="space-y-2.5">
+                <div class="flex items-center gap-2">
+                    <i :class="hub.icon" class="text-[1.05rem] text-ink/40" aria-hidden="true" />
+                    <h3 class="text-[13px] font-bold uppercase tracking-[0.12em] text-ink/45">{{ hub.label }}</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                    <Link
+                        v-for="tile in hub.tiles"
+                        :key="tile.key"
+                        :href="tile.href"
+                        class="group flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-premium ring-1 ring-ink/[0.05] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                    >
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-base-action">
+                            <i :class="tile.icon" class="text-lg" aria-hidden="true" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-[13px] font-bold text-ink">{{ tile.label }}</span>
+                            <span class="mt-0.5 block truncate text-[11px] font-medium text-ink/40">
+                                <template v-if="tile.count > 0">{{ tile.count }} {{ tile.hint }}</template>
+                                <template v-else>Open</template>
+                            </span>
+                        </span>
+                        <span
+                            v-if="tile.count > 0"
+                            class="shrink-0 rounded-full bg-base-action px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-white"
+                        >
+                            {{ formatBadgeCount(tile.count) }}
+                        </span>
+                    </Link>
+                </div>
+            </div>
+        </section>
 
         <OpsEscalationsCard v-if="escalations.length" :items="escalations" />
     </div>
@@ -50,8 +85,10 @@ import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import OpsPriorityPanel from '@/Components/Admin/OpsPriorityPanel.vue';
 import OpsEscalateBanner from '@/Components/Admin/OpsEscalateBanner.vue';
 import OpsEscalationsCard from '@/Components/Admin/OpsEscalationsCard.vue';
-import OpsQueueGrid from '@/Components/Admin/OpsQueueGrid.vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import OpsSectionLabel from '@/Components/Admin/OpsSectionLabel.vue';
+import { navItemHref, visibleOpsHubs } from '@/Data/adminNav';
+import { formatBadgeCount } from '@/utils/opsStatus';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
@@ -77,6 +114,7 @@ const clockLabel = ref('');
 let timer = null;
 
 const opsInbox = computed(() => page.props.ops_inbox || {});
+const abilities = computed(() => page.props.auth?.user?.abilities || []);
 
 const priorityGroups = computed(() => {
     const groups = opsInbox.value.priority_groups;
@@ -88,11 +126,50 @@ const attentionOpenCount = computed(() =>
     typeof opsInbox.value.open_count === 'number' ? opsInbox.value.open_count : props.open_count,
 );
 
-const queueShortcuts = computed(() => {
+const shortcuts = computed(() => {
     const live = opsInbox.value.shortcuts;
 
     return Array.isArray(live) && live.length ? live : props.shortcuts;
 });
+
+const hrefPath = (href) => {
+    try {
+        return new URL(href, window.location.origin).pathname.replace(/\/+$/, '') || '/';
+    } catch {
+        return String(href || '').split('?')[0].replace(/\/+$/, '') || '';
+    }
+};
+
+const shortcutMap = computed(() => {
+    const map = new Map();
+    for (const shortcut of shortcuts.value) {
+        map.set(hrefPath(shortcut.href), { count: Number(shortcut.count || 0), hint: shortcut.hint || 'open' });
+    }
+    return map;
+});
+
+const launcher = computed(() =>
+    visibleOpsHubs(false, abilities.value)
+        .filter((hub) => (hub.pages || []).length > 0)
+        .map((hub) => ({
+            key: hub.key,
+            label: hub.label,
+            icon: hub.icon,
+            tiles: hub.pages.map((item) => {
+                const href = navItemHref(item, false, abilities.value);
+                const meta = shortcutMap.value.get(hrefPath(href)) || { count: 0, hint: 'open' };
+
+                return {
+                    key: item.key,
+                    label: item.shortLabel || item.label,
+                    icon: item.icon,
+                    href,
+                    count: meta.count,
+                    hint: meta.hint,
+                };
+            }),
+        })),
+);
 
 const givenName = computed(() => {
     if (props.given_name) {

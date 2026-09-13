@@ -34,7 +34,7 @@
                         </h1>
                         <p class="mt-2 max-w-md text-sm font-medium leading-relaxed text-white/65">
                             Concise answers about your page, credits, reviews, and work log — plus a
-                            direct line to the Isabi team.
+                            direct line to the Kraftrack team.
                         </p>
                     </div>
                     <Link
@@ -155,11 +155,11 @@
                             Chat with support
                         </Link>
                         <a
-                            href="mailto:hello@isabi.dev"
+                            href="mailto:hello@kraftrack.com"
                             class="tap-target mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink/70 transition-colors hover:border-ink/20 hover:text-ink"
                         >
                             <i class="ti ti-mail" aria-hidden="true" />
-                            hello@isabi.dev
+                            hello@kraftrack.com
                         </a>
                     </div>
 

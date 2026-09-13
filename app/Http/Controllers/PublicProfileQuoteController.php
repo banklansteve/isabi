@@ -48,12 +48,20 @@ class PublicProfileQuoteController extends Controller
             ],
         );
 
-        $notifier->notify($quote);
+        $mailed = $notifier->notify($quote);
+
+        if ($mailed['client'] && $mailed['artisan']) {
+            $message = 'Thanks — we emailed you a confirmation and alerted '.$artisan->displayBusinessName().'.';
+        } elseif ($mailed['client']) {
+            $message = 'Thanks — we emailed you a confirmation. '.$artisan->displayBusinessName().' will follow up shortly.';
+        } else {
+            $message = 'Thanks — '.$artisan->displayBusinessName().' will reach out on the details you left.';
+        }
 
         $toast = [
             'type' => 'success',
             'title' => 'Request sent',
-            'message' => 'Thanks — '.$artisan->displayBusinessName().' will reach out on the details you left.',
+            'message' => $message,
             'duration' => 5200,
         ];
 

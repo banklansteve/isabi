@@ -33,7 +33,7 @@
                     type="email"
                     label="Work email"
                     icon="ti ti-mail"
-                    placeholder="you@isabi.dev"
+                    placeholder="you@kraftrack.test"
                     autocomplete="username"
                     required
                     autofocus

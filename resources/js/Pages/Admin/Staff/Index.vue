@@ -297,7 +297,7 @@
                         type="email"
                         required
                         autocomplete="off"
-                        placeholder="you@isabi.dev"
+                        placeholder="you@kraftrack.test"
                         class="mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm font-medium outline-none focus:ring-4"
                         :class="inviteErrors.email ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-ink/10 focus:border-base focus:ring-base/15'"
                     />
@@ -446,7 +446,7 @@ const busy = ref(false);
 const selected = ref([]);
 const bulkOpen = ref(false);
 const bulkBusy = ref(false);
-const bulkSubject = ref('A note from Isabi');
+const bulkSubject = ref('A note from Kraftrack');
 const bulkBody = ref('Hi {{first_name}}, ');
 const bulkChannels = ref(['in_app', 'email']);
 let panelSeq = 0;
@@ -576,7 +576,7 @@ const togglePage = () => {
 };
 
 const openBulkMessage = () => {
-    bulkSubject.value = 'A note from Isabi';
+    bulkSubject.value = 'A note from Kraftrack';
     bulkBody.value = 'Hi {{first_name}}, ';
     bulkChannels.value = ['in_app', 'email'];
     bulkOpen.value = true;

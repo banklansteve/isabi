@@ -132,12 +132,41 @@ const rootRef = ref(null);
 const triggerRef = ref(null);
 const panelRef = ref(null);
 const panelStyle = ref({});
-const view = ref(startOfMonth(parseISO(model.value || props.maxDate)));
 
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-const min = computed(() => parseISO(props.minDate));
-const max = computed(() => parseISO(props.maxDate));
+const min = computed(() => parseISO(props.minDate) || startOfDay(new Date()));
+const max = computed(() => {
+    const parsed = parseISO(props.maxDate);
+    if (!parsed) {
+        const fallback = startOfDay(new Date());
+        fallback.setFullYear(fallback.getFullYear() + 2);
+
+        return fallback;
+    }
+
+    return parsed;
+});
+
+const initialViewDate = () => {
+    if (model.value) {
+        return parseISO(model.value) || min.value;
+    }
+
+    const today = startOfDay(new Date());
+
+    if (today < min.value) {
+        return min.value;
+    }
+
+    if (today > max.value) {
+        return max.value;
+    }
+
+    return today;
+};
+
+const view = ref(startOfMonth(initialViewDate()));
 
 const monthLabel = computed(() =>
     view.value.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
@@ -148,12 +177,13 @@ const displayLabel = computed(() => {
         return 'Select date';
     }
     const d = parseISO(model.value);
-    return d.toLocaleDateString(undefined, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-    });
+    if (!d) {
+        return 'Select date';
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+
+    return `${day}/${month}/${d.getFullYear()}`;
 });
 
 const todayInRange = computed(() => {
@@ -258,9 +288,7 @@ const toggle = async () => {
     }
     open.value = !open.value;
     if (open.value) {
-        if (model.value) {
-            view.value = startOfMonth(parseISO(model.value));
-        }
+        view.value = startOfMonth(initialViewDate());
         await updatePanelPosition();
     }
 };
@@ -308,10 +336,10 @@ const onViewportChange = () => {
 };
 
 watch(
-    () => props.maxDate,
+    () => [props.minDate, props.maxDate],
     () => {
         if (!model.value) {
-            view.value = startOfMonth(max.value);
+            view.value = startOfMonth(min.value);
         }
     },
 );
@@ -329,8 +357,24 @@ onBeforeUnmount(() => {
 });
 
 function parseISO(value) {
-    const [y, m, d] = String(value).split('-').map(Number);
-    return startOfDay(new Date(y, (m || 1) - 1, d || 1));
+    if (!value || typeof value !== 'string') {
+        return null;
+    }
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) {
+        return null;
+    }
+
+    const y = Number(match[1]);
+    const m = Number(match[2]);
+    const d = Number(match[3]);
+
+    if (!y || !m || !d) {
+        return null;
+    }
+
+    return startOfDay(new Date(y, m - 1, d));
 }
 
 function toISO(date) {

@@ -424,52 +424,27 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="flex min-h-0 flex-1 flex-col border-t border-amber-200/80 bg-amber-50/80">
-                            <p class="px-4 pt-3 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-800/70">
-                                Internal notes
-                            </p>
-                            <p class="px-4 pt-1 text-[11px] font-medium text-amber-800/55">
-                                Never shown to the artisan.
-                            </p>
-                            <ul class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-                                <li v-for="note in ticket.notes" :key="note.id" class="rounded-xl bg-white/80 px-3 py-2 ring-1 ring-amber-200/70">
-                                    <p class="text-[13px] font-medium leading-relaxed text-ink">{{ note.body }}</p>
-                                    <p class="mt-1 text-[10px] font-semibold text-ink/35">{{ note.author }} · {{ note.when }}</p>
-                                </li>
-                                <li v-if="!ticket.notes?.length" class="text-[12px] font-medium text-amber-800/50">No notes yet.</li>
-                            </ul>
-                            <form class="border-t border-amber-200/70 p-3" @submit.prevent="addNote">
-                                <textarea
-                                    v-model="noteDraft"
-                                    rows="2"
-                                    placeholder="Add a note for the team…"
-                                    class="w-full resize-none rounded-xl border border-amber-200 bg-white px-3 py-2 text-[13px] outline-none focus:ring-4 focus:ring-amber-100"
-                                />
-                                <button
-                                    type="submit"
-                                    class="mt-2 w-full rounded-xl bg-amber-800 px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-40"
-                                    :disabled="!noteDraft.trim()"
-                                >
-                                    Add note
-                                </button>
-                            </form>
-                            <form class="border-t border-amber-200/70 p-3" @submit.prevent="saveCanned">
-                                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-800/70">Save a reply</p>
-                                <input
-                                    v-model="cannedTitle"
-                                    type="text"
-                                    placeholder="Title"
-                                    class="mt-2 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-[13px] outline-none"
-                                />
-                                <button
-                                    type="submit"
-                                    class="mt-2 text-[12px] font-semibold text-amber-900 disabled:opacity-40"
-                                    :disabled="!draft.trim() || !cannedTitle.trim()"
-                                >
-                                    Save current draft
-                                </button>
-                            </form>
-                        </div>
+                        <OpsNoteSessions
+                            v-model:draft="noteDraft"
+                            :notes="ticket.notes || []"
+                            @add="addNote"
+                        />
+                        <form class="border-t border-ink/[0.06] bg-white p-3" @submit.prevent="saveCanned">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Save a reply</p>
+                            <input
+                                v-model="cannedTitle"
+                                type="text"
+                                placeholder="Title"
+                                class="mt-2 w-full rounded-xl border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] outline-none"
+                            />
+                            <button
+                                type="submit"
+                                class="mt-2 text-[12px] font-semibold text-deep disabled:opacity-40"
+                                :disabled="!draft.trim() || !cannedTitle.trim()"
+                            >
+                                Save current draft
+                            </button>
+                        </form>
                     </aside>
                 </div>
             </template>
@@ -515,6 +490,7 @@
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import OpsNoteSessions from '@/Components/Admin/OpsNoteSessions.vue';
 import ReferToStaffDialog from '@/Components/Admin/ReferToStaffDialog.vue';
 import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
 import SupportWorkspaceNav from '@/Components/Admin/SupportWorkspaceNav.vue';
@@ -587,7 +563,7 @@ let typingHideTimer = null;
 let echoReady = false;
 
 const meId = computed(() => Number(page.props.auth?.user?.id || 0));
-const agentName = computed(() => page.props.auth?.user?.first_name || String(page.props.auth?.user?.name || 'Isabi').split(' ')[0]);
+const agentName = computed(() => page.props.auth?.user?.first_name || String(page.props.auth?.user?.name || 'Kraftrack').split(' ')[0]);
 
 const assignedIdOf = (item) => {
     const id = item?.assigned?.id ?? item?.assigned_to_user_id ?? null;
@@ -1030,8 +1006,8 @@ onMounted(() => {
     scrollThread();
     bindEcho();
     acknowledgeEscalationFromUrl();
-    window.addEventListener('isabi:support-inbox', onInboxEvent);
-    window.addEventListener('isabi:support-typing', onTypingEvent);
+    window.addEventListener('kraftrack:support-inbox', onInboxEvent);
+    window.addEventListener('kraftrack:support-typing', onTypingEvent);
     pollTimer = window.setInterval(() => {
         if (!echoReady && !echoConnected()) {
             sync();
@@ -1042,7 +1018,7 @@ onUnmounted(() => {
     window.clearInterval(pollTimer);
     window.clearTimeout(typingTimer);
     window.clearTimeout(typingHideTimer);
-    window.removeEventListener('isabi:support-inbox', onInboxEvent);
-    window.removeEventListener('isabi:support-typing', onTypingEvent);
+    window.removeEventListener('kraftrack:support-inbox', onInboxEvent);
+    window.removeEventListener('kraftrack:support-typing', onTypingEvent);
 });
 </script>

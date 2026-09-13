@@ -33,7 +33,7 @@
                             />
                             <span
                                 class="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white ring-[2.5px] ring-[#123B72]"
-                                title="Verified Isabi artisan"
+                                title="Verified Kraftrack artisan"
                             >
                                 <i class="ti ti-check text-[11px] font-bold leading-none" aria-hidden="true" />
                                 <span class="sr-only">Verified artisan</span>
@@ -446,7 +446,7 @@
         <ProfileQrModal
             :show="qrOpen"
             :url="page.url || ''"
-            :filename="`isabi-${page.slug || 'page'}-qr`"
+            :filename="`Kraftrack-${page.slug || 'page'}-qr`"
             :business-name="page.business_name || ''"
             :trade="page.trade || ''"
             @close="qrOpen = false"

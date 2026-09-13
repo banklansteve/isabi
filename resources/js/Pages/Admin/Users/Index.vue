@@ -355,7 +355,7 @@ const list = useClientList(
     },
 );
 
-const saved = useSavedViews('isabi:admin-user-views', () => ({
+const saved = useSavedViews('kraftrack:admin-user-views', () => ({
     q: list.q.value,
     plan: plan.value,
     trade: trade.value,
@@ -572,7 +572,7 @@ const onDeleted = (id) => {
 const startRowAction = (type, person) => {
     rowAction.value = { type, person };
     if (type === 'message') {
-        rowSubject.value = 'A note from Isabi';
+        rowSubject.value = 'A note from Kraftrack';
         rowBody.value = `Hi {{first_name}}, `;
     }
 };
@@ -583,7 +583,7 @@ const exportSelected = async () => {
         const url = URL.createObjectURL(data);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'isabi-users.csv';
+        link.download = 'Kraftrack-users.csv';
         link.click();
         URL.revokeObjectURL(url);
     } catch {

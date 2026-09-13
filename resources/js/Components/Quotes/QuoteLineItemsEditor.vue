@@ -64,7 +64,9 @@
                         v-if="!pendingExtra.kind"
                         class="quote-charge-row"
                     >
-                        <span class="quote-charge-label" aria-hidden="true" />
+                        <p class="quote-charge-label text-sm font-semibold leading-tight text-ink/50">
+                            Extra
+                        </p>
                         <FormSelect
                             id="extra-charge-type"
                             v-model="pendingExtra.kind"
@@ -81,7 +83,7 @@
                         v-else-if="pendingExtra.kind === 'other'"
                         class="flex flex-col gap-2.5 sm:grid sm:grid-cols-[minmax(7.5rem,9.5rem)_minmax(0,1fr)_minmax(0,1fr)_2.875rem] sm:items-center sm:gap-3"
                     >
-                        <p class="text-sm font-semibold leading-tight text-ink/75 sm:w-auto">Other</p>
+                        <p class="text-sm font-semibold leading-tight text-ink/75 sm:w-auto">Other charges</p>
                         <FormTextInput
                             id="extra-other-label"
                             v-model="pendingExtra.label"
@@ -365,6 +367,18 @@ const extraChargeOptions = computed(() =>
         .filter((option) => option.kind === 'other' || !usedExtraKinds.value.includes(option.kind))
         .map((option) => ({ value: option.kind, label: option.label })),
 );
+
+const selectedExtraLabel = computed(() => {
+    if (!pendingExtra.value.kind) {
+        return '';
+    }
+
+    if (pendingExtra.value.kind === 'other') {
+        return 'Other charges';
+    }
+
+    return props.extraCharges.find((option) => option.kind === pendingExtra.value.kind)?.label || 'Charge';
+});
 
 const labourIndex = computed(() => props.modelValue.findIndex((row) => row.kind === 'labour'));
 

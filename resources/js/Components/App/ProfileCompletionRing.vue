@@ -173,8 +173,8 @@ const ring = computed(() => {
     };
 });
 
-const STORAGE_DISMISSED = 'isabi:checklist-dismissed';
-const STORAGE_AUTO = 'isabi:checklist-auto-shown';
+const STORAGE_DISMISSED = 'kraftrack:checklist-dismissed';
+const STORAGE_AUTO = 'kraftrack:checklist-auto-shown';
 
 const iconFor = (key) => {
     const map = {

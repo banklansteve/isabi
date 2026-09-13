@@ -22,9 +22,10 @@
             <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-10">
                 <Link
                     :href="route('dashboard')"
-                    class="shrink-0 text-[1.45rem] font-extrabold tracking-tight text-ink transition-opacity duration-200 hover:opacity-80"
+                    class="flex shrink-0 items-center gap-2.5 text-ink transition-opacity duration-200 hover:opacity-80"
                 >
-                    Isabi
+                    <BrandMark variant="solid" class="h-9 w-9 shrink-0" />
+                    <span class="text-[1.45rem] font-extrabold tracking-tight">Kraftrack</span>
                 </Link>
 
                 <div class="min-w-0 flex-1" />
@@ -154,6 +155,7 @@
 </template>
 
 <script setup>
+import BrandMark from '@/Components/BrandMark.vue';
 import NotificationBell from '@/Components/App/NotificationBell.vue';
 import ProfileCompletionRing from '@/Components/App/ProfileCompletionRing.vue';
 import UserProfileMenu from '@/Components/App/UserProfileMenu.vue';

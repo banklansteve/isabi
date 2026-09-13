@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
 
 class CookieConsent
 {
-    public const COOKIE = 'isabi_consent';
+    public const COOKIE = 'kraftrack_consent';
 
     public const VERSION = 1;
 

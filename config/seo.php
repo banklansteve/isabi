@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'default_description' => 'Isabi gives Nigerian artisans a public page built from real finished jobs and reviews written by the clients themselves — not self-written testimonials.',
+    'default_description' => 'Kraftrack gives Nigerian artisans a public page built from real finished jobs and reviews written by the clients themselves — not self-written testimonials.',
 
     'pages' => [
         'home' => [
@@ -9,12 +9,12 @@ return [
             'description' => 'A public page for Nigerian artisans built from finished jobs and client-written reviews. Free to start, no card required.',
         ],
         'how-it-works' => [
-            'title' => 'How Isabi works',
+            'title' => 'How Kraftrack works',
             'description' => 'Sign up, log a finished job, send a WhatsApp review request, and watch the client’s own words land on your public page.',
         ],
         'faq' => [
             'title' => 'Frequently asked questions',
-            'description' => 'Clear answers about pricing, reviews, your public page, credits, and how Isabi works — without the sales gloss.',
+            'description' => 'Clear answers about pricing, reviews, your public page, credits, and how Kraftrack works — without the sales gloss.',
         ],
         'directory' => [
             'title' => 'Find artisans with real proof of work',
@@ -28,7 +28,7 @@ return [
     */
     'faq' => [
         [
-            'question' => 'Is Isabi really free to start?',
+            'question' => 'Is Kraftrack really free to start?',
             'answer' => 'Yes. Creating your page, logging jobs, and sharing your profile are free. You only pay if you want more than five client review requests a month, or extras like a custom link.',
         ],
         [

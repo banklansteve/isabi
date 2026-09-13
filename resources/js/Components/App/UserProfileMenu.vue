@@ -118,7 +118,7 @@ const menuItems = [
 ];
 
 const openCookiePreferences = () => {
-    window.dispatchEvent(new CustomEvent('isabi:open-cookie-consent'));
+    window.dispatchEvent(new CustomEvent('kraftrack:open-cookie-consent'));
 };
 </script>
 

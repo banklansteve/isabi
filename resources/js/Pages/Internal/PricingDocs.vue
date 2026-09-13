@@ -9,7 +9,7 @@
                         Internal · Draft
                     </p>
                     <h1 class="font-display text-lg font-bold tracking-tight text-ink sm:text-xl">
-                        Isabi pricing model
+                        Kraftrack pricing model
                     </h1>
                 </div>
                 <div class="flex items-center gap-2">
@@ -62,7 +62,7 @@
             <section id="overview" class="mt-16 scroll-mt-24">
                 <SectionLabel n="01" title="Overview" />
                 <p class="mt-4 max-w-3xl text-base font-medium leading-relaxed text-ink/65">
-                    Isabi’s pricing is built around three principles specific to the Nigerian market.
+                    Kraftrack’s pricing is built around three principles specific to the Nigerian market.
                 </p>
 
                 <div class="mt-8 grid gap-4 sm:grid-cols-3">
@@ -237,7 +237,7 @@
                         second billing system.
                     </p>
                     <Callout tone="idea" class="mt-5">
-                        <strong>Recommendation:</strong> keep boosts on the same Isabi Credits ledger
+                        <strong>Recommendation:</strong> keep boosts on the same Kraftrack Credits ledger
                         unless boost pricing must scale wildly differently. One balance is easier to
                         explain, support, and display in the app.
                     </Callout>
@@ -622,7 +622,7 @@ const recommendations = [
     {
         tone: 'idea',
         title: 'Public naming',
-        body: 'Internally “Annual unlock” is precise. Publicly, consider “Isabi Pro — yearly” so artisans have a simple label. Keep “credits” as the unit name everywhere in-app.',
+        body: 'Internally “Annual unlock” is precise. Publicly, consider “Kraftrack Pro — yearly” so artisans have a simple label. Keep “credits” as the unit name everywhere in-app.',
     },
     {
         tone: 'idea',

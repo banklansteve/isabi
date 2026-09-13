@@ -1,8 +1,11 @@
 <template>
-    <AdminDrawer :open="open" size="md" :title="title" :eyebrow="readOnly ? 'System role' : role ? 'Edit role' : 'New role'" @close="$emit('close')">
+    <AdminDrawer :open="open" size="md" :title="title" :eyebrow="eyebrow" @close="$emit('close')">
         <form class="space-y-5" @submit.prevent="save">
             <p v-if="readOnly" class="rounded-xl bg-pale px-3 py-3 text-[13px] font-medium text-ink/55">
-                Super Admin and other system roles cannot be edited or deleted. They exist to protect platform control.
+                Super Admin has full platform control and cannot be edited or deleted. It exists to protect the platform.
+            </p>
+            <p v-else-if="isBuiltIn" class="rounded-xl bg-amber-50 px-3 py-3 text-[13px] font-medium text-amber-900">
+                This is a built-in duty. Editing its permissions changes access for everyone assigned to it. The duty’s slug stays fixed so smart pages keep working.
             </p>
 
             <label class="block">
@@ -81,10 +84,16 @@ const form = reactive({
     permissions: [],
 });
 
-const readOnly = computed(() => !!props.role?.is_system || props.role?.id === 'super_admin');
+const readOnly = computed(() => props.role?.id === 'super_admin');
+const isBuiltIn = computed(() => !!props.role?.is_system && !readOnly.value);
 const title = computed(() => {
     if (readOnly.value) return props.role?.name || 'System role';
-    return props.role ? props.role.name : 'Create a role';
+    return props.role ? props.role.name : 'Create a duty';
+});
+const eyebrow = computed(() => {
+    if (readOnly.value) return 'System role';
+    if (isBuiltIn.value) return 'Built-in duty';
+    return props.role ? 'Edit duty' : 'New duty';
 });
 
 watch(

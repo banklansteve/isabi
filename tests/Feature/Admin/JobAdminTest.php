@@ -276,7 +276,7 @@ class JobAdminTest extends TestCase
         $this->actingAs($super)
             ->postJson(route('admin.jobs.message', $job->uid), [
                 'channel' => 'whatsapp',
-                'body' => 'Hi, this is Isabi about the job you logged.',
+                'body' => 'Hi, this is Kraftrack about the job you logged.',
             ])
             ->assertOk()
             ->assertJsonStructure(['whatsapp_url']);

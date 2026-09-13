@@ -31,12 +31,12 @@ class AuditLogTest extends TestCase
         $admin = User::factory()->superAdmin()->create([
             'first_name' => 'Ada',
             'last_name' => 'Super',
-            'email' => 'ada@isabi.dev',
+            'email' => 'ada@kraftrack.test',
         ]);
         $ops = User::factory()->operationsAdmin()->create([
             'first_name' => 'Chidi',
             'last_name' => 'Ops',
-            'email' => 'chidi.ops@isabi.dev',
+            'email' => 'chidi.ops@kraftrack.test',
         ]);
 
         AdminAuditLog::query()->create([
@@ -66,7 +66,7 @@ class AuditLogTest extends TestCase
                 ->where('filters.to', now(config('app.display_timezone'))->toDateString())
                 ->has('logs.data', 1)
                 ->where('logs.data.0.action_label', 'Disabled staff access')
-                ->where('logs.data.0.actor.email', 'chidi.ops@isabi.dev')
+                ->where('logs.data.0.actor.email', 'chidi.ops@kraftrack.test')
                 ->where('logs.data.0.changes.0.label', 'Access status')
                 ->where('logs.data.0.changes.0.from', 'Active')
                 ->where('logs.data.0.changes.0.to', 'Disabled')
@@ -81,12 +81,12 @@ class AuditLogTest extends TestCase
         $chidi = User::factory()->operationsAdmin()->create([
             'first_name' => 'Chidi',
             'last_name' => 'Ops',
-            'email' => 'chidi.ops@isabi.dev',
+            'email' => 'chidi.ops@kraftrack.test',
         ]);
         $amaka = User::factory()->operationsAdmin()->create([
             'first_name' => 'Amaka',
             'last_name' => 'Ops',
-            'email' => 'amaka.ops@isabi.dev',
+            'email' => 'amaka.ops@kraftrack.test',
         ]);
 
         AdminAuditLog::query()->create([
@@ -104,11 +104,11 @@ class AuditLogTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('admin.audit.index', ['q' => 'chidi.ops@isabi.dev']))
+            ->get(route('admin.audit.index', ['q' => 'chidi.ops@kraftrack.test']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->has('logs.data', 1)
-                ->where('logs.data.0.actor.email', 'chidi.ops@isabi.dev'));
+                ->where('logs.data.0.actor.email', 'chidi.ops@kraftrack.test'));
 
         $this->actingAs($admin)
             ->get(route('admin.audit.index', ['q' => 'Amaka']))

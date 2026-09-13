@@ -541,7 +541,7 @@ const bindEcho = () => {
     echoChannel = echo.private(`staff.chat.${conversation.value.uid}`)
         .listen('.staff.chat', () => sync())
         .listen('.staff.typing', (payload) => {
-            window.dispatchEvent(new CustomEvent('isabi:staff-typing', { detail: payload }));
+            window.dispatchEvent(new CustomEvent('kraftrack:staff-typing', { detail: payload }));
         });
 };
 
@@ -562,8 +562,8 @@ watch(() => props.conversation, (value) => {
 onMounted(() => {
     scrollThread();
     bindEcho();
-    window.addEventListener('isabi:staff-chat', onStaffChat);
-    window.addEventListener('isabi:staff-typing', onStaffTyping);
+    window.addEventListener('kraftrack:staff-chat', onStaffChat);
+    window.addEventListener('kraftrack:staff-typing', onStaffTyping);
     pollTimer = window.setInterval(sync, props.poll_ms);
     if (conversation.value?.uid) {
         queueMarkRead();
@@ -575,8 +575,8 @@ onUnmounted(() => {
     window.clearTimeout(typingTimer);
     window.clearTimeout(typingHideTimer);
     window.clearTimeout(markReadTimer);
-    window.removeEventListener('isabi:staff-chat', onStaffChat);
-    window.removeEventListener('isabi:staff-typing', onStaffTyping);
+    window.removeEventListener('kraftrack:staff-chat', onStaffChat);
+    window.removeEventListener('kraftrack:staff-typing', onStaffTyping);
     const echo = echoClient(page.props.reverb);
     if (echo && conversation.value?.uid) {
         echo.leave(`staff.chat.${conversation.value.uid}`);

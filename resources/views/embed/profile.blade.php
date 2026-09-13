@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $artisan->displayBusinessName() }} · Isabi</title>
+    <title>{{ $artisan->displayBusinessName() }} · Kraftrack</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -221,7 +221,7 @@
             @endif
 
             <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="cta">View full page</a>
-            <div class="foot">Powered by <a href="{{ url('/') }}" target="_blank" rel="noopener">Isabi</a></div>
+            <div class="foot">Powered by <a href="{{ url('/') }}" target="_blank" rel="noopener">Kraftrack</a></div>
         </div>
     </div>
 </body>

@@ -227,7 +227,7 @@
 
     <div class="footer">
         <span>Generated for {{ $user->displayBusinessName() }} · Reviews shown as submitted by clients</span>
-        <span class="right">Isabi</span>
+        <span class="right">Kraftrack</span>
     </div>
 </body>
 </html>

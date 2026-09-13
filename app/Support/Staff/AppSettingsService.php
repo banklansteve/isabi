@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class AppSettingsService
 {
-    public const CACHE_KEY = 'isabi.app_settings';
+    public const CACHE_KEY = 'kraftrack.app_settings';
 
     /**
      * @return list<array<string, mixed>>

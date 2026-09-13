@@ -10,17 +10,24 @@
                     ? 'border-b border-ink/10 bg-white text-ink shadow-nav'
                     : 'border-b border-transparent bg-transparent text-white'
             "
+            style="padding-top: env(safe-area-inset-top)"
         >
             <div
-                class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8 lg:px-10"
-                style="padding-top: max(0.75rem, env(safe-area-inset-top))"
+                class="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-5 sm:h-[3.75rem] sm:px-8 lg:px-10"
             >
                 <Link
                     href="/"
-                    class="shrink-0 font-display text-[1.35rem] font-extrabold tracking-tight transition-colors duration-300"
+                    class="flex shrink-0 items-center gap-2.5 transition-colors duration-300"
                     :class="navScrolled || mobileNavOpen ? 'text-ink' : 'text-white'"
                 >
-                    Isabi
+                    <BrandMark
+                        :variant="navScrolled || mobileNavOpen ? 'solid' : 'mark'"
+                        :color="navScrolled || mobileNavOpen ? '#1A4FB5' : '#FFFFFF'"
+                        class="h-8 w-8 shrink-0"
+                    />
+                    <span class="font-display text-[1.35rem] font-extrabold tracking-tight">
+                        Kraftrack
+                    </span>
                 </Link>
 
                 <nav class="hidden items-center gap-1 lg:flex lg:gap-2">
@@ -561,7 +568,7 @@
                         class="mx-auto mt-8 max-w-2xl font-voice text-[1.65rem] leading-snug tracking-tight text-ink sm:text-[2rem] sm:leading-[1.3] lg:text-[2.25rem]"
                     >
                         Anyone can build a page in an afternoon. That's not proof — it's a claim.
-                        Isabi is built so the only way to look good on it is to actually be good, over
+                        Kraftrack is built so the only way to look good on it is to actually be good, over
                         time.
                     </blockquote>
                 </div>
@@ -955,19 +962,15 @@
 
 <script setup>
 import SiteFooter from '@/Components/SiteFooter.vue';
+import BrandMark from '@/Components/BrandMark.vue';
 import { popularTopics } from '@/Data/helpTopics';
 import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 
-defineProps({
-    canLogin: {
-        type: Boolean,
-        default: false,
-    },
-    canRegister: {
-        type: Boolean,
-        default: false,
-    },
+const props = defineProps({
+    canLogin: { type: Boolean, default: false },
+    canRegister: { type: Boolean, default: false },
+    featuredFaqs: { type: Array, default: () => [] },
 });
 
 const navScrolled = ref(false);
@@ -1155,16 +1158,25 @@ const pricingPlans = {
         features: [
             'Everything in Free',
             'Unlimited review requests, no credits needed',
-            'Custom URL slug (isabi.dev/your-name)',
+            'Custom URL slug (kraftrack.com/your-name)',
             'Priority support as we grow features',
         ],
     },
 };
 
-const faqs = popularTopics('guest', 5).map((item) => ({
-    question: item.question,
-    answer: item.answer,
-}));
+const faqs = computed(() => {
+    if (props.featuredFaqs?.length) {
+        return props.featuredFaqs.map((item) => ({
+            question: item.question,
+            answer: item.answer,
+        }));
+    }
+
+    return popularTopics('guest', 5).map((item) => ({
+        question: item.question,
+        answer: item.answer,
+    }));
+});
 
 const profiles = [
     {

@@ -7,7 +7,7 @@ return [
     | Internal pricing documentation
     |--------------------------------------------------------------------------
     |
-    | Tunable numbers for Isabi's commercial model. Narrative docs live on the
+    | Tunable numbers for Kraftrack's commercial model. Narrative docs live on the
     | internal pricing page and should read these values so product copy and
     | admin settings stay aligned as you iterate.
     |

@@ -1,7 +1,7 @@
 diff a/README.md b/README.md	(rejected hunks)
-@@ -2,10 +2,30 @@ # iSabi
+@@ -2,10 +2,30 @@ # Kraftrack
  
- Existing iSabi product: Laravel, Vue 3, Inertia, and Tailwind. Login, artisan dashboard, work logs, public profiles, and admin chrome are unchanged from the current app.
+ Existing Kraftrack product: Laravel, Vue 3, Inertia, and Tailwind. Login, artisan dashboard, work logs, public profiles, and admin chrome are unchanged from the current app.
  
 -Additive admin work sits at `/admin/staff` (operations roles) and `/admin/users` (artisan directory). Login, artisan dashboard, work logs, and existing chrome are unchanged.
 +Additive admin work sits at:

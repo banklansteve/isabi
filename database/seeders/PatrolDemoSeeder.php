@@ -11,8 +11,8 @@ class PatrolDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        $artisan = User::query()->where('email', 'user@isabi.dev')->first()
-            ?? User::query()->where('email', 'many-jobs@isabi.test')->first();
+        $artisan = User::query()->where('email', 'user@kraftrack.test')->first()
+            ?? User::query()->where('email', 'many-jobs@kraftrack.test')->first();
 
         if (! $artisan) {
             return;

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
 use App\Support\Referrals\ReferralService;
@@ -27,7 +28,8 @@ class RegisteredUserController extends Controller
         $ref = trim((string) $request->query('ref', ''));
 
         return Inertia::render('Auth/Register', [
-            'trades' => config('trades'),
+            'trades' => JobCategories::tradeLabels(),
+            'jobCategories' => JobCategories::forFrontend(),
             'locations' => NigeriaLocations::all(),
             'referralCode' => $ref !== '' ? $ref : null,
         ]);
@@ -64,7 +66,7 @@ class RegisteredUserController extends Controller
 
         ActivityLogger::log(
             action: 'auth.register',
-            summary: "{$user->name} created an Isabi account as a {$user->trade}.",
+            summary: "{$user->name} created a Kraftrack account as a {$user->trade}.",
             user: $user,
             properties: [
                 'trade' => $user->trade,

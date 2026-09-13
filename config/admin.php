@@ -33,7 +33,6 @@ return [
             'permissions' => [
                 'admin.users.view',
                 'admin.support.manage',
-                'admin.messaging.manage',
                 'admin.ops_messages.send',
             ],
         ],
@@ -103,6 +102,59 @@ return [
                 'hr.discipline.manage',
             ],
         ],
+        [
+            'slug' => 'referral_monitoring',
+            'name' => 'Referral monitoring',
+            'description' => 'Watch referral and vouch chains for suspicious patterns before they cost credits.',
+            'icon' => 'ti ti-affiliate',
+            'permissions' => [
+                'admin.users.view',
+                'admin.referrals.view',
+            ],
+        ],
+        [
+            'slug' => 'onboarding_followup',
+            'name' => 'Onboarding follow-up',
+            'description' => 'Reach out to users stuck mid-funnel — verified but no first job logged yet.',
+            'icon' => 'ti ti-route',
+            'permissions' => [
+                'admin.users.view',
+                'ops.onboarding.manage',
+                'admin.ops_messages.send',
+            ],
+        ],
+        [
+            'slug' => 'reengagement',
+            'name' => 'Re-engagement outreach',
+            'description' => 'Nudge inactive users back via WhatsApp and one-to-one outreach.',
+            'icon' => 'ti ti-flame',
+            'permissions' => [
+                'admin.users.view',
+                'ops.reengagement.manage',
+                'admin.ops_messages.send',
+            ],
+        ],
+        [
+            'slug' => 'knowledge_base',
+            'name' => 'Knowledge base upkeep',
+            'description' => 'Flag FAQ gaps from recurring questions and keep canned responses sharp.',
+            'icon' => 'ti ti-books',
+            'permissions' => [
+                'ops.knowledge.manage',
+                'admin.support.manage',
+            ],
+        ],
+        [
+            'slug' => 'verification',
+            'name' => 'Verification',
+            'description' => 'Review new sign-ups’ trade claims and confirm WhatsApp numbers where manual checks are needed.',
+            'icon' => 'ti ti-rosette-discount-check',
+            'permissions' => [
+                'admin.users.view',
+                'ops.verification.manage',
+                'admin.users.manage',
+            ],
+        ],
     ],
 
     /*
@@ -125,6 +177,11 @@ return [
         'finance_officer' => ['short' => 'Billing issues', 'tone' => 'finance', 'route' => 'admin.billing-issues.index'],
         'growth_ops' => ['short' => 'Growth', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
         'content_comms' => ['short' => 'Content', 'tone' => 'content', 'route' => 'admin.messaging.index'],
+        'referral_monitoring' => ['short' => 'Referrals', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
+        'onboarding_followup' => ['short' => 'Onboarding', 'tone' => 'growth', 'route' => 'admin.onboarding.index'],
+        'reengagement' => ['short' => 'Re-engage', 'tone' => 'growth', 'route' => 'admin.reengagement.index'],
+        'knowledge_base' => ['short' => 'Knowledge', 'tone' => 'content', 'route' => 'admin.knowledge.index'],
+        'verification' => ['short' => 'Verification', 'tone' => 'verify', 'route' => 'admin.verification.index'],
     ],
 
     'ops_shortcuts' => [
@@ -200,14 +257,6 @@ return [
             'hint' => 'pending',
         ],
         [
-            'key' => 'messaging',
-            'label' => 'Announcements',
-            'icon' => 'ti ti-speakerphone',
-            'route' => 'admin.messaging.index',
-            'ability' => 'admin.messaging.manage',
-            'hint' => 'drafts',
-        ],
-        [
             'key' => 'credits',
             'label' => 'Credits',
             'icon' => 'ti ti-coin',
@@ -238,6 +287,38 @@ return [
             'route' => 'admin.referrals.index',
             'ability' => 'admin.referrals.view',
             'hint' => 'new',
+        ],
+        [
+            'key' => 'onboarding',
+            'label' => 'Onboarding follow-up',
+            'icon' => 'ti ti-route',
+            'route' => 'admin.onboarding.index',
+            'ability' => 'ops.onboarding.manage',
+            'hint' => 'to nudge',
+        ],
+        [
+            'key' => 'reengagement',
+            'label' => 'Re-engagement',
+            'icon' => 'ti ti-flame',
+            'route' => 'admin.reengagement.index',
+            'ability' => 'ops.reengagement.manage',
+            'hint' => 'inactive',
+        ],
+        [
+            'key' => 'verification',
+            'label' => 'Verification',
+            'icon' => 'ti ti-rosette-discount-check',
+            'route' => 'admin.verification.index',
+            'ability' => 'ops.verification.manage',
+            'hint' => 'to review',
+        ],
+        [
+            'key' => 'knowledge',
+            'label' => 'Knowledge base',
+            'icon' => 'ti ti-books',
+            'route' => 'admin.knowledge.index',
+            'ability' => 'ops.knowledge.manage',
+            'hint' => 'gaps',
         ],
     ],
 
@@ -359,9 +440,18 @@ return [
             'label' => 'Support & messaging',
             'items' => [
                 'admin.support.manage' => 'Handle artisan support tickets',
-                'admin.messaging.manage' => 'Send announcements to artisans or staff',
+                'admin.messaging.manage' => 'Send announcements to artisans or staff (Super Admin)',
                 'admin.ops_messages.send' => 'Send Super Admin templated messages to site users',
                 'admin.analytics.view' => 'View growth and engagement analytics',
+            ],
+        ],
+        'lifecycle' => [
+            'label' => 'Growth & lifecycle',
+            'items' => [
+                'ops.onboarding.manage' => 'Follow up with users stuck mid-onboarding (verified but no first job)',
+                'ops.reengagement.manage' => 'Run re-engagement outreach to inactive users',
+                'ops.verification.manage' => 'Review trade claims and confirm WhatsApp numbers',
+                'ops.knowledge.manage' => 'Maintain the knowledge base and canned response templates',
             ],
         ],
         'access' => [
@@ -429,7 +519,7 @@ return [
             'group' => 'mail',
             'type' => 'string',
             'config' => 'mail.from.name',
-            'description' => 'The name shown on outbound Isabi email.',
+            'description' => 'The name shown on outbound Kraftrack email.',
         ],
         [
             'key' => 'profiles.max_slug_changes',

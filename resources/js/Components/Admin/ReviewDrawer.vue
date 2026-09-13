@@ -316,7 +316,7 @@ const messageOpen = ref(false);
 const busy = ref('');
 
 const messageForm = reactive({
-    subject: 'About a recent review on Isabi',
+    subject: 'About a recent review on Kraftrack',
     body: '',
 });
 

@@ -154,7 +154,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 const props = defineProps({
     show: { type: Boolean, default: false },
     url: { type: String, default: '' },
-    filename: { type: String, default: 'isabi-page-qr' },
+    filename: { type: String, default: 'Kraftrack-page-qr' },
     businessName: { type: String, default: '' },
     trade: { type: String, default: '' },
 });
@@ -184,12 +184,12 @@ const POSTER_RATIO = 1350 / 1080;
 
 const toast = (message, type = 'success') => {
     window.dispatchEvent(
-        new CustomEvent('isabi:toast', { detail: { type, message, duration: 3500 } }),
+        new CustomEvent('kraftrack:toast', { detail: { type, message, duration: 3500 } }),
     );
 };
 
 const outputName = computed(
-    () => `${props.filename || 'isabi-page-qr'}-${style.value}`,
+    () => `${props.filename || 'Kraftrack-page-qr'}-${style.value}`,
 );
 
 /**
@@ -286,7 +286,7 @@ const buildPoster = async (width) => {
     ctx.fillText('SCAN TO SEE MY WORK', mid, 110 * s);
     ctx.letterSpacing = '0px';
 
-    const name = props.businessName || 'My Isabi page';
+    const name = props.businessName || 'My Kraftrack page';
     const namePx = fitText(ctx, name, width - pad * 2, 76 * s, 600, 'Fraunces, Georgia, serif');
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `600 ${namePx}px Fraunces, Georgia, serif`;
@@ -331,7 +331,7 @@ const buildPoster = async (width) => {
 
     ctx.font = `800 ${26 * s}px "Plus Jakarta Sans", system-ui, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillText('isabi', mid, height - 96 * s);
+    ctx.fillText('Kraftrack', mid, height - 96 * s);
     ctx.textAlign = 'left';
 
     return canvas;
@@ -403,7 +403,7 @@ const downloadSvg = async () => {
         const blob = new Blob([svg], { type: 'image/svg+xml' });
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = `${props.filename || 'isabi-page-qr'}.svg`;
+        link.download = `${props.filename || 'Kraftrack-page-qr'}.svg`;
         link.href = href;
         link.click();
         URL.revokeObjectURL(href);
@@ -430,7 +430,7 @@ const shareImage = async () => {
             files: [
                 new File([blob], `${outputName.value}.png`, { type: 'image/png' }),
             ],
-            title: props.businessName || 'Isabi page QR',
+            title: props.businessName || 'Kraftrack page QR',
         });
     } catch {
         // Cancelled or unsupported — download remains available.

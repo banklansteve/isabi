@@ -11,6 +11,7 @@ use App\Models\AnnouncementDelivery;
 use App\Models\AnnouncementTemplate;
 use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AnnouncementService;
+use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,7 @@ class AnnouncementAdminController extends Controller
 {
     public function index(Request $request, AnnouncementService $announcements): Response
     {
-        abort_unless($request->user()?->canDo('admin.messaging.manage'), 403);
+        abort_unless($request->user()?->isSuperAdmin(), 403);
 
         $audience = (string) $request->query('audience', Announcement::AUDIENCE_USERS);
         if (! in_array($audience, [Announcement::AUDIENCE_USERS, Announcement::AUDIENCE_STAFF], true)) {
@@ -57,7 +58,7 @@ class AnnouncementAdminController extends Controller
                 ->orderBy('name')
                 ->get()
                 ->map(fn (AnnouncementTemplate $template) => $this->templatePayload($template)),
-            'trades' => config('trades'),
+            'trades' => JobCategories::tradeLabels(),
             'locations' => NigeriaLocations::all(),
         ]);
     }

@@ -5,7 +5,6 @@ namespace App\Support\Quotes;
 use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Models\User;
-use Illuminate\Support\Str;
 
 class QuoteBuilderService
 {
@@ -26,7 +25,7 @@ class QuoteBuilderService
         return ArtisanQuote::query()->create([
             'quote_request_id' => $request->id,
             'user_id' => $artisan->id,
-            'quote_number' => $this->nextQuoteNumber($artisan),
+            'quote_number' => QuoteReference::unique(),
             'scope_of_work' => $request->message,
             'line_items' => QuoteLineItem::defaultRows(),
             'terms' => 'Quote valid for the period stated. Prices may adjust if scope changes.',
@@ -139,7 +138,14 @@ class QuoteBuilderService
                 'estimated_start' => $quote->estimated_start?->toDateString(),
                 'estimated_duration_days' => $quote->estimated_duration_days,
                 'scope_of_work' => $quote->scope_of_work,
-                'line_items' => QuoteLineItem::rowsForEditor($quote->line_items ?? []),
+                'line_items' => collect(QuoteLineItem::rowsForEditor($quote->line_items ?? []))
+                    ->map(fn (array $row) => [
+                        ...$row,
+                        'display_label' => QuoteLineItem::displayLabel($row),
+                        'line_total' => QuoteLineItem::lineTotalNaira($row),
+                    ])
+                    ->values()
+                    ->all(),
                 'notes' => $quote->notes,
                 'terms' => $quote->terms,
                 'payment_terms' => $quote->payment_terms,
@@ -152,12 +158,17 @@ class QuoteBuilderService
                 'sent_at_label' => $quote->sent_at
                     ?->timezone(config('app.display_timezone'))
                     ->format('j M Y'),
+                'pdf_url' => route('quotes.pdf', $request),
             ],
             'whatsappShare' => $request->status === QuoteRequest::STATUS_AWAITING_CLIENT
                 ? QuoteDelivery::payload($request, $quote)
                 : null,
             'formMeta' => [
+                'today' => now()->toDateString(),
                 'validUntilMin' => now()->addDay()->toDateString(),
+                'validUntilMax' => now()->addYears(2)->toDateString(),
+                'estimatedStartMin' => now()->toDateString(),
+                'estimatedStartMax' => now()->addYears(2)->toDateString(),
                 'defaultVatRate' => self::DEFAULT_VAT_RATE,
                 'extraCharges' => QuoteLineItem::extraChargeOptions(),
             ],
@@ -178,9 +189,11 @@ class QuoteBuilderService
         return [
             'business' => [
                 'business_name' => $artisan->displayBusinessName(),
-                'logo_url' => $artisan->logo_url ?: $artisan->avatar_url,
+                // Official brand mark only — never fall back to a personal avatar.
+                'logo_url' => filled($artisan->logo_url) ? $artisan->logo_url : null,
                 'trade' => $artisan->trade,
                 'phone' => $artisan->whatsapp,
+                'area' => collect([$artisan->lga, $artisan->state])->filter()->implode(', ') ?: null,
             ],
             'request' => [
                 'subject' => $request->displayTitle(),
@@ -220,13 +233,7 @@ class QuoteBuilderService
             'pdf_url' => filled($request->client_token)
                 ? QuoteDelivery::pdfUrl($request)
                 : null,
+            'app_name' => config('app.name'),
         ];
-    }
-
-    private function nextQuoteNumber(User $artisan): string
-    {
-        $count = ArtisanQuote::query()->where('user_id', $artisan->id)->count() + 1;
-
-        return 'Q'.now()->format('y').'-'.str_pad((string) $count, 4, '0', STR_PAD_LEFT);
     }
 }

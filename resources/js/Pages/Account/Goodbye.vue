@@ -23,7 +23,7 @@
                     :href="route('home')"
                     class="font-display text-[1.45rem] font-extrabold tracking-tight text-white"
                 >
-                    Isabi
+                    Kraftrack
                 </Link>
                 <p
                     class="mt-8 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
@@ -38,7 +38,7 @@
                 </h1>
                 <p class="mx-auto mt-4 max-w-lg text-sm font-medium leading-relaxed text-white/70 sm:text-[15px]">
                     Your page is gone, but the craft isn’t. Whenever you’re ready to show clients real
-                    work again, Isabi will be here — same calm tools, same honest proof.
+                    work again, Kraftrack will be here — same calm tools, same honest proof.
                 </p>
             </div>
         </div>
@@ -84,7 +84,7 @@
                         :href="route('register')"
                         class="tap-target inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition-colors hover:bg-base-hover"
                     >
-                        Come back to Isabi
+                        Come back to Kraftrack
                         <i class="ti ti-arrow-right" aria-hidden="true" />
                     </Link>
                     <Link
@@ -97,8 +97,8 @@
 
                 <p class="mt-6 text-center text-xs font-medium text-ink/35">
                     Need help with something else?
-                    <a href="mailto:hello@isabi.dev" class="font-bold text-base-action hover:text-base-hover">
-                        hello@isabi.dev
+                    <a href="mailto:hello@kraftrack.com" class="font-bold text-base-action hover:text-base-hover">
+                        hello@kraftrack.com
                     </a>
                 </p>
             </div>

@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'isabi:previousUrl';
+const STORAGE_KEY = 'kraftrack:previousUrl';
 
 export const rememberCurrentUrl = () => {
     if (typeof window === 'undefined') {

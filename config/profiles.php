@@ -9,7 +9,7 @@ return [
     'reserved' => [
         'admin', 'api', 'app', 'about', 'acceptable-use', 'auth', 'careers',
         'contact', 'cookies', 'cookie-consent', 'credits', 'dashboard', 'docs',
-        'faq', 'help', 'home', 'internal', 'isabi', 'login', 'logout', 'my-page',
+        'faq', 'help', 'home', 'internal', 'kraftrack', 'login', 'logout', 'my-page',
         'page', 'pricing', 'privacy', 'profile', 'p', 'r', 'register', 'referrals',
         'reset-password', 'forgot-password', 'support', 'terms', 'verify-email',
         'welcome', 'work-log', 'www', 'null', 'undefined', 'settings', 'billing',
@@ -23,6 +23,9 @@ return [
     /** Review invite link lifetime (days). */
     'review_token_days' => 30,
 
-    /** Client quote response link lifetime (days). */
+    /** Client quote response link fallback lifetime (days) when valid_until is unset. */
     'quote_token_days' => 30,
+
+    /** Days before valid_until to send a one-shot looming-expiry nudge. */
+    'quote_expiry_nudge_days' => 3,
 ];

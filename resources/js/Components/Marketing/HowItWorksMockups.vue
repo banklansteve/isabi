@@ -5,7 +5,7 @@
         class="flex h-full flex-col bg-pale"
     >
         <div class="flex items-center justify-between px-3.5 pb-1 pt-9">
-            <span class="font-display text-[13px] font-extrabold tracking-tight text-ink">Isabi</span>
+            <span class="font-display text-[13px] font-extrabold tracking-tight text-ink">Kraftrack</span>
             <span class="text-[9px] font-semibold text-ink/45">Sign in</span>
         </div>
         <div class="flex-1 overflow-hidden px-3.5 pb-3 pt-2">
@@ -336,8 +336,8 @@
             <div
                 class="mt-2.5 max-h-14 overflow-hidden rounded-xl bg-pale/80 px-2.5 py-2 text-[8px] font-medium leading-relaxed text-ink/55"
             >
-                Hi — please rate the kitchen rewiring job on Isabi:
-                isabi.dev/r/Kx8m2…
+                Hi — please rate the kitchen rewiring job on kraftrack:
+                kraftrack.com/r/Kx8m2…
             </div>
             <div
                 class="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#25D366] py-2.5 text-[10px] font-bold text-white"
@@ -367,7 +367,7 @@
                 class="pointer-events-none absolute -right-6 top-4 h-24 w-24 rounded-full bg-coral/20 blur-2xl"
             />
             <div class="relative flex items-center justify-between">
-                <span class="font-display text-[12px] font-extrabold">Isabi</span>
+                <span class="font-display text-[12px] font-extrabold">Kraftrack</span>
                 <span
                     class="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white/70 ring-1 ring-white/15"
                 >

@@ -1,22 +1,29 @@
 <x-mail::message>
+# New quote request
+
 @if($artisanName)
 Hi {{ $artisanName }},
 @else
 Hi,
 @endif
 
-**{{ $clientName }}** just asked you for a quote on Isabi.
+**{{ $clientName }}** just asked you for a quote on {{ $appName }}.
 
-@if($jobLabel)
-**Referenced job:** {{ $jobLabel }}
-@else
-They found you through your public page.
+<x-mail::panel>
+**Client details**
+
+- **Name:** {{ $clientName }}
+- **Phone:** {{ $clientPhone ?: '—' }}
+- **Email:** {{ $clientEmail ?: '—' }}
+@if($subject)
+- **Subject:** {{ $subject }}
 @endif
-
-**Contact details**
-
-- **Phone:** {{ $clientPhone }}
-- **Email:** {{ $clientEmail }}
+@if($jobLabel)
+- **Referenced job:** {{ $jobLabel }}
+@else
+- **Source:** Your public page
+@endif
+</x-mail::panel>
 
 @if($messageText)
 **Their message**
@@ -24,21 +31,20 @@ They found you through your public page.
 {{ $messageText }}
 @endif
 
-Open the quote builder to call or email them, then put together your numbers.
+Open the builder to call or WhatsApp them, then put your numbers together.
 
 <x-mail::button :url="$viewUrl">
-View quote request
+Open quote request
 </x-mail::button>
 
-You can also see all incoming requests on your quotes dashboard.
-
-<x-mail::button :url="$requestsUrl" color="success">
-All quote requests
+<x-mail::button :url="$requestsUrl" color="secondary">
+All quotes
 </x-mail::button>
 
-— The {{ $appName }} team
+Thanks,  
+The {{ $appName }} team
 
 <x-slot:subcopy>
-If the button doesn’t open, paste this link in your browser: [{{ $viewUrl }}]({{ $viewUrl }})
+If the button doesn’t open, paste this link into your browser: [{{ $viewUrl }}]({{ $viewUrl }})
 </x-slot:subcopy>
 </x-mail::message>

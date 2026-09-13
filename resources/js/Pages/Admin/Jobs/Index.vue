@@ -1,7 +1,7 @@
 <template>
     <Head title="Job logs" />
 
-    <AdminChrome title="Job logs" :eyebrow="`${list.total.value.toLocaleString()} logged across Isabi`" />
+    <AdminChrome title="Job logs" :eyebrow="`${list.total.value.toLocaleString()} logged across Kraftrack`" />
 
     <div class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">

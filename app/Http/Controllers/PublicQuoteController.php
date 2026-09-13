@@ -25,8 +25,12 @@ class PublicQuoteController extends Controller
             ->with(['artisan', 'artisanQuote', 'workLog'])
             ->firstOrFail();
 
-        if ($request->client_token_expires_at?->isPast()) {
-            abort(410, 'This quote link has expired.');
+        if ($request->client_token_expires_at?->isPast() || $request->isOfferExpired()) {
+            $request->refreshExpiry();
+
+            return Inertia::render('Public/QuoteExpired', [
+                'businessName' => $request->artisan?->displayBusinessName(),
+            ]);
         }
 
         $request->refreshExpiry();
@@ -51,7 +55,8 @@ class PublicQuoteController extends Controller
             ->with(['artisan', 'artisanQuote'])
             ->firstOrFail();
 
-        if ($request->client_token_expires_at?->isPast()) {
+        if ($request->client_token_expires_at?->isPast() || $request->isOfferExpired()) {
+            $request->refreshExpiry();
             abort(410, 'This quote link has expired.');
         }
 
@@ -62,10 +67,11 @@ class PublicQuoteController extends Controller
 
         $pdf = app(QuotePdfService::class);
         $filename = $pdf->filename($quote, $artisan);
+        $disposition = request()->boolean('download') ? 'attachment' : 'inline';
 
         return response($pdf->output($request, $quote, $artisan), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
         ]);
     }
 
@@ -76,9 +82,12 @@ class PublicQuoteController extends Controller
             ->with('artisanQuote')
             ->firstOrFail();
 
-        if ($request->client_token_expires_at?->isPast()) {
+        if ($request->client_token_expires_at?->isPast() || $request->isOfferExpired()) {
+            $request->refreshExpiry();
             abort(410);
         }
+
+        $request->refreshExpiry();
 
         if ($request->status !== QuoteRequest::STATUS_AWAITING_CLIENT) {
             return redirect()

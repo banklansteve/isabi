@@ -61,7 +61,7 @@ class ReviewInvite
         $name = trim((string) $workLog->client_name);
         $greeting = $name !== '' ? "Hi {$name}," : 'Hi,';
         $job = self::jobPhrase($workLog);
-        $resolvedLink = $link ?? (filled($workLog->review_token) ? self::publicUrl($workLog) : 'https://isabi.dev/r/…');
+        $resolvedLink = $link ?? (filled($workLog->review_token) ? self::publicUrl($workLog) : 'https://kraftrack.com/r/…');
 
         $rendered = str_replace(
             ['{greeting}', '{client_name}', '{job}', '{link}'],

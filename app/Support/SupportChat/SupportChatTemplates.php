@@ -55,7 +55,7 @@ class SupportChatTemplates
                 'title' => 'Greeting',
                 'moment' => self::MOMENT_OPEN,
                 'topic_key' => null,
-                'body' => "Hi {name}, this is {agent} from Isabi. I've picked this up — how can I help?",
+                'body' => "Hi {name}, this is {agent} from Kraftrack. I've picked this up — how can I help?",
             ],
             [
                 'title' => 'Looking into it',

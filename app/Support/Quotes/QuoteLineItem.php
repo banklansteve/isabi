@@ -52,7 +52,7 @@ class QuoteLineItem
             self::KIND_TRANSPORT => 'Transport / logistics fee',
             self::KIND_INSPECTION => 'Site inspection / consultation fee',
             self::KIND_PERMIT => 'Permit / approval fees',
-            self::KIND_OTHER => 'Other',
+            self::KIND_OTHER => 'Other charges',
             default => 'Charge',
         };
     }

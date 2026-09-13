@@ -9,7 +9,7 @@ use Illuminate\Validation\ValidationException;
 
 class CreateSuperAdminCommand extends Command
 {
-    protected $signature = 'isabi:create-super-admin
+    protected $signature = 'kraftrack:create-super-admin
                             {email : Super admin email}
                             {--name= : Full name (defaults to Super Admin)}
                             {--password= : Password (prompted if omitted)}';

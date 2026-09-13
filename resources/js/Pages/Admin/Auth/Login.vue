@@ -2,7 +2,7 @@
     <AuthLayout
         tone="admin"
         headline="Operations access only."
-        support="Sign in to moderate the platform, support artisans, and keep Isabi honest."
+        support="Sign in to moderate the platform, support artisans, and keep Kraftrack honest."
         :points="[
             'Separate from artisan accounts',
             'Roles assigned by Super Admin',
@@ -33,7 +33,7 @@
                     type="email"
                     label="Work email"
                     icon="ti ti-mail"
-                    placeholder="you@isabi.dev"
+                    placeholder="you@kraftrack.test"
                     autocomplete="username"
                     required
                     autofocus

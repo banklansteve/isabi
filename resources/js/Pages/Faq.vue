@@ -34,7 +34,7 @@
                         Frequently asked questions
                     </h1>
                     <p class="mt-3 text-sm font-medium leading-relaxed text-white/65 sm:text-base">
-                        Clear answers about pricing, reviews, your page, and how Isabi works — without
+                        Clear answers about pricing, reviews, your page, and how Kraftrack works — without
                         the sales gloss.
                     </p>
                     <div class="mt-6 flex flex-wrap gap-3">
@@ -56,7 +56,7 @@
                 </div>
             </section>
 
-            <nav class="mb-10 flex gap-2 overflow-x-auto pb-1" aria-label="FAQ sections">
+            <nav v-if="groups.length" class="mb-10 flex gap-2 overflow-x-auto pb-1" aria-label="FAQ sections">
                 <a
                     v-for="group in groups"
                     :key="group.id"
@@ -68,7 +68,18 @@
                 </a>
             </nav>
 
-            <FaqAccordion :groups="groups" />
+            <FaqAccordion v-if="groups.length" :groups="groups" />
+
+            <div
+                v-else
+                class="rounded-[1.5rem] bg-white px-6 py-12 text-center shadow-premium ring-1 ring-ink/[0.06]"
+            >
+                <i class="ti ti-help text-3xl text-ink/25" aria-hidden="true" />
+                <p class="mt-3 text-sm font-bold text-ink">FAQ coming soon</p>
+                <p class="mt-1 text-sm font-medium text-ink/45">
+                    We’re preparing clear answers. In the meantime, see how it works or contact us.
+                </p>
+            </div>
 
             <div
                 class="mt-14 flex flex-col items-start justify-between gap-6 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#1A4FB5] via-[#123B72] to-[#071427] px-6 py-8 text-white sm:flex-row sm:items-center sm:px-10 sm:py-10"
@@ -122,15 +133,13 @@
 import FaqAccordion from '@/Components/Help/FaqAccordion.vue';
 import PublicTopBar from '@/Components/Marketing/PublicTopBar.vue';
 import SiteFooter from '@/Components/SiteFooter.vue';
-import { helpGroups } from '@/Data/helpTopics';
 import { Head, Link } from '@inertiajs/vue3';
 
 defineProps({
+    groups: { type: Array, default: () => [] },
     canLogin: { type: Boolean, default: false },
     canRegister: { type: Boolean, default: false },
 });
-
-const groups = helpGroups;
 </script>
 
 <style scoped>

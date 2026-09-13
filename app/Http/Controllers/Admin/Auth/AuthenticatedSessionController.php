@@ -41,7 +41,7 @@ class AuthenticatedSessionController extends Controller
 
         ActivityLogger::log(
             action: 'auth.admin_login',
-            summary: "{$user->name} signed in to the Isabi admin portal.",
+            summary: "{$user->name} signed in to the Kraftrack admin portal.",
             user: $user,
         );
 

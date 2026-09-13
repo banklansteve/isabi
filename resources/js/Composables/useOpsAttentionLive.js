@@ -44,19 +44,19 @@ export function useOpsAttentionLive() {
     const onAttentionRefresh = () => refresh({ skipAsapRoute: false });
 
     onMounted(() => {
-        window.addEventListener('isabi:staff-chat', onStaffChat);
-        window.addEventListener('isabi:support-inbox', onSupportInbox);
-        window.addEventListener('isabi:ops-attention-refresh', onAttentionRefresh);
+        window.addEventListener('kraftrack:staff-chat', onStaffChat);
+        window.addEventListener('kraftrack:support-inbox', onSupportInbox);
+        window.addEventListener('kraftrack:ops-attention-refresh', onAttentionRefresh);
     });
 
     onUnmounted(() => {
-        window.removeEventListener('isabi:staff-chat', onStaffChat);
-        window.removeEventListener('isabi:support-inbox', onSupportInbox);
-        window.removeEventListener('isabi:ops-attention-refresh', onAttentionRefresh);
+        window.removeEventListener('kraftrack:staff-chat', onStaffChat);
+        window.removeEventListener('kraftrack:support-inbox', onSupportInbox);
+        window.removeEventListener('kraftrack:ops-attention-refresh', onAttentionRefresh);
         window.clearTimeout(refreshTimer);
     });
 }
 
 export function refreshOpsAttention(options = {}) {
-    window.dispatchEvent(new CustomEvent('isabi:ops-attention-refresh', { detail: options }));
+    window.dispatchEvent(new CustomEvent('kraftrack:ops-attention-refresh', { detail: options }));
 }

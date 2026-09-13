@@ -21,7 +21,7 @@
                         :href="route('home')"
                         class="font-display text-[1.3rem] font-extrabold tracking-tight text-white"
                     >
-                        Isabi
+                        Kraftrack
                     </Link>
                     <span
                         class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/70 ring-1 ring-white/15 backdrop-blur"

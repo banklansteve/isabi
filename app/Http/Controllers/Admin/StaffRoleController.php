@@ -55,8 +55,6 @@ class StaffRoleController extends Controller
 
     public function update(UpdateStaffRoleRequest $request, StaffRole $role): JsonResponse|RedirectResponse
     {
-        abort_if($role->is_system, 422, 'System roles cannot be edited.');
-
         $data = $request->validated();
         $old = $role->only(['name', 'description', 'permissions', 'is_active']);
 
@@ -86,8 +84,6 @@ class StaffRoleController extends Controller
         StaffRole $role,
         StaffAssignmentService $assignments,
     ): JsonResponse|RedirectResponse {
-        abort_if($role->is_system, 422, 'System roles cannot be deleted.');
-
         $data = $request->validated();
         $name = $role->name;
         $assigned = (int) $role->assignments()->count();

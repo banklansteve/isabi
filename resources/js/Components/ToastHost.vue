@@ -206,14 +206,14 @@ watch(
 let removeInertiaListener = null;
 
 onMounted(() => {
-    window.addEventListener('isabi:toast', onCustomToast);
+    window.addEventListener('kraftrack:toast', onCustomToast);
     removeInertiaListener = router.on('success', (event) => {
         consumeFlash(event.detail?.page?.props?.flash?.toast);
     });
 });
 
 onUnmounted(() => {
-    window.removeEventListener('isabi:toast', onCustomToast);
+    window.removeEventListener('kraftrack:toast', onCustomToast);
     removeInertiaListener?.();
 });
 </script>

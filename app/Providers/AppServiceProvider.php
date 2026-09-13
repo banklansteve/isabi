@@ -45,6 +45,24 @@ class AppServiceProvider extends ServiceProvider
             // Database may not be ready during install / package discovery.
         }
 
+        // Gmail on :587 needs STARTTLS. Empty / literal "smtp" scheme can skip encryption.
+        if (
+            config('mail.default') === 'smtp'
+            && str_contains(strtolower((string) config('mail.mailers.smtp.host')), 'gmail.com')
+            && (int) config('mail.mailers.smtp.port') === 587
+        ) {
+            $scheme = strtolower(trim((string) config('mail.mailers.smtp.scheme')));
+            if ($scheme === '' || $scheme === 'smtp' || $scheme === 'null') {
+                config(['mail.mailers.smtp.scheme' => null]);
+            }
+
+            // Gmail SMTP is happier when EHLO uses gmail.com, not a local APP_URL host.
+            $ehlo = trim((string) config('mail.mailers.smtp.local_domain'));
+            if ($ehlo === '' || str_ends_with($ehlo, '.dev') || str_ends_with($ehlo, '.test') || $ehlo === 'localhost') {
+                config(['mail.mailers.smtp.local_domain' => 'gmail.com']);
+            }
+        }
+
         $this->alignGmailFromAddress();
 
         app(SessionLifetime::class)->primeHandlerLifetime();

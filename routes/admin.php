@@ -16,7 +16,10 @@ use App\Http\Controllers\Admin\Auth\SetPasswordController;
 use App\Http\Controllers\Admin\Auth\VerifyInvitationController;
 use App\Http\Controllers\Admin\CreditAdminController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\CareerVacancyAdminController;
+use App\Http\Controllers\Admin\FaqAdminController;
 use App\Http\Controllers\Admin\FinancialAdminController;
+use App\Http\Controllers\Admin\TaxonomyAdminController;
 use App\Http\Controllers\Admin\Hr\DisciplinaryNoticeController;
 use App\Http\Controllers\Admin\Hr\HrChecklistController;
 use App\Http\Controllers\Admin\Hr\HrController;
@@ -29,13 +32,16 @@ use App\Http\Controllers\Admin\Hr\HrProfileController;
 use App\Http\Controllers\Admin\Hr\HrReportController;
 use App\Http\Controllers\Admin\Hr\HrSettingsController;
 use App\Http\Controllers\Admin\JobAdminController;
+use App\Http\Controllers\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Admin\ModerationDeskController;
+use App\Http\Controllers\Admin\OnboardingController;
 use App\Http\Controllers\Admin\OpsAttentionController;
 use App\Http\Controllers\Admin\OpsInsightsController;
 use App\Http\Controllers\Admin\OpsMessageController;
 use App\Http\Controllers\Admin\OpsTaskController;
 use App\Http\Controllers\Admin\PatrolController;
 use App\Http\Controllers\Admin\PricingAdminController;
+use App\Http\Controllers\Admin\ReengagementController;
 use App\Http\Controllers\Admin\ReferralAdminController;
 use App\Http\Controllers\Admin\ReviewAdminController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -46,6 +52,7 @@ use App\Http\Controllers\Admin\StaffController;
 use App\Http\Controllers\Admin\StaffRoleController;
 use App\Http\Controllers\Admin\SupportController;
 use App\Http\Controllers\Admin\UserAdminController;
+use App\Http\Controllers\Admin\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->name('admin.')->group(function () {
@@ -194,21 +201,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('referrals', [ReferralAdminController::class, 'index'])->middleware('ability:admin.referrals.view')->name('referrals.index');
 
-        Route::get('analytics', [AnalyticsAdminController::class, 'index'])->middleware('ability:admin.analytics.view')->name('analytics.index');
+        // Growth & lifecycle duties — smart landing pages over existing data.
+        Route::get('onboarding', [OnboardingController::class, 'index'])->middleware('ability:ops.onboarding.manage')->name('onboarding.index');
+        Route::get('reengagement', [ReengagementController::class, 'index'])->middleware('ability:ops.reengagement.manage')->name('reengagement.index');
+        Route::get('verification', [VerificationController::class, 'index'])->middleware('ability:ops.verification.manage')->name('verification.index');
+        Route::get('knowledge', [KnowledgeBaseController::class, 'index'])->middleware('ability:ops.knowledge.manage')->name('knowledge.index');
 
-        Route::get('messaging', [AnnouncementAdminController::class, 'index'])->middleware('ability:admin.messaging.manage')->name('messaging.index');
-        Route::middleware('ability:admin.messaging.manage')->group(function () {
-            Route::get('messaging/create', [AnnouncementAdminController::class, 'create'])->name('messaging.create');
-            Route::post('messaging', [AnnouncementAdminController::class, 'store'])->name('messaging.store');
-            Route::post('messaging/preview', [AnnouncementAdminController::class, 'preview'])->name('messaging.preview');
-            Route::get('messaging/templates', [AnnouncementAdminController::class, 'templates'])->name('messaging.templates');
-            Route::post('messaging/templates', [AnnouncementAdminController::class, 'storeTemplate'])->name('messaging.templates.store');
-            Route::patch('messaging/templates/{template}', [AnnouncementAdminController::class, 'updateTemplate'])->name('messaging.templates.update');
-            Route::delete('messaging/templates/{template}', [AnnouncementAdminController::class, 'destroyTemplate'])->name('messaging.templates.destroy');
-            Route::get('messaging/{announcement}', [AnnouncementAdminController::class, 'show'])->name('messaging.show');
-            Route::post('messaging/{announcement}/send', [AnnouncementAdminController::class, 'send'])->name('messaging.send');
-            Route::post('messaging/{announcement}/cancel', [AnnouncementAdminController::class, 'cancel'])->name('messaging.cancel');
-        });
+        Route::get('analytics', [AnalyticsAdminController::class, 'index'])->middleware('ability:admin.analytics.view')->name('analytics.index');
 
         Route::middleware('ability:admin.support.manage')->prefix('support')->name('support.')->group(function () {
             Route::get('/', [SupportController::class, 'index'])->name('index');
@@ -276,6 +275,40 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
             Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
+
+            Route::get('faqs', [FaqAdminController::class, 'index'])->name('faqs.index');
+            Route::post('faqs', [FaqAdminController::class, 'store'])->name('faqs.store');
+            Route::patch('faqs/{faq}', [FaqAdminController::class, 'update'])->name('faqs.update');
+            Route::delete('faqs/{faq}', [FaqAdminController::class, 'destroy'])->name('faqs.destroy');
+
+            Route::get('careers', [CareerVacancyAdminController::class, 'index'])->name('careers.index');
+            Route::post('careers', [CareerVacancyAdminController::class, 'store'])->name('careers.store');
+            Route::patch('careers/{vacancy}', [CareerVacancyAdminController::class, 'update'])->name('careers.update');
+            Route::delete('careers/{vacancy}', [CareerVacancyAdminController::class, 'destroy'])->name('careers.destroy');
+
+            Route::get('taxonomy', [TaxonomyAdminController::class, 'index'])->name('taxonomy.index');
+            Route::post('taxonomy/categories', [TaxonomyAdminController::class, 'storeCategory'])->name('taxonomy.categories.store');
+            Route::patch('taxonomy/categories/{category}', [TaxonomyAdminController::class, 'updateCategory'])->name('taxonomy.categories.update');
+            Route::delete('taxonomy/categories/{category}', [TaxonomyAdminController::class, 'destroyCategory'])->name('taxonomy.categories.destroy');
+            Route::post('taxonomy/categories/{category}/subcategories', [TaxonomyAdminController::class, 'storeSubcategory'])->name('taxonomy.categories.subcategories.store');
+            Route::patch('taxonomy/subcategories/{subcategory}', [TaxonomyAdminController::class, 'updateSubcategory'])->name('taxonomy.subcategories.update');
+            Route::delete('taxonomy/subcategories/{subcategory}', [TaxonomyAdminController::class, 'destroySubcategory'])->name('taxonomy.subcategories.destroy');
+            Route::post('taxonomy/skills', [TaxonomyAdminController::class, 'storeSkill'])->name('taxonomy.skills.store');
+            Route::patch('taxonomy/skills/{skill}', [TaxonomyAdminController::class, 'updateSkill'])->name('taxonomy.skills.update');
+            Route::delete('taxonomy/skills/{skill}', [TaxonomyAdminController::class, 'destroySkill'])->name('taxonomy.skills.destroy');
+
+            // Announcements — Super Admin only (moved out of operations Comms).
+            Route::get('messaging', [AnnouncementAdminController::class, 'index'])->name('messaging.index');
+            Route::get('messaging/create', [AnnouncementAdminController::class, 'create'])->name('messaging.create');
+            Route::post('messaging', [AnnouncementAdminController::class, 'store'])->name('messaging.store');
+            Route::post('messaging/preview', [AnnouncementAdminController::class, 'preview'])->name('messaging.preview');
+            Route::get('messaging/templates', [AnnouncementAdminController::class, 'templates'])->name('messaging.templates');
+            Route::post('messaging/templates', [AnnouncementAdminController::class, 'storeTemplate'])->name('messaging.templates.store');
+            Route::patch('messaging/templates/{template}', [AnnouncementAdminController::class, 'updateTemplate'])->name('messaging.templates.update');
+            Route::delete('messaging/templates/{template}', [AnnouncementAdminController::class, 'destroyTemplate'])->name('messaging.templates.destroy');
+            Route::get('messaging/{announcement}', [AnnouncementAdminController::class, 'show'])->name('messaging.show');
+            Route::post('messaging/{announcement}/send', [AnnouncementAdminController::class, 'send'])->name('messaging.send');
+            Route::post('messaging/{announcement}/cancel', [AnnouncementAdminController::class, 'cancel'])->name('messaging.cancel');
         });
 
         Route::prefix('hr')

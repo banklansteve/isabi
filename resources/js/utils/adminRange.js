@@ -173,7 +173,7 @@ export function showAxisLabel(index, total) {
 }
 
 export function toast(detail) {
-    window.dispatchEvent(new CustomEvent('isabi:toast', { detail }));
+    window.dispatchEvent(new CustomEvent('kraftrack:toast', { detail }));
 }
 
 export function parseQuery(url) {

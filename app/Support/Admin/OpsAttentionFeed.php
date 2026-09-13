@@ -874,6 +874,37 @@ class OpsAttentionFeed
             $counts['moderation_desk'] = app(\App\Support\Admin\ModerationDesk\ModerationDeskService::class)->stats($user)['all'] ?? 0;
         }
 
+        if ($user->canDo('ops.verification.manage')) {
+            $counts['verification'] = User::query()
+                ->artisans()
+                ->whereNull('email_verified_at')
+                ->whereNull('suspended_at')
+                ->count();
+        }
+
+        if ($user->canDo('ops.onboarding.manage')) {
+            $counts['onboarding'] = User::query()
+                ->artisans()
+                ->whereNull('suspended_at')
+                ->whereNotNull('email_verified_at')
+                ->whereDoesntHave('workLogs')
+                ->count();
+        }
+
+        if ($user->canDo('ops.reengagement.manage')) {
+            $cutoff = now()->subDays(30);
+            $counts['reengagement'] = User::query()
+                ->artisans()
+                ->whereNull('suspended_at')
+                ->where(function ($query) use ($cutoff) {
+                    $query->where('last_login_at', '<', $cutoff)
+                        ->orWhere(fn ($inner) => $inner
+                            ->whereNull('last_login_at')
+                            ->where('created_at', '<', $cutoff));
+                })
+                ->count();
+        }
+
         return $counts;
     }
 

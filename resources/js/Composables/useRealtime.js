@@ -73,10 +73,10 @@ export function useRealtime() {
         if (echo) {
             echo.private(`user.${userUid}`)
                 .listen('.support.updated', (payload) => {
-                    window.dispatchEvent(new CustomEvent('isabi:support-customer', { detail: payload }));
+                    window.dispatchEvent(new CustomEvent('kraftrack:support-customer', { detail: payload }));
                 })
                 .listen('.support.typing', (payload) => {
-                    window.dispatchEvent(new CustomEvent('isabi:support-typing', { detail: payload }));
+                    window.dispatchEvent(new CustomEvent('kraftrack:support-typing', { detail: payload }));
                 })
                 .listen('.notification.received', (payload) => {
                     if (!payload?.item) {
@@ -95,22 +95,22 @@ export function useRealtime() {
                     };
 
                     if (isStaff() && !page.props.auth?.user?.is_super_admin && !page.props.auth?.user?.restricted) {
-                        window.dispatchEvent(new CustomEvent('isabi:ops-attention-refresh'));
+                        window.dispatchEvent(new CustomEvent('kraftrack:ops-attention-refresh'));
                     }
                 });
 
             if (isStaff()) {
                 echo.private('support.inbox')
                     .listen('.support.inbox', (payload) => {
-                        window.dispatchEvent(new CustomEvent('isabi:support-inbox', { detail: payload }));
+                        window.dispatchEvent(new CustomEvent('kraftrack:support-inbox', { detail: payload }));
                     })
                     .listen('.support.typing', (payload) => {
-                        window.dispatchEvent(new CustomEvent('isabi:support-typing', { detail: payload }));
+                        window.dispatchEvent(new CustomEvent('kraftrack:support-typing', { detail: payload }));
                     });
 
                 echo.private('staff.chat')
                     .listen('.staff.chat', (payload) => {
-                        window.dispatchEvent(new CustomEvent('isabi:staff-chat', { detail: payload }));
+                        window.dispatchEvent(new CustomEvent('kraftrack:staff-chat', { detail: payload }));
                     });
             }
         }

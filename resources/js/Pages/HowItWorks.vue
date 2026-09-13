@@ -27,7 +27,7 @@
                     <h1
                         class="relative font-editorial text-[2.1rem] font-semibold leading-[1.1] tracking-tight text-white sm:text-[2.75rem]"
                     >
-                        How Isabi works
+                        How Kraftrack works
                     </h1>
                 </section>
             </div>

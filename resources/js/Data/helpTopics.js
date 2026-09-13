@@ -16,7 +16,7 @@ export const helpGroups = [
         items: [
             {
                 id: 'free-to-start',
-                question: 'Is Isabi really free to start?',
+                question: 'Is Kraftrack really free to start?',
                 answer:
                     'Yes. Creating your page, logging jobs, and sharing your profile are free — no card at signup. You only pay if you want more than five client review requests a month, or extras like a custom link.',
                 keywords: 'free start signup pricing cost',
@@ -81,7 +81,7 @@ export const helpGroups = [
                 id: 'self-reviews',
                 question: 'Can I write my own reviews?',
                 answer:
-                    'No — and that is by design. Only clients can submit a review through a private link tied to a logged job. You cannot write, edit, or approve their words. That is what makes Isabi reviews trustworthy.',
+                    'No — and that is by design. Only clients can submit a review through a private link tied to a logged job. You cannot write, edit, or approve their words. That is what makes Kraftrack reviews trustworthy.',
                 keywords: 'self write fake own review edit',
                 popularAuth: true,
                 popularGuest: true,
@@ -122,7 +122,7 @@ export const helpGroups = [
                 id: 'no-whatsapp',
                 question: "What if my client doesn't use WhatsApp?",
                 answer:
-                    'The review link works in any browser. WhatsApp is just the easiest way to send it. Clients do not need WhatsApp, an app download, or an Isabi account to leave a review.',
+                    'The review link works in any browser. WhatsApp is just the easiest way to send it. Clients do not need WhatsApp, an app download, or a Kraftrack account to leave a review.',
                 keywords: 'whatsapp sms email browser client',
             },
             {
@@ -143,7 +143,7 @@ export const helpGroups = [
                 id: 'log-how-far-back',
                 question: 'How far back can I log a job?',
                 answer:
-                    'You can log recent finished work. Prefer jobs you can stand behind with honest detail — Isabi is a living track record, not a backlog dump of old work to look established overnight.',
+                    'You can log recent finished work. Prefer jobs you can stand behind with honest detail — Kraftrack is a living track record, not a backlog dump of old work to look established overnight.',
                 keywords: 'how far back date history past job',
                 links: [
                     { label: 'Log a job', route: 'work-log.create', authOnly: true },
@@ -224,7 +224,7 @@ export const helpGroups = [
                 id: 'card-stored',
                 question: 'Is my card information stored anywhere?',
                 answer:
-                    'We do not keep your card on file for recurring billing. Card payments are handled by the payment provider for that purchase only. Isabi never stores card numbers for silent renewals.',
+                    'We do not keep your card on file for recurring billing. Card payments are handled by the payment provider for that purchase only. Kraftrack never stores card numbers for silent renewals.',
                 keywords: 'card stored security privacy pci',
                 links: [{ label: 'Privacy policy', route: 'privacy' }],
             },
@@ -283,7 +283,7 @@ export const helpGroups = [
                 id: 'custom-link',
                 question: 'Can I get a custom link for my page?',
                 answer:
-                    'Yes. A vanity slug (for example isabi.dev/your-name) is available with credits or included in the Annual plan. Manage it from Tokens & plan when you are ready.',
+                    'Yes. A vanity slug (for example kraftrack.com/your-name) is available with credits or included in the Annual plan. Manage it from Tokens & plan when you are ready.',
                 keywords: 'custom link slug vanity url',
                 links: [
                     { label: 'Tokens & plan', route: 'tokens.index', authOnly: true },

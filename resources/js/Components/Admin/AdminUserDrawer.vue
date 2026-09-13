@@ -577,7 +577,7 @@ const dialogMeta = computed(() => {
         suspend: { title: 'Suspend account', description: 'They will be signed out and blocked from signing in.', confirmLabel: 'Suspend', tone: 'danger' },
         reinstate: { title: 'Reinstate account', description: 'They can sign in again.', confirmLabel: 'Reinstate' },
         verify: { title: shown.value?.verified ? 'Clear verification' : 'Manually verify', description: 'This is logged on the account.', confirmLabel: 'Save' },
-        impersonate: { title: 'View as this artisan', description: 'You’ll see Isabi exactly as they do. Leave from the banner at the top.', confirmLabel: 'View as' },
+        impersonate: { title: 'View as this artisan', description: 'You’ll see Kraftrack exactly as they do. Leave from the banner at the top.', confirmLabel: 'View as' },
         logout: { title: 'Force logout', description: 'Clears every active session on this account.', confirmLabel: 'Sign them out' },
         password: { title: 'Send password reset', description: 'Emails a reset link to this artisan.', confirmLabel: 'Send link' },
         credits: { title: 'Adjust credits', description: 'Add or remove tokens. Always logged.', confirmLabel: 'Update balance' },
@@ -635,7 +635,7 @@ const ask = (type, item = null) => {
     menu.value = false;
     target.value = item;
     if (type === 'message') {
-        compose.subject = `A note from Isabi`;
+        compose.subject = `A note from Kraftrack`;
         compose.body = `Hi {{first_name}}, `;
     }
     if (type === 'edit-job' && item) {

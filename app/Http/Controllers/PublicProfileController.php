@@ -127,7 +127,7 @@ class PublicProfileController extends Controller
                 .(filled($user->state) ? ' in '.$user->state : '')
                 .' with '.($jobsCount === 1 ? '1 finished job' : $jobsCount.' finished jobs')
                 .($reviewCount > 0 ? ' and '.$reviewCount.' client '.($reviewCount === 1 ? 'review' : 'reviews') : '')
-                .' on Isabi.';
+                .' on Kraftrack.';
 
         $reviewedForSchema = $user->workLogs()
             ->publiclyVisible()

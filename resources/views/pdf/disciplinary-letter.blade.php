@@ -20,7 +20,7 @@
 </head>
 <body>
     <div class="letterhead">
-        <div class="brand">{{ config('app.name', 'Isabi') }}</div>
+        <div class="brand">{{ config('app.name', 'Kraftrack') }}</div>
         <div class="eyebrow">Employment notice · Private and confidential</div>
     </div>
 

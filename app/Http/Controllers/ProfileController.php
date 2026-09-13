@@ -9,8 +9,10 @@ use App\Http\Requests\UpdateReviewMessageSettingsRequest;
 use App\Models\ProfileSlugRedirect;
 use App\Services\CloudinaryMediaService;
 use App\Support\ActivityLogger;
+use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
+use App\Support\SkillsCatalog;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,8 +35,8 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
             'locations' => NigeriaLocations::all(),
-            'trades' => config('trades'),
-            'skillSuggestions' => config('skills'),
+            'trades' => JobCategories::tradeLabels(),
+            'skillSuggestions' => SkillsCatalog::suggestions(),
             'credentialCatalogue' => config('credentials.groups'),
             'maxCredentials' => (int) config('credentials.max', 6),
             'profile' => [
@@ -336,7 +338,7 @@ class ProfileController extends Controller
 
         ActivityLogger::log(
             action: 'profile.deleted',
-            summary: "{$user->name} deleted their Isabi account.",
+            summary: "{$user->name} deleted their Kraftrack account.",
             user: $user,
             properties: ['email' => $user->email],
         );

@@ -65,7 +65,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             app(Seo::class)
                 ->title('Page not found')
-                ->description('That page isn’t on Isabi.')
+                ->description('That page isn’t on Kraftrack.')
                 ->noindex();
 
             return Inertia::render('Errors/NotFound', [

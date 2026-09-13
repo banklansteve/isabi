@@ -1,7 +1,7 @@
 <#
-    One-shot installer for the iSabi People / HR module (Windows PowerShell).
+    One-shot installer for the Kraftrack People / HR module (Windows PowerShell).
 
-    Run from the ROOT of your local isabi project, with the Cursor preview
+    Run from the ROOT of your local kraftrack project, with the Cursor preview
     ("Laravel :43123") open so the download URL is reachable.
 
         Invoke-WebRequest http://localhost:43123/hr-install.ps1 -OutFile hr-install.ps1
@@ -21,7 +21,7 @@ function Fail($msg) { Write-Host "`nError: $msg" -ForegroundColor Red; exit 1 }
 function Check($what) { if ($LASTEXITCODE -ne 0) { Fail "$what failed (exit $LASTEXITCODE)." } }
 
 # --- sanity checks -----------------------------------------------------------
-if (-not (Test-Path "artisan")) { Fail "No 'artisan' here. cd into your isabi project root, then re-run." }
+if (-not (Test-Path "artisan")) { Fail "No 'artisan' here. cd into your kraftrack project root, then re-run." }
 if (-not (Test-Path ".git"))    { Fail "This folder is not a git repository." }
 
 git diff --quiet
@@ -93,5 +93,5 @@ Check "npm run build"
 
 # --- done --------------------------------------------------------------------
 Remove-Item -Force "hr-module.patch" -ErrorAction SilentlyContinue
-Say "Done. Log in as super@isabi.dev and open /admin/hr (Admin home -> People)."
+Say "Done. Log in as super@kraftrack.test and open /admin/hr (Admin home -> People)."
 Say "Review with 'git status' / 'git diff', then commit and push to your repo as usual."

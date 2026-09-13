@@ -15,9 +15,10 @@
             >
                 <Link
                     :href="route('home')"
-                    class="font-display text-[1.35rem] font-extrabold tracking-tight text-white"
+                    class="inline-flex items-center gap-2.5 font-display text-[1.35rem] font-extrabold tracking-tight text-white"
                 >
-                    Isabi
+                    <BrandMark variant="mark" color="#FFFFFF" class="h-8 w-8 shrink-0" />
+                    Kraftrack
                 </Link>
 
                 <button
@@ -233,7 +234,7 @@
                             </span>
                         </div>
                         <p class="mt-1.5 text-xs font-medium leading-relaxed text-ink/45">
-                            Provided by the artisan and not verified by Isabi. Ask to see the
+                            Provided by the artisan and not verified by Kraftrack. Ask to see the
                             original before you hire.
                         </p>
 
@@ -751,7 +752,7 @@
         <ProfileQrModal
             :show="qrOpen"
             :url="profile.public_url || ''"
-            :filename="`isabi-${profile.slug || 'page'}-qr`"
+            :filename="`Kraftrack-${profile.slug || 'page'}-qr`"
             :business-name="profile.business_name"
             :trade="profile.trade"
             @close="qrOpen = false"
@@ -775,6 +776,7 @@
 
 <script setup>
 import AppEmptyState from '@/Components/App/AppEmptyState.vue';
+import BrandMark from '@/Components/BrandMark.vue';
 import ShareEmbedPanel from '@/Components/App/ShareEmbedPanel.vue';
 import JobMediaMosaic from '@/Components/Media/JobMediaMosaic.vue';
 import MediaLightbox from '@/Components/Media/MediaLightbox.vue';
@@ -1113,7 +1115,7 @@ const openReviewPhoto = (review) => {
 
 const toast = (message, type = 'success') => {
     window.dispatchEvent(
-        new CustomEvent('isabi:toast', {
+        new CustomEvent('kraftrack:toast', {
             detail: { type, message, duration: 3500 },
         }),
     );

@@ -1,0 +1,167 @@
+/* Kraftrack branded markdown mail — primary #1A4FB5 */
+
+body,
+.body {
+    background-color: #EEF2F8;
+    color: #0F172A;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.wrapper {
+    background-color: #EEF2F8;
+    width: 100%;
+}
+
+.inner-body {
+    background-color: #ffffff;
+    border: 1px solid #E2E8F0;
+    border-radius: 18px;
+    box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.35);
+}
+
+.header {
+    width: 100%;
+}
+
+.header a {
+    color: #1A4FB5;
+    font-size: 20px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.content-cell {
+    padding: 36px 34px;
+}
+
+.footer {
+    color: #64748B;
+    font-size: 12px;
+    padding: 24px 8px 8px;
+}
+
+h1 {
+    color: #0F172A;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 0;
+}
+
+h2 {
+    color: #0F172A;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+p,
+li {
+    color: #334155;
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+a,
+a:hover,
+a:visited {
+    color: #1A4FB5;
+}
+
+.inner-body a {
+    word-break: break-word;
+}
+
+.action {
+    margin: 28px auto;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+}
+
+.button {
+    border-radius: 12px;
+    box-shadow: 0 12px 28px -12px rgba(26, 79, 181, 0.5);
+    display: inline-block;
+    text-decoration: none;
+}
+
+.button-primary,
+.button-blue {
+    background-color: #1A4FB5;
+    border-bottom: 10px solid #1A4FB5;
+    border-left: 22px solid #1A4FB5;
+    border-right: 22px solid #1A4FB5;
+    border-top: 10px solid #1A4FB5;
+    color: #ffffff !important;
+}
+
+.button-success,
+.button-green {
+    background-color: #0F7A4A;
+    border-bottom: 10px solid #0F7A4A;
+    border-left: 22px solid #0F7A4A;
+    border-right: 22px solid #0F7A4A;
+    border-top: 10px solid #0F7A4A;
+    color: #ffffff !important;
+    box-shadow: 0 12px 28px -12px rgba(15, 122, 74, 0.45);
+}
+
+.button-secondary,
+.button-gray {
+    background-color: #334155;
+    border-bottom: 10px solid #334155;
+    border-left: 22px solid #334155;
+    border-right: 22px solid #334155;
+    border-top: 10px solid #334155;
+    color: #ffffff !important;
+}
+
+.button-primary span,
+.button-blue span,
+.button-success span,
+.button-green span,
+.button-secondary span,
+.button-gray span {
+    color: #ffffff !important;
+}
+
+.panel {
+    background-color: #F4F6FA;
+    border: 1px solid #E8EDF5;
+    border-radius: 14px;
+    padding: 4px 4px;
+}
+
+.subcopy {
+    border-top: 1px solid #E2E8F0;
+    color: #64748B;
+    font-size: 13px;
+    margin-top: 28px;
+    padding-top: 18px;
+}
+
+.subcopy a,
+.subcopy a:visited {
+    color: #1A4FB5;
+    text-decoration: underline;
+}
+
+.table table {
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #E2E8F0;
+    color: #64748B;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.table td {
+    color: #0F172A;
+    font-size: 15px;
+    padding: 10px 0;
+}

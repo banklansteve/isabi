@@ -135,7 +135,7 @@ const helperText = computed(() =>
 
 const toast = (message, type = 'success') => {
     window.dispatchEvent(
-        new CustomEvent('isabi:toast', {
+        new CustomEvent('kraftrack:toast', {
             detail: { type, message, duration: 4000 },
         }),
     );

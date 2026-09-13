@@ -12,7 +12,7 @@
 
         <div class="auth-enter">
             <h1 class="text-center font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2.1rem]">
-                Log in to Isabi
+                Log in to Kraftrack
             </h1>
             <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
                 Enter your email and password to continue.
@@ -75,7 +75,7 @@
             </form>
 
             <p class="mt-8 text-center text-sm font-medium text-ink/50">
-                New to Isabi?
+                New to Kraftrack?
                 <Link
                     :href="route('register')"
                     class="font-bold text-base transition-colors hover:text-deep"

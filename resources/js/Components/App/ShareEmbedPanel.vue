@@ -93,13 +93,13 @@ const copied = ref('');
 
 const profileSnippet = computed(() =>
     props.profileEmbedUrl
-        ? `<iframe src="${props.profileEmbedUrl}" width="360" height="520" style="border:0;border-radius:18px;max-width:100%" loading="lazy" title="Isabi profile"></iframe>`
+        ? `<iframe src="${props.profileEmbedUrl}" width="360" height="520" style="border:0;border-radius:18px;max-width:100%" loading="lazy" title="Kraftrack profile"></iframe>`
         : '',
 );
 
 const jobSnippet = computed(() =>
     props.jobEmbedUrl
-        ? `<iframe src="${props.jobEmbedUrl}" width="360" height="480" style="border:0;border-radius:18px;max-width:100%" loading="lazy" title="Isabi job reference"></iframe>`
+        ? `<iframe src="${props.jobEmbedUrl}" width="360" height="480" style="border:0;border-radius:18px;max-width:100%" loading="lazy" title="Kraftrack job reference"></iframe>`
         : '',
 );
 

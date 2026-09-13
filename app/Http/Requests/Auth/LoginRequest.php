@@ -81,7 +81,7 @@ class LoginRequest extends FormRequest
             Auth::logout();
 
             throw ValidationException::withMessages([
-                'email' => 'This account has been suspended. Contact Isabi support if you think this is a mistake.',
+                'email' => 'This account has been suspended. Contact Kraftrack support if you think this is a mistake.',
             ]);
         }
 

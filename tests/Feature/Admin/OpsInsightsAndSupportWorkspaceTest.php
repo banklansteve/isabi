@@ -77,7 +77,7 @@ class OpsInsightsAndSupportWorkspaceTest extends TestCase
     public function test_ops_staff_do_not_see_another_agents_chats(): void
     {
         $ops = $this->supportStaff();
-        $other = $this->supportStaff(['email' => 'other-ops@isabi.dev']);
+        $other = $this->supportStaff(['email' => 'other-ops@kraftrack.test']);
         $artisan = User::factory()->regularUser()->create();
 
         $mine = SupportTicket::query()->create([

@@ -30,7 +30,7 @@ return [
     */
 
     'folders' => [
-        'root' => env('CLOUDINARY_ROOT_FOLDER', 'isabi'),
+        'root' => env('CLOUDINARY_ROOT_FOLDER', 'kraftrack'),
         'profiles' => 'profiles',
         'work_logs' => 'work-logs',
     ],

@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AppPlaceholderController;
 use App\Http\Controllers\ArtisanDirectoryController;
 use App\Http\Controllers\CookieConsentController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HelpController;
 use App\Http\Controllers\Internal\PricingDocsController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TokenController;
 use App\Http\Controllers\WorkLogController;
+use App\Support\LegalContent;
 use App\Support\Seo;
 use App\Support\SeoSchema;
 use Illuminate\Support\Facades\Route;
@@ -42,19 +44,25 @@ Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
+        'featuredFaqs' => \App\Support\FaqContent::featuredForHome(5),
     ]);
 })->name('home');
 
 Route::get('/faq', function () {
     $copy = config('seo.pages.faq');
+    $schemaFaqs = \App\Support\FaqContent::schemaEntries();
+    if ($schemaFaqs === []) {
+        $schemaFaqs = config('seo.faq');
+    }
 
     app(Seo::class)
         ->title($copy['title'])
         ->description($copy['description'])
         ->canonical(route('faq'))
-        ->schema(SeoSchema::faq(config('seo.faq')));
+        ->schema(SeoSchema::faq($schemaFaqs));
 
     return Inertia::render('Faq', [
+        'groups' => \App\Support\FaqContent::publicGroups(),
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
     ]);
@@ -83,59 +91,53 @@ Route::get('/goodbye', function () {
     ]);
 })->name('account.goodbye');
 
-$staticPages = [
-    'about' => [
-        'title' => 'About Isabi',
-        'eyebrow' => 'Company',
-        'summary' => 'Why we built a proof-of-work platform for skilled trades across Nigeria.',
-        'body' => 'Isabi helps artisans turn finished jobs and real client reviews into a shareable track record — without self-written testimonials or pay-to-look-established shortcuts.',
-    ],
-    'contact' => [
-        'title' => 'Contact',
-        'eyebrow' => 'Support',
-        'summary' => 'Questions about your page, billing, or partnerships? Reach the team.',
-        'body' => 'Email hello@isabi.dev and we will get back to you. For urgent account issues, include the email you signed up with.',
-    ],
-    'careers' => [
-        'title' => 'Careers',
-        'eyebrow' => 'Company',
-        'summary' => 'Help build trust infrastructure for millions of skilled workers.',
-        'body' => 'We are not hiring in volume yet, but we always want to hear from people who care about products that work offline-first, mobile-first, and honesty-first. Write to hello@isabi.dev with “Careers” in the subject.',
-    ],
-    'terms' => [
-        'title' => 'Terms of use',
-        'eyebrow' => 'Legal',
-        'summary' => 'The rules for using Isabi — for artisans, clients leaving reviews, and visitors.',
-        'body' => 'This is a placeholder for our full terms. Until published, using Isabi means you agree to use the product lawfully, not to fabricate reviews, and not to misuse another person’s identity or work history.',
-    ],
-    'privacy' => [
-        'title' => 'Privacy policy',
-        'eyebrow' => 'Legal',
-        'summary' => 'How we collect, store, and protect personal data on Isabi.',
-        'body' => 'This is a placeholder for our full privacy policy. We collect account details, job logs, and review submissions to run the product. We do not sell your data. Payment card details are never stored for recurring billing.',
-    ],
-    'cookies' => [
-        'title' => 'Cookie policy',
-        'eyebrow' => 'Legal',
-        'summary' => 'What cookies and similar technologies Isabi uses, and why.',
-        'body' => 'This is a placeholder for our cookie policy. We use essential cookies for login sessions and security. Analytics cookies, if added later, will be documented here with clear opt-out options where required.',
-    ],
-    'acceptable-use' => [
-        'title' => 'Acceptable use',
-        'eyebrow' => 'Legal',
-        'summary' => 'What you can and cannot do on Isabi — especially around reviews and impersonation.',
-        'body' => 'This is a placeholder for our acceptable use policy. You may not coerce fake reviews, impersonate clients, harass others, or use Isabi to promote illegal services. Violations can lead to content removal or account suspension.',
-    ],
-];
+Route::get('/about', function () {
+    app(Seo::class)
+        ->title('About Kraftrack')
+        ->description('Why we built a proof-of-work platform for skilled trades across Nigeria — real jobs, client-written reviews, no self-written testimonials.')
+        ->canonical(url('/about'));
 
-foreach ($staticPages as $slug => $page) {
-    Route::get('/'.$slug, function () use ($page) {
+    return Inertia::render('About', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+    ]);
+})->name('about');
+
+Route::get('/contact', [ContactController::class, 'show'])->name('contact');
+Route::post('/contact', [ContactController::class, 'store'])
+    ->middleware('throttle:8,1')
+    ->name('contact.store');
+
+Route::get('/careers', function () {
+    app(Seo::class)
+        ->title('Careers at Kraftrack')
+        ->description('Help build trust infrastructure for skilled trades across Nigeria. Remote-friendly, honesty-first product work.')
+        ->canonical(url('/careers'));
+
+    return Inertia::render('Careers', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+        'vacancies' => \App\Models\CareerVacancy::query()
+            ->published()
+            ->get()
+            ->map(fn (\App\Models\CareerVacancy $vacancy) => $vacancy->toPublicArray())
+            ->values(),
+    ]);
+})->name('careers');
+
+foreach (LegalContent::all() as $slug => $page) {
+    Route::get('/'.$slug, function () use ($slug, $page) {
         app(Seo::class)
             ->title($page['title'])
-            ->description($page['summary'] ?? $page['body'] ?? null)
-            ->canonical(url()->current());
+            ->description($page['summary'] ?? null)
+            ->canonical(url('/'.$slug));
 
-        return Inertia::render('StaticPage', $page);
+        return Inertia::render('LegalDocument', [
+            ...$page,
+            'slug' => $slug,
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
+        ]);
     })->name($slug);
 }
 
@@ -172,17 +174,17 @@ Route::get('/embed/{slug}/{job}', [EmbedController::class, 'job'])
     ->name('embed.job');
 
 Route::get('/q/{token}', [PublicQuoteController::class, 'show'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9\-]+')
     ->name('quotes.public.show');
 Route::post('/q/{token}', [PublicQuoteController::class, 'respond'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9\-]+')
     ->middleware('throttle:12,1')
     ->name('quotes.public.respond');
 Route::get('/q/{token}/thanks', [PublicQuoteController::class, 'thanks'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9\-]+')
     ->name('quotes.public.thanks');
 Route::get('/q/{token}/pdf', [PublicQuoteController::class, 'pdf'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9\-]+')
     ->name('quotes.public.pdf');
 
 Route::get('/r/{token}', [PublicReviewController::class, 'show'])
@@ -235,6 +237,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/quotes/{quoteRequest}', [QuoteBuilderController::class, 'update'])->name('quotes.update');
     Route::post('/quotes/{quoteRequest}/send', [QuoteBuilderController::class, 'send'])->name('quotes.send');
     Route::post('/quotes/{quoteRequest}/revise', [QuoteBuilderController::class, 'revise'])->name('quotes.revise');
+    Route::get('/quotes/{quoteRequest}/pdf', [QuoteBuilderController::class, 'pdf'])->name('quotes.pdf');
 
     Route::post('/realtime/ping', [RealtimeController::class, 'ping'])
         ->middleware('throttle:60,1')

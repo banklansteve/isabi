@@ -95,7 +95,7 @@ const props = defineProps({
     last_name: { type: String, default: '' },
     expires_at: { type: String, default: '' },
     suggested_role: { type: String, default: '' },
-    app_name: { type: String, default: 'Isabi' },
+    app_name: { type: String, default: 'Kraftrack' },
 });
 
 const form = useForm({

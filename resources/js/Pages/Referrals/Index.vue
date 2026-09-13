@@ -230,7 +230,7 @@ const stats = computed(() => [
 const steps = computed(() => [
     {
         title: 'Share your link',
-        body: 'Send it to artisans who should be on Isabi.',
+        body: 'Send it to artisans who should be on Kraftrack.',
     },
     {
         title: 'They join & log a job',

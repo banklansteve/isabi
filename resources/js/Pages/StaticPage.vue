@@ -56,7 +56,7 @@ defineProps({
     },
     eyebrow: {
         type: String,
-        default: 'Isabi',
+        default: 'Kraftrack',
     },
     summary: {
         type: String,

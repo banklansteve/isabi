@@ -15,8 +15,8 @@ class AnnouncementTemplateSeeder extends Seeder
                 'audience' => Announcement::AUDIENCE_USERS,
                 'name' => 'Welcome',
                 'slug' => 'users-welcome',
-                'subject' => 'Welcome to Isabi',
-                'body' => "Hi {{first_name}}, your page is live.\n\nLog your first finished job so clients can review the work — not a claim. That’s how Isabi turns real jobs into a track record you can share.",
+                'subject' => 'Welcome to Kraftrack',
+                'body' => "Hi {{first_name}}, your page is live.\n\nLog your first finished job so clients can review the work — not a claim. That’s how Kraftrack turns real jobs into a track record you can share.",
                 'channels' => [Announcement::CHANNEL_IN_APP, Announcement::CHANNEL_EMAIL],
             ],
             [

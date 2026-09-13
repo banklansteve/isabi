@@ -42,7 +42,7 @@ class SetPasswordController extends Controller
 
         ActivityLogger::log(
             action: 'auth.admin_login',
-            summary: "{$user->name} signed in to the Isabi admin portal after setup.",
+            summary: "{$user->name} signed in to the Kraftrack admin portal after setup.",
             user: $user,
         );
 

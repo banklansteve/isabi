@@ -3,7 +3,7 @@
 /**
  * Trade credentials commonly held by Nigerian artisans.
  *
- * These are SELF-DECLARED. Isabi does not verify any of them, and the public
+ * These are SELF-DECLARED. Kraftrack does not verify any of them, and the public
  * page must always label them as such. The catalogue exists only to give
  * artisans accurate names and issuing bodies to pick from instead of
  * free-typing something a client can't recognise.

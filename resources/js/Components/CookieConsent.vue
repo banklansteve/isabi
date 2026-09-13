@@ -31,14 +31,14 @@
                                         id="cookie-consent-title"
                                         class="text-sm font-semibold tracking-tight text-neutral-700 sm:text-[0.95rem]"
                                     >
-                                        Cookies on Isabi
+                                        Cookies on Kraftrack
                                     </h2>
                                     <p
                                         id="cookie-consent-body"
                                         class="mt-1 text-xs leading-relaxed text-neutral-600 sm:text-[0.8125rem] sm:leading-relaxed"
                                     >
                                         We use essential cookies to keep you signed in and keep the product secure.
-                                        If you accept, we may also use analytics cookies to understand usage and improve Isabi.
+                                        If you accept, we may also use analytics cookies to understand usage and improve Kraftrack.
                                         You can change your mind anytime.
                                         <Link
                                             :href="route('cookies')"
@@ -124,11 +124,11 @@ const onPolicyClick = () => {
 };
 
 onMounted(() => {
-    window.addEventListener('isabi:open-cookie-consent', openPreferences);
+    window.addEventListener('kraftrack:open-cookie-consent', openPreferences);
 });
 
 onUnmounted(() => {
-    window.removeEventListener('isabi:open-cookie-consent', openPreferences);
+    window.removeEventListener('kraftrack:open-cookie-consent', openPreferences);
 });
 </script>
 

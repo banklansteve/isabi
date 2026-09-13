@@ -29,16 +29,12 @@
                     class="flex min-w-0 items-center gap-2.5"
                     @click="mobileOpen = false"
                 >
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-ink text-[0.7rem] font-extrabold tracking-tight text-white"
-                    >
-                        I
-                    </span>
+                    <BrandMark variant="solid" class="h-8 w-8 shrink-0" />
                     <span
                         v-show="!collapsed || mobileOpen"
                         class="truncate text-[0.95rem] font-semibold tracking-tight text-ink"
                     >
-                        Isabi
+                        Kraftrack
                     </span>
                 </Link>
             </div>
@@ -264,6 +260,7 @@ import {
     tabHref,
     tabIsActive,
 } from '@/Data/adminNav';
+import BrandMark from '@/Components/BrandMark.vue';
 import { adminChrome } from '@/Composables/useAdminChrome';
 import AdminSectionTabs from '@/Components/Admin/AdminSectionTabs.vue';
 import NotificationBell from '@/Components/App/NotificationBell.vue';
@@ -361,7 +358,7 @@ const prefetchSidebar = () => {
 const toggleCollapsed = () => {
     collapsed.value = !collapsed.value;
     try {
-        localStorage.setItem('isabi:admin-nav-collapsed', collapsed.value ? '1' : '0');
+        localStorage.setItem('kraftrack:admin-nav-collapsed', collapsed.value ? '1' : '0');
     } catch {
         // ignore
     }
@@ -371,7 +368,7 @@ watch(currentTabs, prefetchCurrentTabs, { immediate: true });
 
 onMounted(() => {
     try {
-        collapsed.value = localStorage.getItem('isabi:admin-nav-collapsed') === '1';
+        collapsed.value = localStorage.getItem('kraftrack:admin-nav-collapsed') === '1';
     } catch {
         // ignore
     }

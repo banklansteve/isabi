@@ -1,7 +1,7 @@
 <template>
     <AuthLayout
         headline="One click to unlock your page."
-        support="We sent a verification link to your email. Confirm it so clients can trust that this Isabi page is really yours."
+        support="We sent a verification link to your email. Confirm it so clients can trust that this Kraftrack page is really yours."
         :points="[
             'Keeps fake accounts off the platform',
             'Takes seconds once the email arrives',
@@ -15,7 +15,7 @@
                 Verify your email
             </h1>
             <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
-                Check your inbox for a link from Isabi. Didn’t get it? Resend below.
+                Check your inbox for a link from Kraftrack. Didn’t get it? Resend below.
             </p>
 
             <div

@@ -3,21 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateArtisanQuoteRequest;
-use App\Mail\QuoteDeliveredClientMail;
 use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Support\ActivityLogger;
 use App\Support\Quotes\QuoteBuilderService;
 use App\Support\Quotes\QuoteDelivery;
+use App\Support\Quotes\QuoteMailer;
+use App\Support\Quotes\QuotePdfService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class QuoteBuilderController extends Controller
 {
-    public function __construct(private readonly QuoteBuilderService $quotes) {}
+    public function __construct(
+        private readonly QuoteBuilderService $quotes,
+        private readonly QuoteMailer $mailer,
+    ) {}
 
     public function show(Request $request, QuoteRequest $quoteRequest): Response
     {
@@ -29,7 +33,10 @@ class QuoteBuilderController extends Controller
         return Inertia::render('Quotes/Builder', array_merge(
             $this->quotes->presentForPage($quoteRequest, $artisan, $draft),
             [
-                'whatsappShare' => $request->session()->pull('whatsapp_share'),
+                'whatsappShare' => $request->session()->pull('whatsapp_share')
+                    ?: ($quoteRequest->status === QuoteRequest::STATUS_AWAITING_CLIENT
+                        ? QuoteDelivery::payload($quoteRequest->fresh(['artisanQuote', 'artisan']), $draft)
+                        : null),
                 'openQuoteShare' => (bool) $request->session()->pull('open_quote_share'),
             ],
         ));
@@ -64,9 +71,10 @@ class QuoteBuilderController extends Controller
             ]);
     }
 
-    public function send(Request $request, QuoteRequest $quoteRequest): RedirectResponse
+    public function send(UpdateArtisanQuoteRequest $request, QuoteRequest $quoteRequest): RedirectResponse
     {
-        abort_unless((int) $quoteRequest->user_id === (int) $request->user()->id, 403);
+        abort_unless($quoteRequest->isEditableByArtisan()
+            || $quoteRequest->status === QuoteRequest::STATUS_AWAITING_CLIENT, 403);
 
         if (! in_array($quoteRequest->status, [
             QuoteRequest::STATUS_NEW,
@@ -78,6 +86,7 @@ class QuoteBuilderController extends Controller
 
         $artisan = $request->user();
         $draft = $this->quotes->ensureDraft($quoteRequest, $artisan);
+        $draft = $this->quotes->syncDraft($draft, $request->validated());
 
         if ($draft->total_kobo <= 0) {
             return back()->with('toast', [
@@ -93,16 +102,17 @@ class QuoteBuilderController extends Controller
         ])->save();
 
         $quoteRequest->forceFill(['status' => QuoteRequest::STATUS_AWAITING_CLIENT])->save();
-        QuoteDelivery::ensureToken($quoteRequest->fresh(['artisanQuote', 'artisan']));
+        $quoteRequest = QuoteDelivery::ensureToken($quoteRequest->fresh(['artisanQuote', 'artisan']));
+        $draft = $quoteRequest->artisanQuote;
 
-        if (filled($quoteRequest->email)) {
-            Mail::to($quoteRequest->email)->send(new QuoteDeliveredClientMail(
-                $quoteRequest,
-                $draft,
-                $artisan,
-                QuoteDelivery::publicUrl($quoteRequest),
-            ));
-        }
+        $publicUrl = QuoteDelivery::publicUrl($quoteRequest);
+
+        $mailed = $this->mailer->sendQuoteDelivery(
+            $quoteRequest,
+            $draft,
+            $artisan,
+            $publicUrl,
+        );
 
         $payload = QuoteDelivery::payload($quoteRequest, $draft);
 
@@ -112,18 +122,32 @@ class QuoteBuilderController extends Controller
             user: $artisan,
             properties: [
                 'quote_request_uid' => $quoteRequest->uid,
+                'quote_number' => $draft->quote_number,
                 'total_kobo' => $draft->total_kobo,
+                'mailed_client' => $mailed['client'],
+                'mailed_artisan' => $mailed['artisan'],
             ],
         );
+
+        if (! filled($quoteRequest->email)) {
+            $emailNote = 'No client email on file — share the link on WhatsApp.';
+        } elseif ($mailed['client'] && $mailed['artisan']) {
+            $emailNote = 'We emailed the client and sent you a confirmation.';
+        } elseif ($mailed['client']) {
+            $emailNote = 'We emailed the client. Your confirmation email could not be delivered — check spam or SMTP settings.';
+        } elseif ($mailed['artisan']) {
+            $emailNote = 'We emailed you a confirmation, but the client email failed — share the link on WhatsApp.';
+        } else {
+            $emailNote = 'Quote is ready, but emails could not be sent. Share the link on WhatsApp and check SMTP settings.';
+        }
 
         return redirect()
             ->route('quotes.show', $quoteRequest)
             ->with('whatsapp_share', $payload)
-            ->with('open_quote_share', true)
             ->with('toast', [
-                'type' => 'success',
-                'title' => 'Quote ready to send',
-                'message' => 'Share the link on WhatsApp or let the client use the email we sent.',
+                'type' => ($mailed['client'] || ! filled($quoteRequest->email)) ? 'success' : 'warning',
+                'title' => 'Quote sent',
+                'message' => $emailNote,
                 'duration' => 5500,
             ]);
     }
@@ -144,5 +168,21 @@ class QuoteBuilderController extends Controller
                 'message' => 'Revise your numbers, then send the updated quote.',
                 'duration' => 4800,
             ]);
+    }
+
+    public function pdf(Request $request, QuoteRequest $quoteRequest): HttpResponse
+    {
+        abort_unless((int) $quoteRequest->user_id === (int) $request->user()->id, 403);
+
+        $artisan = $request->user();
+        $quote = $this->quotes->ensureDraft($quoteRequest, $artisan);
+
+        $pdf = app(QuotePdfService::class);
+        $filename = $pdf->filename($quote, $artisan);
+
+        return response($pdf->output($quoteRequest, $quote, $artisan), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 }

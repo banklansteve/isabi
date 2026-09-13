@@ -294,7 +294,7 @@ class UserAdminController extends Controller
 
         AdminAudit::record(
             'users.impersonated',
-            "{$admin->name} viewed Isabi as {$user->email}: {$reason}",
+            "{$admin->name} viewed Kraftrack as {$user->email}: {$reason}",
             $user,
             null,
             ['impersonator_id' => $admin->id, 'reason' => $reason],
@@ -528,7 +528,7 @@ class UserAdminController extends Controller
     public function bulkExport(BulkUsersRequest $request): StreamedResponse
     {
         $ids = $request->validated('ids');
-        $filename = 'isabi-users-'.now()->format('Y-m-d').'.csv';
+        $filename = 'Kraftrack-users-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($ids) {
             $handle = fopen('php://output', 'w');

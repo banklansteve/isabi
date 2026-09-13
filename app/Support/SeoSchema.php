@@ -21,9 +21,9 @@ class SeoSchema
             '@context' => 'https://schema.org',
             '@type' => 'Organization',
             '@id' => url('/').'#organization',
-            'name' => config('app.name', 'Isabi'),
+            'name' => config('app.name', 'Kraftrack'),
             'url' => url('/'),
-            'description' => 'Isabi gives Nigerian artisans a public page built from real finished jobs and reviews written by their clients.',
+            'description' => 'Kraftrack gives Nigerian artisans a public page built from real finished jobs and reviews written by their clients.',
             'areaServed' => [
                 '@type' => 'Country',
                 'name' => 'Nigeria',
@@ -37,7 +37,7 @@ class SeoSchema
             '@context' => 'https://schema.org',
             '@type' => 'WebSite',
             '@id' => url('/').'#website',
-            'name' => config('app.name', 'Isabi'),
+            'name' => config('app.name', 'Kraftrack'),
             'url' => url('/'),
             'publisher' => ['@id' => url('/').'#organization'],
         ];

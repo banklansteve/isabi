@@ -102,43 +102,58 @@
                             class="rounded-xl bg-tint/60 px-3.5 py-2.5 text-xs font-semibold text-deep ring-1 ring-base/10"
                         >
                             Your page:
-                            <span class="font-bold">isabi.dev/p/{{ slugPreview }}</span>
+                            <span class="font-bold">kraftrack.com/p/{{ slugPreview }}</span>
                             <span class="mt-0.5 block font-medium text-deep/70">
                                 If taken, we’ll add a short number so it stays unique.
                             </span>
                         </p>
                     </div>
 
-                    <!-- Step 2: Trade -->
+                    <!-- Step 2: Trade / category -->
                     <div v-else-if="step === 2" class="mt-8 space-y-4">
-                        <FormTextInput
-                            id="trade_search"
-                            v-model="tradeQuery"
-                            type="search"
-                            icon="ti ti-search"
-                            placeholder="Search trades…"
-                            clearable
-                            aria-label="Search trades"
+                        <FormSelect
+                            id="job_category"
+                            v-model="jobCategory"
+                            label="Job category"
+                            icon="ti ti-category"
+                            placeholder="Select a category"
+                            :options="categoryOptions"
+                            searchable
+                            search-placeholder="Search categories…"
+                            :error="localErrors.job_category"
+                            @change="onCategoryChange"
                         />
 
-                        <FormChoiceGrid
-                            v-model="form.trade"
-                            :options="filteredTrades"
-                            :error="displayError('trade')"
-                            :icon-resolver="(label) => tradeIcon(label)"
-                            @change="onTradeChange"
-                        />
+                        <template v-if="jobCategory">
+                            <FormTextInput
+                                id="trade_search"
+                                v-model="tradeQuery"
+                                type="search"
+                                icon="ti ti-search"
+                                placeholder="Search trades…"
+                                clearable
+                                aria-label="Search trades"
+                            />
 
-                        <FormTextInput
-                            v-if="form.trade === 'Other'"
-                            id="trade_other"
-                            v-model="tradeOther"
-                            label="Tell us your trade"
-                            icon="ti ti-briefcase"
-                            placeholder="e.g. Solar streetlight installer"
-                            :error="localErrors.trade_other"
-                            @blur="validateField('trade')"
-                        />
+                            <FormChoiceGrid
+                                v-model="form.trade"
+                                :options="filteredTrades"
+                                :error="displayError('trade')"
+                                :icon-resolver="(label) => tradeIcon(label)"
+                                @change="onTradeChange"
+                            />
+
+                            <FormTextInput
+                                v-if="form.trade === 'Other'"
+                                id="trade_other"
+                                v-model="tradeOther"
+                                label="Tell us your trade"
+                                icon="ti ti-briefcase"
+                                placeholder="e.g. Solar streetlight installer"
+                                :error="localErrors.trade_other"
+                                @blur="validateField('trade')"
+                            />
+                        </template>
                     </div>
 
                     <!-- Step 3: Location -->
@@ -311,6 +326,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    jobCategories: {
+        type: Object,
+        default: () => ({ parents: [], groups: {} }),
+    },
     locations: {
         type: Object,
         default: () => ({}),
@@ -332,7 +351,7 @@ const steps = [
         key: 'trade',
         eyebrow: 'Your craft',
         title: 'What do you do?',
-        support: 'Pick the trade clients should find you under.',
+        support: 'Pick a category, then the trade clients should find you under.',
     },
     {
         key: 'location',
@@ -351,6 +370,7 @@ const steps = [
 const step = ref(1);
 const tradeQuery = ref('');
 const tradeOther = ref('');
+const jobCategory = ref('');
 const localErrors = reactive({});
 
 const form = useForm({
@@ -386,13 +406,31 @@ const progress = computed(() => (step.value / steps.length) * 100);
 const states = computed(() => Object.keys(props.locations));
 const lgas = computed(() => (form.state ? props.locations[form.state] || [] : []));
 
+const categoryOptions = computed(() => props.jobCategories?.parents || []);
+
 const filteredTrades = computed(() => {
     const q = tradeQuery.value.trim().toLowerCase();
-    if (!q) {
-        return props.trades;
+    let source = props.trades;
+    if (jobCategory.value && props.jobCategories?.groups?.[jobCategory.value]) {
+        source = [...props.jobCategories.groups[jobCategory.value]];
+        if (!source.includes('Other')) {
+            source.push('Other');
+        }
     }
-    return props.trades.filter((t) => t.toLowerCase().includes(q));
+    if (!q) {
+        return source;
+    }
+    return source.filter((t) => t.toLowerCase().includes(q));
 });
+
+const onCategoryChange = () => {
+    form.trade = '';
+    tradeOther.value = '';
+    tradeQuery.value = '';
+    clearError('trade');
+    clearError('trade_other');
+    clearError('job_category');
+};
 
 const passwordRules = computed(() => [
     { key: 'len', label: '8+ chars', ok: form.password.length >= 8 },
@@ -524,6 +562,11 @@ const validateStep = (n) => {
         return ['first_name', 'last_name', 'email', 'business_name'].every((f) => validateField(f));
     }
     if (n === 2) {
+        if (!jobCategory.value && (props.jobCategories?.parents || []).length) {
+            localErrors.job_category = 'Select a job category.';
+            return false;
+        }
+        clearError('job_category');
         return validateField('trade') && !localErrors.trade_other;
     }
     if (n === 3) {

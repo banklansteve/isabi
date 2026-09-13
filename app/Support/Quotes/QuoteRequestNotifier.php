@@ -2,18 +2,16 @@
 
 namespace App\Support\Quotes;
 
-use App\Mail\QuoteRequestArtisanAlertMail;
-use App\Mail\QuoteRequestClientConfirmationMail;
 use App\Models\Announcement;
 use App\Models\AnnouncementDelivery;
-use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Models\User;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Realtime\Realtime;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Throwable;
 
 class QuoteRequestNotifier
 {
@@ -22,19 +20,46 @@ class QuoteRequestNotifier
     public function __construct(
         private readonly AnnouncementService $announcements,
         private readonly Realtime $realtime,
+        private readonly QuoteMailer $mailer,
     ) {}
 
-    public function notify(QuoteRequest $request): void
+    /**
+     * @return array{client: bool, artisan: bool}
+     */
+    public function notify(QuoteRequest $request): array
     {
         $request->loadMissing(['artisan', 'workLog']);
         $artisan = $request->artisan;
 
         if (! $artisan) {
-            return;
+            Log::warning('quote.request.notify_skipped', [
+                'quote_request_uid' => $request->uid,
+                'reason' => 'missing_artisan',
+            ]);
+
+            return ['client' => false, 'artisan' => false];
         }
 
-        $this->notifyArtisanInApp($request, $artisan);
-        $this->sendEmails($request, $artisan);
+        // Emails first — never blocked by in-app notification failures.
+        $mailed = $this->mailer->sendRequestNotifications($request, $artisan);
+
+        Log::info('quote.request.notify_complete', [
+            'quote_request_uid' => $request->uid,
+            'mailed_client' => $mailed['client'],
+            'mailed_artisan' => $mailed['artisan'],
+        ]);
+
+        try {
+            $this->notifyArtisanInApp($request, $artisan);
+        } catch (Throwable $e) {
+            report($e);
+            Log::error('quote.request.in_app_failed', [
+                'quote_request_uid' => $request->uid,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return $mailed;
     }
 
     private function notifyArtisanInApp(QuoteRequest $request, User $artisan): void
@@ -85,20 +110,5 @@ class QuoteRequestNotifier
             $item,
             $this->announcements->unreadInAppCount($artisan),
         );
-    }
-
-    private function sendEmails(QuoteRequest $request, User $artisan): void
-    {
-        if (filled($request->email)) {
-            Mail::to($request->email)->send(new QuoteRequestClientConfirmationMail($request, $artisan));
-        }
-
-        if (filled($artisan->email)) {
-            Mail::to($artisan->email)->send(new QuoteRequestArtisanAlertMail(
-                $request,
-                $artisan,
-                route('quotes.show', $request),
-            ));
-        }
     }
 }

@@ -13,9 +13,10 @@
                 >
                     <Link
                         :href="route('home')"
-                        class="font-display text-[1.35rem] font-extrabold tracking-tight text-ink"
+                        class="inline-flex items-center gap-2.5 font-display text-[1.35rem] font-extrabold tracking-tight text-ink"
                     >
-                        Isabi
+                        <BrandMark variant="mark" class="h-8 w-8 shrink-0" />
+                        Kraftrack
                     </Link>
                     <Link
                         :href="profile.public_url"
@@ -227,6 +228,7 @@
 </template>
 
 <script setup>
+import BrandMark from '@/Components/BrandMark.vue';
 import MediaGallery from '@/Components/Media/MediaGallery.vue';
 import QuoteRequestForm from '@/Components/Public/QuoteRequestForm.vue';
 import StarDisplay from '@/Components/Reviews/StarDisplay.vue';

@@ -1,5 +1,5 @@
 /**
- * Show an Isabi toast from the client.
+ * Show a Kraftrack toast from the client.
  *
  * @param {string|object} messageOrOptions
  * @param {'success'|'error'|'info'|'warning'} [type='success']
@@ -25,7 +25,7 @@ export function toast(messageOrOptions, type = 'success', duration = 4800) {
     }
 
     window.dispatchEvent(
-        new CustomEvent('isabi:toast', {
+        new CustomEvent('kraftrack:toast', {
             detail,
         }),
     );

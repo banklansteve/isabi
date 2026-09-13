@@ -5,10 +5,9 @@ namespace App\Mail;
 use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Models\User;
-use App\Support\Quotes\QuoteDelivery;
-use App\Support\Quotes\QuotePdfService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -18,24 +17,43 @@ class QuoteDeliveredClientMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  string|null  $pdfBytes  Raw PDF bytes; null skips the attachment.
+     */
     public function __construct(
         public QuoteRequest $quoteRequest,
         public ArtisanQuote $quote,
         public User $artisan,
         public string $quoteUrl,
-    ) {}
+        public string $pdfUrl,
+        public ?string $pdfBytes = null,
+        public ?string $pdfFilename = null,
+    ) {
+        // Never queue large binary payloads.
+        $this->afterCommit = false;
+    }
 
     public function envelope(): Envelope
     {
         $business = $this->artisan->displayBusinessName();
 
         return new Envelope(
-            subject: "Your quote from {$business} — {$this->quoteRequest->displayTitle()}",
+            subject: "Your quote from {$business} — {$this->quote->quote_number}",
+            replyTo: filled($this->artisan->email)
+                ? [new Address($this->artisan->email, $business)]
+                : [],
+            tags: ['quote-delivered', 'client'],
+            metadata: [
+                'quote_request_uid' => (string) $this->quoteRequest->uid,
+                'quote_number' => (string) $this->quote->quote_number,
+            ],
         );
     }
 
     public function content(): Content
     {
+        $tz = config('app.display_timezone', config('app.timezone'));
+
         return new Content(
             markdown: 'mail.quotes.delivered-client',
             with: [
@@ -43,12 +61,16 @@ class QuoteDeliveredClientMail extends Mailable
                 'clientName' => $this->quoteRequest->name,
                 'businessName' => $this->artisan->displayBusinessName(),
                 'title' => $this->quoteRequest->displayTitle(),
+                'quoteNumber' => $this->quote->quote_number,
                 'totalNaira' => number_format($this->quote->total_kobo / 100, 0),
                 'validUntil' => $this->quote->valid_until
-                    ?->timezone(config('app.display_timezone'))
+                    ?->timezone($tz)
+                    ->format('j M Y'),
+                'estimatedStart' => $this->quote->estimated_start
+                    ?->timezone($tz)
                     ->format('j M Y'),
                 'quoteUrl' => $this->quoteUrl,
-                'pdfUrl' => QuoteDelivery::pdfUrl($this->quoteRequest),
+                'pdfUrl' => $this->pdfUrl,
             ],
         );
     }
@@ -58,13 +80,16 @@ class QuoteDeliveredClientMail extends Mailable
      */
     public function attachments(): array
     {
-        $pdf = app(QuotePdfService::class);
+        if ($this->pdfBytes === null || $this->pdfBytes === '') {
+            return [];
+        }
+
+        $name = $this->pdfFilename ?: 'quote.pdf';
+        $bytes = $this->pdfBytes;
 
         return [
-            Attachment::fromData(
-                fn () => $pdf->output($this->quoteRequest, $this->quote, $this->artisan),
-                $pdf->filename($this->quote, $this->artisan),
-            )->withMime('application/pdf'),
+            Attachment::fromData(static fn () => $bytes, $name)
+                ->withMime('application/pdf'),
         ];
     }
 }

@@ -32,6 +32,7 @@ class QuoteRequest extends Model
         'status',
         'client_token',
         'client_token_expires_at',
+        'expiry_nudge_sent_at',
         'client_response',
         'client_responded_at',
         'accepted_at',
@@ -46,6 +47,7 @@ class QuoteRequest extends Model
     {
         return [
             'client_token_expires_at' => 'datetime',
+            'expiry_nudge_sent_at' => 'datetime',
             'client_responded_at' => 'datetime',
             'accepted_at' => 'datetime',
         ];
@@ -115,14 +117,29 @@ class QuoteRequest extends Model
         return $deliveryPassed || $acceptedAwhile;
     }
 
+    /**
+     * Offer is good through the end of the valid-until day.
+     */
+    public function isOfferExpired(): bool
+    {
+        $this->loadMissing('artisanQuote');
+
+        $validUntil = $this->artisanQuote?->valid_until;
+
+        if ($validUntil) {
+            return now()->startOfDay()->gt($validUntil->copy()->startOfDay());
+        }
+
+        return $this->client_token_expires_at?->isPast() ?? false;
+    }
+
     public function refreshExpiry(): void
     {
         if ($this->status !== self::STATUS_AWAITING_CLIENT) {
             return;
         }
 
-        $validUntil = $this->artisanQuote?->valid_until;
-        if ($validUntil && $validUntil->isPast()) {
+        if ($this->isOfferExpired()) {
             $this->forceFill(['status' => self::STATUS_EXPIRED])->save();
         }
     }

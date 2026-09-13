@@ -200,7 +200,7 @@ class StaffShiftAdherenceTest extends TestCase
     {
         $this->mock(\App\Services\CloudinaryMediaService::class, function ($mock) {
             $mock->shouldReceive('uploadProfilePhoto')->once()->andReturn([
-                'public_id' => 'isabi/profiles/1/avatar',
+                'public_id' => 'Kraftrack/profiles/1/avatar',
                 'url' => 'https://res.cloudinary.com/demo/image/upload/avatar.jpg',
             ]);
         });

@@ -22,12 +22,12 @@ class HrDemoSeeder extends Seeder
         HrDefaults::ensureAll();
 
         $plan = [
-            'support@isabi.dev' => ['position' => 'Customer Support Agent', 'department' => 'Support', 'start' => '2025-03-01'],
-            'trust@isabi.dev' => ['position' => 'Trust & Safety Officer', 'department' => 'Trust & Safety', 'start' => '2025-06-15'],
-            'verify@isabi.dev' => ['position' => 'Verification Officer', 'department' => 'Operations', 'start' => '2026-01-06'],
-            'finance@isabi.dev' => ['position' => 'Finance & Billing Officer', 'department' => 'Finance', 'start' => '2024-11-04'],
-            'growth@isabi.dev' => ['position' => 'Growth & Referral Ops', 'department' => 'Growth', 'start' => '2025-09-01'],
-            'content@isabi.dev' => ['position' => 'Content & Communications', 'department' => 'Marketing', 'start' => '2025-02-10'],
+            'support@kraftrack.test' => ['position' => 'Customer Support Agent', 'department' => 'Support', 'start' => '2025-03-01'],
+            'trust@kraftrack.test' => ['position' => 'Trust & Safety Officer', 'department' => 'Trust & Safety', 'start' => '2025-06-15'],
+            'verify@kraftrack.test' => ['position' => 'Verification Officer', 'department' => 'Operations', 'start' => '2026-01-06'],
+            'finance@kraftrack.test' => ['position' => 'Finance & Billing Officer', 'department' => 'Finance', 'start' => '2024-11-04'],
+            'growth@kraftrack.test' => ['position' => 'Growth & Referral Ops', 'department' => 'Growth', 'start' => '2025-09-01'],
+            'content@kraftrack.test' => ['position' => 'Content & Communications', 'department' => 'Marketing', 'start' => '2025-02-10'],
         ];
 
         foreach ($plan as $email => $meta) {
@@ -54,7 +54,7 @@ class HrDemoSeeder extends Seeder
         $annual = LeaveType::where('key', 'annual')->first();
 
         // Put the support agent on leave right now so the "on leave" flag shows.
-        $support = User::where('email', 'support@isabi.dev')->first();
+        $support = User::where('email', 'support@kraftrack.test')->first();
         if ($support && $annual && $support->leaveRequests()->count() === 0) {
             LeaveRequest::create([
                 'user_id' => $support->id,
@@ -77,7 +77,7 @@ class HrDemoSeeder extends Seeder
         }
 
         // A pending request for the growth teammate to populate the approvals queue.
-        $growth = User::where('email', 'growth@isabi.dev')->first();
+        $growth = User::where('email', 'growth@kraftrack.test')->first();
         $sick = LeaveType::where('key', 'sick')->first();
         if ($growth && $sick && $growth->leaveRequests()->count() === 0) {
             LeaveRequest::create([
@@ -92,7 +92,7 @@ class HrDemoSeeder extends Seeder
         }
 
         // Compensation + one issued payslip for finance.
-        $finance = User::where('email', 'finance@isabi.dev')->first();
+        $finance = User::where('email', 'finance@kraftrack.test')->first();
         if ($finance && ! $finance->compensationRecord) {
             $record = CompensationRecord::create([
                 'user_id' => $finance->id,
@@ -129,7 +129,7 @@ class HrDemoSeeder extends Seeder
         }
 
         // Attach an onboarding checklist to the newest hire.
-        $verify = User::where('email', 'verify@isabi.dev')->first();
+        $verify = User::where('email', 'verify@kraftrack.test')->first();
         $onboarding = ChecklistTemplate::where('kind', ChecklistTemplate::KIND_ONBOARDING)->with('items')->first();
         if ($verify && $onboarding && $verify->checklistInstances()->count() === 0) {
             $instance = $verify->checklistInstances()->create([

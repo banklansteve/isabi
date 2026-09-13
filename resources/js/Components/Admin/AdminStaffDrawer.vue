@@ -951,7 +951,7 @@ const openRoles = () => {
 };
 
 const openMessage = () => {
-    messageForm.subject = 'A note from Isabi';
+    messageForm.subject = 'A note from Kraftrack';
     messageForm.body = `Hi {{first_name}}, `;
     messageForm.channels = ['in_app', 'email'];
     messageForm.errors = {};

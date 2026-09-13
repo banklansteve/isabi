@@ -188,11 +188,11 @@ const facebookHref = computed(
 
 const toast = (message, type = 'success') => {
     window.dispatchEvent(
-        new CustomEvent('isabi:toast', { detail: { type, message, duration: 3500 } }),
+        new CustomEvent('kraftrack:toast', { detail: { type, message, duration: 3500 } }),
     );
 };
 
-const fileName = () => `isabi-${(props.job?.uid || 'job').slice(0, 8)}.png`;
+const fileName = () => `Kraftrack-${(props.job?.uid || 'job').slice(0, 8)}.png`;
 
 const roundedRect = (ctx, x, y, w, h, r) => {
     ctx.beginPath();
@@ -408,7 +408,7 @@ const render = async () => {
     const footerY = HEIGHT - 150;
     ctx.font = '700 40px "Plus Jakarta Sans", system-ui, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(props.businessName || 'Isabi', pad, footerY);
+    ctx.fillText(props.businessName || 'Kraftrack', pad, footerY);
 
     ctx.font = '500 27px "Plus Jakarta Sans", system-ui, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
@@ -421,7 +421,7 @@ const render = async () => {
     ctx.font = '800 26px "Plus Jakarta Sans", system-ui, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.textAlign = 'right';
-    ctx.fillText('isabi', WIDTH - pad, footerY + 14);
+    ctx.fillText('Kraftrack', WIDTH - pad, footerY + 14);
     ctx.textAlign = 'left';
 
     await new Promise((resolve) => {
@@ -463,14 +463,14 @@ const shareNative = async () => {
         if (file && navigator.canShare?.({ files: [file] })) {
             await navigator.share({
                 files: [file],
-                title: props.businessName || 'Isabi',
+                title: props.businessName || 'Kraftrack',
                 text: shareText.value,
             });
             return;
         }
 
         await navigator.share({
-            title: props.businessName || 'Isabi',
+            title: props.businessName || 'Kraftrack',
             text: `${shareText.value}\n${jobUrl.value}`,
             url: jobUrl.value,
         });

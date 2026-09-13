@@ -1,10 +1,10 @@
 <template>
     <Head title="Roles" />
 
-    <AdminChrome title="Roles" eyebrow="Access" />
+    <AdminChrome title="Duties" eyebrow="Access" />
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p class="text-[13px] font-medium text-ink/50">
-                Roles are permission bundles. Assign them from a staff member’s page — not only at invite time.
+                Duties are permission bundles. Create, edit, or remove any duty, then assign it from a staff member’s page.
             </p>
             <button
                 type="button"
@@ -12,7 +12,7 @@
                 @click="edit(null)"
             >
                 <i class="ti ti-plus" aria-hidden="true" />
-                Create role
+                Create duty
             </button>
         </div>
 
@@ -61,7 +61,7 @@
                                 v-if="role.is_system"
                                 class="rounded-full bg-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/40"
                             >
-                                System
+                                Built-in
                             </span>
                             <span
                                 class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
@@ -91,10 +91,9 @@
                         class="rounded-xl bg-pale px-3 py-2 text-[12px] font-bold text-ink/60"
                         @click="edit(role)"
                     >
-                        {{ role.is_system ? 'View' : 'Edit' }}
+                        Edit
                     </button>
                     <button
-                        v-if="!role.is_system"
                         type="button"
                         class="rounded-xl bg-red-50 px-3 py-2 text-[12px] font-bold text-red-600"
                         @click="askDelete(role)"

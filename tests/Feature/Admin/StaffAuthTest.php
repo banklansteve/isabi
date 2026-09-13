@@ -90,12 +90,12 @@ class StaffAuthTest extends TestCase
         $this->actingAs($admin)
             ->post(route('admin.staff.store'), [
                 'name' => 'Ngozi Adeyemi',
-                'email' => 'ngozi@isabi.dev',
+                'email' => 'ngozi@kraftrack.test',
                 'suggested_role_id' => $support->id,
             ])
             ->assertRedirect();
 
-        $staff = User::query()->where('email', 'ngozi@isabi.dev')->first();
+        $staff = User::query()->where('email', 'ngozi@kraftrack.test')->first();
 
         $this->assertNotNull($staff);
         $this->assertTrue($staff->isOperationsAdmin());
@@ -106,7 +106,7 @@ class StaffAuthTest extends TestCase
         Mail::assertSent(StaffInvitationMail::class, function (StaffInvitationMail $mail) {
             $html = $mail->render();
 
-            return $mail->hasTo('ngozi@isabi.dev')
+            return $mail->hasTo('ngozi@kraftrack.test')
                 && str_contains($mail->acceptUrl, '/admin/invite/accept/')
                 && $mail->expiresHours === 48
                 && str_contains($html, 'Set up your account')
@@ -124,7 +124,7 @@ class StaffAuthTest extends TestCase
 
         $this->actingAs($ops)
             ->post(route('admin.staff.store'), [
-                'email' => 'ngozi@isabi.dev',
+                'email' => 'ngozi@kraftrack.test',
             ])
             ->assertForbidden();
     }
@@ -139,7 +139,7 @@ class StaffAuthTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.staff.store'), [
             'name' => 'Chidi Okoro',
-            'email' => 'chidi@isabi.dev',
+            'email' => 'chidi@kraftrack.test',
             'suggested_role_id' => $support->id,
         ]);
 
@@ -160,7 +160,7 @@ class StaffAuthTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Auth/AcceptInvite')
-                ->where('email', 'chidi@isabi.dev')
+                ->where('email', 'chidi@kraftrack.test')
                 ->where('first_name', 'Chidi')
                 ->where('last_name', 'Okoro'));
 
@@ -171,7 +171,7 @@ class StaffAuthTest extends TestCase
             'password_confirmation' => 'new-password',
         ])->assertRedirect(route('admin.dashboard'));
 
-        $staff = User::query()->where('email', 'chidi@isabi.dev')->first();
+        $staff = User::query()->where('email', 'chidi@kraftrack.test')->first();
 
         $this->assertAuthenticatedAs($staff);
         $this->assertTrue($staff->hasSetPassword());
@@ -212,20 +212,20 @@ class StaffAuthTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.settings.update'), [
                 'settings' => [
-                    'app.name' => 'Isabi Ops',
+                    'app.name' => 'Kraftrack Ops',
                 ],
             ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('app_settings', [
             'key' => 'app.name',
-            'value' => 'Isabi Ops',
+            'value' => 'Kraftrack Ops',
         ]);
     }
 
     public function test_create_super_admin_helper_makes_an_active_account(): void
     {
-        $user = User::createSuperAdmin('ada@isabi.dev', 'secret-pass', 'Ada', 'Okoye');
+        $user = User::createSuperAdmin('ada@kraftrack.test', 'secret-pass', 'Ada', 'Okoye');
 
         $this->assertTrue($user->isSuperAdmin());
         $this->assertTrue($user->hasSetPassword());

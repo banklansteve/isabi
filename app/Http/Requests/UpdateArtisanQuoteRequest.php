@@ -23,8 +23,8 @@ class UpdateArtisanQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'valid_until' => ['nullable', 'date', 'after:today'],
-            'estimated_start' => ['nullable', 'date', 'after:valid_until'],
+            'valid_until' => ['required', 'date', 'after:today'],
+            'estimated_start' => ['nullable', 'date', 'after_or_equal:today'],
             'estimated_duration_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'scope_of_work' => ['nullable', 'string', 'max:5000'],
             'line_items' => ['required', 'array', 'min:1'],

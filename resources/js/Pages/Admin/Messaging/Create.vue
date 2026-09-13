@@ -67,7 +67,7 @@
                         />
                     </label>
                     <p class="mt-1 text-[12px] font-medium text-ink/40">
-                        Placeholders: {{ '{{first_name}}' }}, {{ '{{name}}' }}, {{ '{{business_name}}' }}
+                        Placeholders: &#123;&#123;first_name&#125;&#125;, &#123;&#123;name&#125;&#125;, &#123;&#123;business_name&#125;&#125;
                     </p>
                     <p v-if="form.errors.body" class="mt-1 text-xs font-semibold text-red-500">{{ form.errors.body }}</p>
                 </section>

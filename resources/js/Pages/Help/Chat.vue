@@ -26,7 +26,7 @@
                         />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-[15px] font-bold tracking-tight text-ink">Isabi Support</p>
+                        <p class="truncate text-[15px] font-bold tracking-tight text-ink">Kraftrack Support</p>
                         <p class="truncate text-[12px] font-medium text-ink/45">{{ headerCopy }}</p>
                     </div>
                 </div>
@@ -277,7 +277,7 @@ const headerCopy = computed(() => {
 const showStarters = computed(() => !chat.value.messages?.length);
 const showWelcome = computed(() => showStarters.value);
 const welcomeBody = computed(
-    () => `Hi ${chat.value.customer_name || 'there'} — welcome to Isabi Support.\n\nPick a topic below or type your own message. We’ll pick this up even if the team is offline.`,
+    () => `Hi ${chat.value.customer_name || 'there'} — welcome to Kraftrack Support.\n\nPick a topic below or type your own message. We’ll pick this up even if the team is offline.`,
 );
 const canSend = computed(() => Boolean(draft.value.trim() || pendingFile.value));
 const lastMessageId = computed(() => chat.value.messages?.at(-1)?.id ?? null);
@@ -466,8 +466,8 @@ watch(
 onMounted(() => {
     scrollToBottom();
     bindEcho();
-    window.addEventListener('isabi:support-customer', onCustomerEvent);
-    window.addEventListener('isabi:support-typing', onTypingEvent);
+    window.addEventListener('kraftrack:support-customer', onCustomerEvent);
+    window.addEventListener('kraftrack:support-typing', onTypingEvent);
     const ms = Number(chat.value.poll_ms || 8000);
     pollTimer = window.setInterval(() => {
         if (!echoReady && !echoConnected()) {
@@ -480,8 +480,8 @@ onUnmounted(() => {
     window.clearInterval(pollTimer);
     window.clearTimeout(typingTimer);
     window.clearTimeout(typingHideTimer);
-    window.removeEventListener('isabi:support-customer', onCustomerEvent);
-    window.removeEventListener('isabi:support-typing', onTypingEvent);
+    window.removeEventListener('kraftrack:support-customer', onCustomerEvent);
+    window.removeEventListener('kraftrack:support-typing', onTypingEvent);
 });
 </script>
 

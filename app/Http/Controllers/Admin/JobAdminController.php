@@ -298,7 +298,7 @@ class JobAdminController extends Controller
 
         $data = $request->validated();
         $channel = $data['channel'];
-        $subject = $data['subject'] !== '' ? $data['subject'] : 'A note from Isabi';
+        $subject = $data['subject'] !== '' ? $data['subject'] : 'A note from Kraftrack';
         $body = $announcements->interpolate($data['body'], $artisan);
 
         if ($channel === Announcement::CHANNEL_WHATSAPP) {
@@ -357,7 +357,7 @@ class JobAdminController extends Controller
             'title' => $label,
             'message' => $channel === Announcement::CHANNEL_EMAIL
                 ? 'The email is on its way to this artisan.'
-                : 'They will see it in their Isabi inbox.',
+                : 'They will see it in their Kraftrack inbox.',
         ], [
             'job' => JobAdminPresenter::listRow($workLog->fresh(['user'])),
         ]);

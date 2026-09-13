@@ -432,7 +432,7 @@ const busy = ref('');
 
 const messageForm = useForm({
     channel: 'email',
-    subject: 'A note from Isabi',
+    subject: 'A note from Kraftrack',
     body: '',
 });
 
@@ -511,8 +511,8 @@ const openMessage = () => {
     const first = record.value?.artisan?.first_name || 'there';
     const job = record.value?.description || 'your recent job';
     messageForm.channel = record.value?.artisan?.whatsapp_url ? messageForm.channel : 'email';
-    messageForm.subject = 'A note from Isabi';
-    messageForm.body = `Hi ${first}, I’m writing about this job on your Isabi page: ${job}`;
+    messageForm.subject = 'A note from Kraftrack';
+    messageForm.body = `Hi ${first}, I’m writing about this job on your Kraftrack page: ${job}`;
     messageForm.clearErrors();
     messageOpen.value = true;
 };

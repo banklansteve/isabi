@@ -18,7 +18,7 @@
             <i class="ti ti-alert-triangle mt-0.5 shrink-0 text-sm" aria-hidden="true" />
             <span>
                 These show on your page labelled <strong class="font-bold">self-declared</strong>.
-                Isabi does not verify them — only list what you can show a client on request.
+                Kraftrack does not verify them — only list what you can show a client on request.
             </span>
         </p>
 

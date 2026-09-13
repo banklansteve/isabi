@@ -40,6 +40,16 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <a
+                            v-if="quote.pdf_url"
+                            :href="quote.pdf_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="tap-target inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-base-action shadow-sm ring-1 ring-white/20 transition hover:bg-tint"
+                        >
+                            <i class="ti ti-file-type-pdf text-sm" aria-hidden="true" />
+                            Download PDF
+                        </a>
                         <span
                             class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1.5 text-xs font-bold text-white/80 ring-1 ring-white/10"
                         >
@@ -162,28 +172,28 @@
                             />
 
                             <div class="grid gap-4 sm:grid-cols-2">
-                                <FormTextInput
+                                <FormDatePicker
                                     id="valid-until"
                                     v-model="form.valid_until"
-                                    type="date"
                                     label="Valid until"
+                                    hint="Quote offer expires at the end of this day."
                                     icon="ti ti-calendar"
-                                    :min="formMeta.validUntilMin"
+                                    :min-date="formMeta.validUntilMin"
+                                    :max-date="formMeta.validUntilMax"
                                     :error="form.errors.valid_until"
                                 />
-                                <FormTextInput
-                                    v-if="form.valid_until"
+                                <FormDatePicker
                                     id="estimated-start"
                                     v-model="form.estimated_start"
-                                    type="date"
                                     label="Estimated start"
+                                    hint="When you expect to begin the job."
                                     icon="ti ti-calendar-event"
-                                    :min="estimatedStartMin"
+                                    :min-date="estimatedStartMin"
+                                    :max-date="estimatedStartMax"
                                     :error="form.errors.estimated_start"
                                 />
                             </div>
                             <FormTextInput
-                                v-if="form.valid_until"
                                 id="duration"
                                 v-model="form.estimated_duration_days"
                                 type="number"
@@ -235,30 +245,97 @@
                         v-else
                         class="overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
                     >
-                        <div class="border-b border-ink/[0.05] px-5 py-4 sm:px-6">
-                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base">Your quote</p>
+                        <div class="border-b border-ink/[0.05] bg-gradient-to-r from-tint/50 to-white px-5 py-4 sm:px-6">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base">Your quote</p>
+                                    <p class="mt-1 text-xs font-semibold text-ink/40">{{ quote.quote_number }}</p>
+                                </div>
+                                <p class="text-2xl font-bold tracking-tight text-base-action sm:text-3xl">
+                                    {{ formatNaira(quote.total_naira) }}
+                                </p>
+                            </div>
+                            <div
+                                v-if="quote.valid_until || quote.estimated_start || quote.estimated_duration_days"
+                                class="mt-3 flex flex-wrap gap-2"
+                            >
+                                <span
+                                    v-if="quote.valid_until"
+                                    class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-ink/60 ring-1 ring-ink/10"
+                                >
+                                    <i class="ti ti-calendar text-sm text-ink/35" aria-hidden="true" />
+                                    Valid until {{ formatDisplayDate(quote.valid_until) }}
+                                </span>
+                                <span
+                                    v-if="quote.estimated_start"
+                                    class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-ink/60 ring-1 ring-ink/10"
+                                >
+                                    <i class="ti ti-calendar-event text-sm text-ink/35" aria-hidden="true" />
+                                    Start {{ formatDisplayDate(quote.estimated_start) }}
+                                </span>
+                                <span
+                                    v-if="quote.estimated_duration_days"
+                                    class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-ink/60 ring-1 ring-ink/10"
+                                >
+                                    <i class="ti ti-clock text-sm text-ink/35" aria-hidden="true" />
+                                    {{ quote.estimated_duration_days }} day{{ quote.estimated_duration_days === 1 ? '' : 's' }}
+                                </span>
+                            </div>
                         </div>
-                        <div class="space-y-4 px-5 py-5 sm:px-6">
-                            <p class="text-3xl font-bold tracking-tight text-base-action">{{ formatNaira(quote.total_naira) }}</p>
-                            <p v-if="quote.scope_of_work" class="text-sm font-medium leading-relaxed text-ink/65">{{ quote.scope_of_work }}</p>
-                            <ul class="space-y-2 text-sm">
-                                <li v-for="(row, i) in quote.line_items" :key="i" class="flex justify-between gap-4">
-                                    <span class="text-ink/70">{{ row.display_label || row.label || row.description }}</span>
-                                    <span class="font-semibold text-ink">{{ formatNaira(row.line_total ?? ((row.quantity || 0) * (row.unit_price || 0))) }}</span>
-                                </li>
-                            </ul>
+
+                        <div class="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
+                            <p
+                                v-if="quote.scope_of_work"
+                                class="rounded-2xl bg-pale/70 px-4 py-3 text-sm font-medium leading-relaxed text-ink/65"
+                            >
+                                {{ quote.scope_of_work }}
+                            </p>
+
+                            <QuoteBreakdown
+                                :line-items="pricedLineItems"
+                                :subtotal="quote.subtotal_naira"
+                                :discount="quote.discount_naira"
+                                :vat="quote.vat_naira"
+                                :vat-rate="quote.vat_rate"
+                                :total="quote.total_naira"
+                            />
+
+                            <div v-if="quote.notes" class="rounded-2xl bg-pale px-4 py-3 text-sm text-ink/65">
+                                <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/35">Notes</p>
+                                <p class="mt-1">{{ quote.notes }}</p>
+                            </div>
+                            <div v-if="quote.payment_terms" class="rounded-2xl bg-pale px-4 py-3 text-sm text-ink/65">
+                                <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/35">Payment terms</p>
+                                <p class="mt-1">{{ quote.payment_terms }}</p>
+                            </div>
+                            <div v-if="quote.terms" class="rounded-2xl bg-pale px-4 py-3 text-sm text-ink/65">
+                                <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/35">Terms</p>
+                                <p class="mt-1">{{ quote.terms }}</p>
+                            </div>
                         </div>
                     </section>
 
                     <div v-if="request.is_editable" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <FormButton
-                            type="submit"
-                            variant="secondary"
-                            label="Save draft"
-                            loading-label="Saving…"
-                            icon-left="ti ti-device-floppy"
-                            :loading="form.processing"
-                        />
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <FormButton
+                                type="submit"
+                                variant="secondary"
+                                label="Save draft"
+                                loading-label="Saving…"
+                                icon-left="ti ti-device-floppy"
+                                :loading="form.processing"
+                            />
+                            <a
+                                v-if="quote.pdf_url"
+                                :href="quote.pdf_url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition hover:bg-tint"
+                            >
+                                <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
+                                Download PDF
+                            </a>
+                        </div>
                         <FormButton
                             type="button"
                             variant="primary"
@@ -269,7 +346,17 @@
                         />
                     </div>
 
-                    <div v-else-if="request.status === 'awaiting_client'" class="flex flex-col gap-3 sm:flex-row">
+                    <div v-else-if="request.status === 'awaiting_client'" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                        <a
+                            v-if="quote.pdf_url"
+                            :href="quote.pdf_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition hover:bg-tint"
+                        >
+                            <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
+                            Download PDF
+                        </a>
                         <FormButton
                             type="button"
                             variant="secondary"
@@ -284,6 +371,21 @@
                             icon-left="ti ti-brand-whatsapp"
                             @click="shareOpen = true"
                         />
+                    </div>
+
+                    <div
+                        v-else-if="quote.pdf_url"
+                        class="flex flex-col gap-3 sm:flex-row"
+                    >
+                        <a
+                            :href="quote.pdf_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition hover:bg-base-hover"
+                        >
+                            <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
+                            Download PDF
+                        </a>
                     </div>
                 </form>
 
@@ -360,8 +462,10 @@
 
 <script setup>
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
+import QuoteBreakdown from '@/Components/Quotes/QuoteBreakdown.vue';
 import QuoteLineItemsEditor from '@/Components/Quotes/QuoteLineItemsEditor.vue';
 import QuoteShareSheet from '@/Components/Quotes/QuoteShareSheet.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -377,7 +481,11 @@ const props = defineProps({
     formMeta: {
         type: Object,
         default: () => ({
+            today: '',
             validUntilMin: '',
+            validUntilMax: '',
+            estimatedStartMin: '',
+            estimatedStartMax: '',
             defaultVatRate: 7.5,
             extraCharges: [],
         }),
@@ -385,6 +493,29 @@ const props = defineProps({
 });
 
 const shareOpen = ref(false);
+
+const toLocalIso = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${d}`;
+};
+
+const addYearsIso = (years) => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() + years);
+
+    return toLocalIso(date);
+};
+
+const estimatedStartMin = computed(
+    () => props.formMeta.estimatedStartMin || props.formMeta.today || toLocalIso(),
+);
+
+const estimatedStartMax = computed(
+    () => props.formMeta.estimatedStartMax || props.formMeta.validUntilMax || addYearsIso(2),
+);
 
 const defaultLineItems = () => [
     { kind: 'labour', label: 'Labour', quantity: 1, unit: 'fee', unit_price: 0 },
@@ -408,17 +539,6 @@ const form = useForm({
     payment_terms: props.quote.payment_terms || '',
     vat_rate: props.quote.vat_rate ?? props.formMeta.defaultVatRate ?? 7.5,
     discount_naira: props.quote.discount_naira ?? 0,
-});
-
-const estimatedStartMin = computed(() => {
-    if (!form.valid_until) {
-        return props.formMeta.validUntilMin;
-    }
-
-    const validUntil = new Date(`${form.valid_until}T00:00:00`);
-    validUntil.setDate(validUntil.getDate() + 1);
-
-    return validUntil.toISOString().slice(0, 10);
 });
 
 const totals = computed(() => {
@@ -448,26 +568,15 @@ const statusBadgeClass = computed(() => {
     return 'bg-white/[0.08] text-white/80 ring-white/10';
 });
 
+const pricedLineItems = computed(() =>
+    (props.quote.line_items || []).filter((row) => (Number(row.line_total) || 0) > 0),
+);
+
 onMounted(() => {
     if (props.openQuoteShare && props.whatsappShare) {
         shareOpen.value = true;
     }
 });
-
-watch(
-    () => form.valid_until,
-    (value) => {
-        if (!value) {
-            form.estimated_start = '';
-            form.estimated_duration_days = '';
-            return;
-        }
-
-        if (form.estimated_start && form.estimated_start <= value) {
-            form.estimated_start = estimatedStartMin.value;
-        }
-    },
-);
 
 watch(
     () => props.openQuoteShare,
@@ -486,6 +595,20 @@ const formatNaira = (amount) =>
         maximumFractionDigits: 2,
     }).format(amount || 0);
 
+const formatDisplayDate = (iso) => {
+    if (!iso) {
+        return '';
+    }
+
+    const [y, m, d] = String(iso).split('-');
+
+    if (!y || !m || !d) {
+        return iso;
+    }
+
+    return `${d}/${m}/${y}`;
+};
+
 const saveDraft = () => {
     form.put(route('quotes.update', props.request.uid), {
         preserveScroll: true,
@@ -493,17 +616,12 @@ const saveDraft = () => {
 };
 
 const sendQuote = () => {
-    if (totals.value.total <= 0) {
+    if (totals.value.total <= 0 || form.processing) {
         return;
     }
 
-    form.put(route('quotes.update', props.request.uid), {
+    form.post(route('quotes.send', props.request.uid), {
         preserveScroll: true,
-        onSuccess: () => {
-            router.post(route('quotes.send', props.request.uid), {}, {
-                preserveScroll: true,
-            });
-        },
     });
 };
 
