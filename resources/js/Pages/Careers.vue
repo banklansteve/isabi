@@ -86,8 +86,8 @@
                 </h2>
                 <p class="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-ink/55">
                     <template v-if="vacancies.length">
-                        Apply with the contact on each role — include a short note on why Kraftrack’s
-                        honesty-first model matters to you.
+                        Browse open roles below, then apply with our short multi-step form. Progress is
+                        saved as you go.
                     </template>
                     <template v-else>
                         We’re not hiring in volume yet. When roles open, they’ll appear here. Exceptional
@@ -111,6 +111,12 @@
                             >
                                 {{ employmentLabel(role.employment_type) }}
                             </span>
+                            <span
+                                v-if="role.work_mode"
+                                class="rounded-full bg-pale px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/45"
+                            >
+                                {{ workModeLabel(role.work_mode) }}
+                            </span>
                         </div>
                         <p
                             v-if="role.department || role.location"
@@ -119,32 +125,24 @@
                             <span v-if="role.department">{{ role.department }}</span>
                             <span v-if="role.department && role.location"> · </span>
                             <span v-if="role.location">{{ role.location }}</span>
+                            <span v-if="role.closes_at"> · Closes {{ role.closes_at }}</span>
                         </p>
                         <p class="mt-3 text-sm font-medium leading-relaxed text-ink/55">
                             {{ role.summary }}
                         </p>
-                        <p
-                            v-if="role.description"
-                            class="mt-3 whitespace-pre-line text-sm font-medium leading-relaxed text-ink/50"
-                        >
-                            {{ role.description }}
-                        </p>
                         <div class="mt-4 flex flex-wrap gap-2">
-                            <a
-                                v-if="role.apply_url"
-                                :href="role.apply_url"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <Link
+                                :href="route('careers.show', role.public_uid)"
                                 class="tap-target inline-flex items-center justify-center rounded-2xl bg-base-action px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-base-hover"
                             >
-                                Apply
-                            </a>
-                            <a
-                                :href="mailtoHref(role)"
+                                View role
+                            </Link>
+                            <Link
+                                :href="route('careers.apply', role.public_uid)"
                                 class="tap-target inline-flex items-center justify-center rounded-2xl bg-pale px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-ink/[0.06]"
                             >
-                                Email to apply
-                            </a>
+                                Apply now
+                            </Link>
                         </div>
                     </article>
                 </div>
@@ -233,9 +231,10 @@ const employmentLabel = (value) =>
         other: 'Other',
     })[value] || value;
 
-const mailtoHref = (role) => {
-    const email = role.apply_email || 'hello@kraftrack.com';
-    const subject = encodeURIComponent(`Careers · ${role.title}`);
-    return `mailto:${email}?subject=${subject}`;
-};
+const workModeLabel = (value) =>
+    ({
+        remote: 'Remote',
+        hybrid: 'Hybrid',
+        onsite: 'Onsite',
+    })[value] || value;
 </script>

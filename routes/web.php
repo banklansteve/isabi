@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AppPlaceholderController;
 use App\Http\Controllers\ArtisanDirectoryController;
+use App\Http\Controllers\CareerApplicationController;
 use App\Http\Controllers\CookieConsentController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
@@ -124,6 +125,16 @@ Route::get('/careers', function () {
             ->values(),
     ]);
 })->name('careers');
+
+Route::get('/careers/{vacancy:public_uid}', [CareerApplicationController::class, 'show'])
+    ->name('careers.show');
+Route::get('/careers/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'apply'])
+    ->name('careers.apply');
+Route::post('/careers/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('careers.apply.store');
+Route::get('/careers/{vacancy:public_uid}/apply/thanks', [CareerApplicationController::class, 'thanks'])
+    ->name('careers.apply.thanks');
 
 foreach (LegalContent::all() as $slug => $page) {
     Route::get('/'.$slug, function () use ($slug, $page) {
