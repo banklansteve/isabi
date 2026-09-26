@@ -12,8 +12,12 @@
                     :id="fieldId"
                     ref="inputRef"
                     v-model="model"
-                    class="form-control min-h-[6.5rem] resize-none py-3.5"
-                    :class="[icon ? 'ps-11' : 'ps-4', 'pe-4']"
+                    class="form-control resize-y py-3.5"
+                    :class="[
+                        icon ? 'ps-11' : 'ps-4',
+                        'pe-4',
+                        Number(rows) <= 2 ? 'min-h-[4.25rem]' : 'min-h-[6.5rem]',
+                    ]"
                     :name="name"
                     :rows="rows"
                     :placeholder="placeholder"
@@ -34,7 +38,7 @@
 import FormField from '@/Components/Form/FormField.vue';
 import { ref } from 'vue';
 
-const model = defineModel({ type: String, default: '' });
+const model = defineModel({ type: [String, null], default: '' });
 
 defineProps({
     id: { type: String, default: '' },

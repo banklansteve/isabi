@@ -13,7 +13,7 @@
                         class="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_10%_0%,rgba(255,255,255,0.1),transparent_55%),radial-gradient(45%_55%_at_100%_100%,rgba(255,106,61,0.14),transparent_50%)]"
                         aria-hidden="true"
                     />
-                    <div class="relative max-w-2xl">
+                    <div class="relative mx-auto max-w-2xl text-center">
                         <p
                             class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50"
                         >
@@ -26,7 +26,7 @@
                             We’re here when the work needs a hand
                         </h1>
                         <p
-                            class="mt-4 max-w-xl text-sm font-medium leading-relaxed text-white/70 sm:text-base"
+                            class="mx-auto mt-4 max-w-xl text-sm font-medium leading-relaxed text-white/70 sm:text-base"
                         >
                             Account help, billing, partnerships, or press — reach the Kraftrack team.
                             We support artisans and clients across Nigeria, with replies in West Africa

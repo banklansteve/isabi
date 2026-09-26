@@ -51,9 +51,18 @@ class QuoteDelivery
 
     public static function pdfUrl(QuoteRequest $request): string
     {
+        // Point email clients at an HTML landing page first — many block or
+        // silently fail on direct application/pdf responses from links.
+        return route('quotes.public.pdf.page', [
+            'token' => $request->client_token,
+        ], absolute: true);
+    }
+
+    /** Direct binary PDF endpoint (used by the landing page + in-app buttons). */
+    public static function pdfFileUrl(QuoteRequest $request): string
+    {
         return route('quotes.public.pdf', [
             'token' => $request->client_token,
-            'download' => 1,
         ], absolute: true);
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\UpdateProfileSlugRequest;
+use App\Http\Requests\UpdatePublicPageVisibilityRequest;
 use App\Http\Requests\UpdateReviewMessageSettingsRequest;
 use App\Models\ProfileSlugRedirect;
 use App\Services\CloudinaryMediaService;
@@ -46,6 +47,7 @@ class ProfileController extends Controller
                 'slug' => $user->slug,
                 'email' => $user->email,
                 'trade' => $user->trade,
+                'trades' => array_values($user->trades ?? (filled($user->trade) ? [$user->trade] : [])),
                 'skills' => array_values($user->skills ?? []),
                 'credentials' => array_values($user->credentials ?? []),
                 'experience_started_year' => $user->experience_started_year,
@@ -60,6 +62,7 @@ class ProfileController extends Controller
                 'logo_url' => $user->logo_url,
                 'public_url' => $user->publicUrl(),
                 'embed_url' => $user->slug ? route('embed.profile', $user->slug) : null,
+                'public_page_enabled' => $user->isPublicPageEnabled(),
                 'slug_changes_remaining' => $user->slugChangesRemaining(),
                 'max_slug_changes' => (int) config('profiles.max_slug_changes', 3),
                 'review_invite_template' => $user->review_invite_template,
@@ -223,7 +226,7 @@ class ProfileController extends Controller
                 'last_name' => $data['last_name'],
                 'business_name' => $data['business_name'],
                 'trade' => $data['trade'],
-                'bio' => $data['bio'] ?? null,
+                'bio' => array_key_exists('bio', $data) ? $data['bio'] : null,
             ],
         });
 
@@ -261,6 +264,42 @@ class ProfileController extends Controller
             'title' => $copy['title'],
             'message' => $copy['message'],
             'duration' => 4200,
+        ]);
+    }
+
+    public function updatePublicPageVisibility(UpdatePublicPageVisibilityRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+        $enabled = (bool) $request->validated('enabled');
+
+        if ($enabled) {
+            $user->enablePublicPage();
+            ActivityLogger::log(
+                action: 'profile.public_page_enabled',
+                summary: "{$user->name} turned their public page on.",
+                user: $user,
+            );
+
+            return Redirect::route('profile.edit')->with('toast', [
+                'type' => 'success',
+                'title' => 'Page is live',
+                'message' => 'Clients can find and view your public page again.',
+                'duration' => 4200,
+            ]);
+        }
+
+        $user->disablePublicPage($user, 'Turned off by artisan');
+        ActivityLogger::log(
+            action: 'profile.public_page_disabled',
+            summary: "{$user->name} turned their public page off.",
+            user: $user,
+        );
+
+        return Redirect::route('profile.edit')->with('toast', [
+            'type' => 'success',
+            'title' => 'Page turned off',
+            'message' => 'Your public page is hidden from the directory and direct links.',
+            'duration' => 4500,
         ]);
     }
 

@@ -13,7 +13,7 @@
                         class="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_12%_0%,rgba(255,255,255,0.1),transparent_55%),radial-gradient(50%_60%_at_100%_100%,rgba(255,106,61,0.12),transparent_50%)]"
                         aria-hidden="true"
                     />
-                    <div class="relative max-w-3xl">
+                    <div class="relative mx-auto max-w-3xl text-center">
                         <p
                             class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A8B0BC]"
                         >
@@ -26,7 +26,7 @@
                             {{ title }}
                         </h1>
                         <p
-                            class="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-[#D8DCE3] sm:text-base sm:leading-relaxed"
+                            class="mx-auto mt-3 max-w-2xl text-sm font-medium leading-relaxed text-[#D8DCE3] sm:text-base sm:leading-relaxed"
                         >
                             {{ summary }}
                         </p>

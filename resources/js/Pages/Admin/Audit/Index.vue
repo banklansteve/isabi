@@ -14,22 +14,12 @@
                     />
                 </div>
                 <div class="flex flex-col gap-2 lg:flex-row lg:items-end">
-                    <label class="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">
-                        From
-                        <input
-                            v-model="form.from"
-                            type="date"
-                            class="mt-1.5 w-full rounded-xl border border-ink/10 bg-[#F4F6FA] px-3 py-2.5 text-sm font-medium text-ink outline-none focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
-                        />
-                    </label>
-                    <label class="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">
-                        To
-                        <input
-                            v-model="form.to"
-                            type="date"
-                            class="mt-1.5 w-full rounded-xl border border-ink/10 bg-[#F4F6FA] px-3 py-2.5 text-sm font-medium text-ink outline-none focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
-                        />
-                    </label>
+                    <div class="min-w-0 flex-1">
+                        <FormDatePicker v-model="form.from" label="From" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <FormDatePicker v-model="form.to" label="To" />
+                    </div>
                     <label class="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">
                         Action
                         <select
@@ -104,6 +94,7 @@ import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminClientPager from '@/Components/Admin/AdminClientPager.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import { visitAdmin } from '@/utils/adminVisit';
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';

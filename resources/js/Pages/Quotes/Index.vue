@@ -247,6 +247,13 @@
                                 <i class="ti ti-briefcase" aria-hidden="true" />
                                 Ready to log as a job
                             </p>
+                            <p
+                                v-else-if="row.needs_update"
+                                class="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-800"
+                            >
+                                <i class="ti ti-pencil" aria-hidden="true" />
+                                {{ row.action_hint || 'Update & resend' }}
+                            </p>
                         </div>
 
                         <i

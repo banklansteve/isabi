@@ -124,14 +124,14 @@
                                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Shift adherence</p>
                                 <p class="mt-1 text-[13px] font-semibold text-ink">{{ adherenceView.date_label }}</p>
                             </div>
-                            <div class="inline-flex flex-wrap items-center gap-2 text-[12px] font-semibold text-ink/50">
-                                <span>Date</span>
-                                <input
-                                    v-model="adherenceDateDraft"
-                                    type="date"
-                                    :max="todayIso"
-                                    class="rounded-lg border-0 bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none ring-1 ring-ink/10 focus:ring-base/30"
-                                />
+                            <div class="inline-flex flex-wrap items-end gap-2">
+                                <div class="w-44">
+                                    <FormDatePicker
+                                        v-model="adherenceDateDraft"
+                                        label="Date"
+                                        :max-date="todayIso"
+                                    />
+                                </div>
                                 <button
                                     type="button"
                                     class="rounded-lg bg-base-action px-2.5 py-1 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
@@ -654,6 +654,7 @@
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { toast } from '@/utils/adminRange';

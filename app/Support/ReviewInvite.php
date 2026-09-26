@@ -4,7 +4,7 @@ namespace App\Support;
 
 use App\Models\User;
 use App\Models\WorkLog;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ReviewInvite
 {
@@ -23,7 +23,7 @@ class ReviewInvite
             || blank($workLog->review_token)
             || $expired
         ) {
-            $workLog->review_token = Str::lower(Str::random(40));
+            $workLog->review_token = self::generateToken();
         }
 
         $workLog->review_token_expires_at = now()->addDays(max(1, $days));
@@ -31,6 +31,32 @@ class ReviewInvite
         $workLog->save();
 
         return $workLog->fresh(['user']);
+    }
+
+    /**
+     * Cryptographically secure review token: `rvw_` + 26 hex chars from random_bytes.
+     */
+    public static function generateToken(): string
+    {
+        $prefix = WorkLog::REVIEW_TOKEN_PREFIX;
+        $length = WorkLog::REVIEW_TOKEN_BODY_LENGTH;
+
+        for ($attempt = 0; $attempt < 12; $attempt++) {
+            // 13 bytes → 26 hex characters (no alphabet bias).
+            $body = substr(bin2hex(random_bytes(13)), 0, $length);
+            $token = $prefix.$body;
+
+            $exists = DB::table('work_logs')
+                ->where('review_token', $token)
+                ->exists();
+
+            if (! $exists) {
+                return $token;
+            }
+        }
+
+        // Extremely unlikely collision path.
+        return $prefix.bin2hex(random_bytes(16));
     }
 
     public static function publicUrl(WorkLog $workLog): string
@@ -61,7 +87,7 @@ class ReviewInvite
         $name = trim((string) $workLog->client_name);
         $greeting = $name !== '' ? "Hi {$name}," : 'Hi,';
         $job = self::jobPhrase($workLog);
-        $resolvedLink = $link ?? (filled($workLog->review_token) ? self::publicUrl($workLog) : 'https://kraftrack.com/r/…');
+                        $resolvedLink = $link ?? (filled($workLog->review_token) ? self::publicUrl($workLog) : 'https://kraftrack.com/r/rvw_…');
 
         $rendered = str_replace(
             ['{greeting}', '{client_name}', '{job}', '{link}'],
@@ -96,7 +122,7 @@ class ReviewInvite
         return self::renderTemplate(
             $template,
             $sample,
-            url('/r/preview-link'),
+            url('/r/rvw_preview'),
         );
     }
 

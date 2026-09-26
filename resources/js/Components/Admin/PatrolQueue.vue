@@ -38,8 +38,12 @@
                     <option value="">All rules</option>
                     <option v-for="opt in ruleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
-                <input v-model="form.from" type="date" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base" />
-                <input v-model="form.to" type="date" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base" />
+                <div class="min-w-[10.5rem]">
+                    <FormDatePicker v-model="form.from" label="From" />
+                </div>
+                <div class="min-w-[10.5rem]">
+                    <FormDatePicker v-model="form.to" label="To" />
+                </div>
                 <select v-model="form.sort" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base">
                     <option value="severity">Severity first</option>
                     <option value="flagged">Flagged date</option>
@@ -113,6 +117,7 @@
 
 <script setup>
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import PatrolCaseDrawer from '@/Components/Admin/PatrolCaseDrawer.vue';
 import { adminPath, visitAdmin } from '@/utils/adminVisit';
 import { toast } from '@/utils/adminRange';

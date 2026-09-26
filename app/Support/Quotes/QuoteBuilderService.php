@@ -109,6 +109,7 @@ class QuoteBuilderService
                 'client_responded_at' => $request->client_responded_at
                     ?->timezone(config('app.display_timezone'))
                     ->format('j M Y · g:i A'),
+                'wants_adjustments' => $request->status === QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
                 'submitted_at' => $request->created_at
                     ?->timezone(config('app.display_timezone'))
                     ->format('j M Y · g:i A'),
@@ -231,7 +232,7 @@ class QuoteBuilderService
             'can_respond' => $request->status === QuoteRequest::STATUS_AWAITING_CLIENT,
             'respond_url' => route('quotes.public.respond', $request->client_token),
             'pdf_url' => filled($request->client_token)
-                ? QuoteDelivery::pdfUrl($request)
+                ? QuoteDelivery::pdfFileUrl($request)
                 : null,
             'app_name' => config('app.name'),
         ];

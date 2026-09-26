@@ -37,12 +37,24 @@
 
                     <div class="space-y-5">
                         <FormTextInput
+                            id="subject"
+                            v-model="form.subject"
+                            label="Subject"
+                            icon="ti ti-heading"
+                            placeholder="e.g. Kitchen sink leak repair"
+                            autocomplete="off"
+                            :disabled="!editFlags.can_edit_description"
+                            hint="Short title for lists and your public job URL."
+                            :error="form.errors.subject"
+                        />
+
+                        <FormTextarea
                             id="description"
                             v-model="form.description"
                             label="What was done"
                             icon="ti ti-tool"
-                            placeholder="e.g. Fixed kitchen sink leak"
-                            autocomplete="off"
+                            :rows="2"
+                            placeholder="e.g. Fixed kitchen sink leak — replaced trap and resealed joints"
                             :disabled="!editFlags.can_edit_description"
                             :hint="descriptionHint"
                             :error="form.errors.description"
@@ -82,29 +94,17 @@
                         />
 
                         <FormSelect
-                            id="job_category"
-                            v-model="form.job_category"
-                            label="Job category"
-                            icon="ti ti-category"
-                            placeholder="Select a category"
-                            :options="categoryParents"
-                            searchable
-                            search-placeholder="Search categories…"
-                            :error="form.errors.job_category"
-                            @change="onCategoryChange"
-                        />
-
-                        <FormSelect
                             id="job_subcategory"
                             v-model="form.job_subcategory"
-                            label="Subcategory"
+                            label="Trade for this job"
                             icon="ti ti-tags"
-                            :placeholder="form.job_category ? 'Select a subcategory' : 'Choose a category first'"
-                            :options="subcategoryOptions"
+                            placeholder="Select a trade"
+                            :options="tradeOptions"
                             searchable
-                            search-placeholder="Search subcategories…"
-                            :disabled="!form.job_category"
+                            search-placeholder="Search your trades…"
+                            hint="From the trades on your profile."
                             :error="form.errors.job_subcategory"
+                            @change="onTradeChange"
                         />
 
                         <div class="grid gap-5 sm:grid-cols-2">
@@ -237,6 +237,7 @@ import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormFileUpload from '@/Components/Form/FormFileUpload.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
+import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -251,12 +252,14 @@ const props = defineProps({
         type: Object,
         default: () => ({ parents: [], groups: {} }),
     },
+    tradeOptions: { type: Array, default: () => [] },
     locations: { type: Object, default: () => ({}) },
 });
 
 const existingMedia = ref([...(props.entry.media || [])]);
 
 const form = useForm({
+    subject: props.entry.subject || '',
     description: props.entry.description || '',
     worked_on: props.entry.worked_on || props.today,
     client_name: props.entry.client_name || '',
@@ -276,13 +279,23 @@ const form = useForm({
 
 const states = computed(() => Object.keys(props.locations || {}));
 
-const categoryParents = computed(() => props.jobCategories?.parents || []);
-
-const subcategoryOptions = computed(() => {
-    if (!form.job_category) {
-        return [];
+const tradeOptions = computed(() => {
+    const options = [...(props.tradeOptions || [])];
+    if (form.job_subcategory && !options.includes(form.job_subcategory)) {
+        options.unshift(form.job_subcategory);
     }
-    return props.jobCategories?.groups?.[form.job_category] || [];
+    return options;
+});
+
+const parentByTrade = computed(() => {
+    const map = {};
+    const groups = props.jobCategories?.groups || {};
+    for (const [parent, subs] of Object.entries(groups)) {
+        for (const sub of subs || []) {
+            map[sub] = parent;
+        }
+    }
+    return map;
 });
 
 const lgas = computed(() => {
@@ -292,8 +305,8 @@ const lgas = computed(() => {
     return props.locations[form.service_state] || [];
 });
 
-const onCategoryChange = () => {
-    form.job_subcategory = '';
+const onTradeChange = () => {
+    form.job_category = parentByTrade.value[form.job_subcategory] || 'Other';
 };
 
 const mediaError = computed(() => {
@@ -318,7 +331,7 @@ const descriptionHint = computed(() => {
     if (!props.editFlags.can_edit_description) {
         return `Locked after ${props.editFlags.description_edit_days} days — keeps your work log a real record.`;
     }
-    return `Editable for ${props.editFlags.description_edit_days} days after logging, or until a review is requested.`;
+    return `Up to 2,000 characters. Editable for ${props.editFlags.description_edit_days} days after logging, or until a review is requested.`;
 });
 
 const dateHint = computed(() => {
@@ -365,6 +378,7 @@ const submit = () => {
     };
 
     if (props.editFlags.can_edit_description) {
+        payload.subject = form.subject;
         payload.description = form.description;
     }
     if (props.editFlags.can_edit_date) {

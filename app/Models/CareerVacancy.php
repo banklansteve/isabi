@@ -18,6 +18,7 @@ class CareerVacancy extends Model
 
     protected $fillable = [
         'public_uid',
+        'slug',
         'title',
         'department',
         'location',
@@ -65,7 +66,42 @@ class CareerVacancy extends Model
             if (! $vacancy->public_uid) {
                 $vacancy->public_uid = Str::lower(Str::random(12));
             }
+            if (! $vacancy->slug) {
+                $vacancy->slug = static::uniqueSlugFromTitle($vacancy->title);
+            }
         });
+
+        static::updating(function (self $vacancy): void {
+            if ($vacancy->isDirty('title') || ! $vacancy->slug) {
+                $vacancy->slug = static::uniqueSlugFromTitle($vacancy->title, $vacancy->id);
+            }
+        });
+    }
+
+    public static function uniqueSlugFromTitle(?string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug((string) $title) ?: 'role';
+        $slug = $base;
+        $n = 2;
+
+        while (
+            static::query()
+                ->where('slug', $slug)
+                ->when($ignoreId, fn (Builder $q) => $q->where('id', '!=', $ignoreId))
+                ->exists()
+        ) {
+            $slug = $base.'-'.$n;
+            $n++;
+        }
+
+        return $slug;
+    }
+
+    public function publicPath(string $suffix = ''): string
+    {
+        $path = '/careers/'.$this->slug.'/'.$this->public_uid;
+
+        return $suffix !== '' ? $path.'/'.ltrim($suffix, '/') : $path;
     }
 
     public function hiringManager(): BelongsTo
@@ -86,7 +122,6 @@ class CareerVacancy extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query
-            ->where('is_public', true)
             ->where('status', 'open')
             ->where(function (Builder $q): void {
                 $q->whereNull('closes_at')->orWhereDate('closes_at', '>=', now()->toDateString());
@@ -98,7 +133,7 @@ class CareerVacancy extends Model
 
     public function isAcceptingApplications(): bool
     {
-        if (! $this->is_public || $this->status !== 'open') {
+        if ($this->status !== 'open') {
             return false;
         }
 
@@ -126,6 +161,7 @@ class CareerVacancy extends Model
         return [
             'id' => $this->id,
             'public_uid' => $this->public_uid,
+            'slug' => $this->slug,
             'title' => $this->title,
             'department' => $this->department,
             'location' => $this->location,
@@ -139,6 +175,8 @@ class CareerVacancy extends Model
             'closes_at' => optional($this->closes_at)?->toDateString(),
             'published_at' => optional($this->published_at)?->toDateString(),
             'apply_email' => $this->apply_email ?: 'hello@kraftrack.com',
+            'url' => $this->publicPath(),
+            'apply_path' => $this->publicPath('apply'),
         ];
     }
 
@@ -150,6 +188,7 @@ class CareerVacancy extends Model
         return [
             'id' => $this->id,
             'public_uid' => $this->public_uid,
+            'slug' => $this->slug,
             'title' => $this->title,
             'department' => $this->department,
             'location' => $this->location,

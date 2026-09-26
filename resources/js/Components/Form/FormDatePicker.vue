@@ -120,9 +120,12 @@ const props = defineProps({
     hint: { type: String, default: '' },
     error: { type: String, default: '' },
     icon: { type: String, default: 'ti ti-calendar' },
-    minDate: { type: String, required: true },
-    maxDate: { type: String, required: true },
+    /** ISO YYYY-MM-DD. Defaults to 1900-01-01 when empty. */
+    minDate: { type: String, default: '' },
+    /** ISO YYYY-MM-DD. Defaults to today + 10 years when empty. */
+    maxDate: { type: String, default: '' },
     disabled: { type: Boolean, default: false },
+    placeholder: { type: String, default: 'Select date' },
 });
 
 const emit = defineEmits(['change', 'blur']);
@@ -135,18 +138,15 @@ const panelStyle = ref({});
 
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-const min = computed(() => parseISO(props.minDate) || startOfDay(new Date()));
-const max = computed(() => {
-    const parsed = parseISO(props.maxDate);
-    if (!parsed) {
-        const fallback = startOfDay(new Date());
-        fallback.setFullYear(fallback.getFullYear() + 2);
+const defaultMin = () => startOfDay(new Date(1900, 0, 1));
+const defaultMax = () => {
+    const d = startOfDay(new Date());
+    d.setFullYear(d.getFullYear() + 10);
+    return d;
+};
 
-        return fallback;
-    }
-
-    return parsed;
-});
+const min = computed(() => parseISO(props.minDate) || defaultMin());
+const max = computed(() => parseISO(props.maxDate) || defaultMax());
 
 const initialViewDate = () => {
     if (model.value) {
@@ -174,11 +174,11 @@ const monthLabel = computed(() =>
 
 const displayLabel = computed(() => {
     if (!model.value) {
-        return 'Select date';
+        return props.placeholder || 'Select date';
     }
     const d = parseISO(model.value);
     if (!d) {
-        return 'Select date';
+        return props.placeholder || 'Select date';
     }
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');

@@ -337,7 +337,7 @@
                 class="mt-2.5 max-h-14 overflow-hidden rounded-xl bg-pale/80 px-2.5 py-2 text-[8px] font-medium leading-relaxed text-ink/55"
             >
                 Hi — please rate the kitchen rewiring job on kraftrack:
-                kraftrack.com/r/Kx8m2…
+                kraftrack.com/r/rvw_a3f9…
             </div>
             <div
                 class="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#25D366] py-2.5 text-[10px] font-bold text-white"

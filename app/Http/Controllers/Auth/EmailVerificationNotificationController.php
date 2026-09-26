@@ -3,22 +3,29 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\Auth\EmailVerificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class EmailVerificationNotificationController extends Controller
 {
     /**
-     * Send a new email verification notification.
+     * Resend verification email (code + link) with cooldown.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, EmailVerificationService $verification): RedirectResponse
     {
         if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->intended(route('dashboard', absolute: false));
+            return redirect()->intended(route($request->user()->homeRouteName(), absolute: false));
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        $verification->assertCanResend($request->user());
+        $verification->issue($request->user(), $request->session()->getId());
 
-        return back()->with('status', 'verification-link-sent');
+        return back()->with('status', 'verification-link-sent')->with('toast', [
+            'type' => 'success',
+            'title' => 'Code sent',
+            'message' => 'Check your email for a fresh 6-digit code.',
+            'duration' => 4500,
+        ]);
     }
 }

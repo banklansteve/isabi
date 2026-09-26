@@ -79,6 +79,7 @@ class QuotePipelineController extends Controller
             'needs_response' => $query->whereIn('quote_requests.status', [
                 QuoteRequest::STATUS_NEW,
                 QuoteRequest::STATUS_DRAFT,
+                QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
             ]),
             'awaiting_client' => $query->where('quote_requests.status', QuoteRequest::STATUS_AWAITING_CLIENT),
             'accepted' => $query->where('quote_requests.status', QuoteRequest::STATUS_ACCEPTED),

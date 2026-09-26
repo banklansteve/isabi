@@ -22,7 +22,7 @@
                     class="app-modal__panel relative z-10 flex w-full flex-col overflow-hidden bg-white shadow-premium-hover ring-1 ring-ink/[0.08]"
                     :class="[
                         sheet
-                            ? 'rounded-t-3xl sm:rounded-3xl'
+                            ? 'max-h-[92dvh] rounded-t-3xl sm:max-h-[85vh] sm:rounded-3xl'
                             : 'rounded-3xl',
                         sizeClass,
                     ]"

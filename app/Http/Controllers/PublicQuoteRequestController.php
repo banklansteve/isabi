@@ -6,6 +6,7 @@ use App\Http\Requests\StoreQuoteRequestRequest;
 use App\Models\QuoteRequest;
 use App\Models\WorkLog;
 use App\Support\ActivityLogger;
+use App\Support\JobPublicLocator;
 use App\Support\PublicArtisan;
 use App\Support\Quotes\QuoteRequestNotifier;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,27 @@ class PublicQuoteRequestController extends Controller
     public function store(
         StoreQuoteRequestRequest $request,
         string $slug,
+        string $context,
+        string $ref,
+        QuoteRequestNotifier $notifier,
+    ): JsonResponse|RedirectResponse {
+        return $this->handle($request, $slug, $context, $ref, $notifier);
+    }
+
+    public function storeLegacy(
+        StoreQuoteRequestRequest $request,
+        string $slug,
         string $job,
+        QuoteRequestNotifier $notifier,
+    ): JsonResponse|RedirectResponse {
+        return $this->handle($request, $slug, $job, null, $notifier);
+    }
+
+    private function handle(
+        StoreQuoteRequestRequest $request,
+        string $slug,
+        string $contextOrJob,
+        ?string $ref,
         QuoteRequestNotifier $notifier,
     ): JsonResponse|RedirectResponse {
         $artisan = PublicArtisan::locate($slug);
@@ -26,16 +47,13 @@ class PublicQuoteRequestController extends Controller
             abort(404);
         }
 
-        $log = WorkLog::query()
-            ->where('user_id', $artisan->id)
-            ->where(function ($query) use ($job) {
-                $query->where('reference', strtolower($job))
-                    ->orWhere('slug', $job)
-                    ->orWhere('uid', $job);
-            })
-            ->firstOrFail();
+        if (! $artisan->isPublicPageEnabled()) {
+            abort(404);
+        }
 
-        if (! $log->isPubliclyVisible()) {
+        $log = JobPublicLocator::findForArtisan((int) $artisan->id, $contextOrJob, $ref);
+
+        if (! $log || ! $log->isPubliclyVisible()) {
             abort(404);
         }
 

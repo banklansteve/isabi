@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\StaffStatus;
 use App\Enums\UserRole;
 use App\Notifications\StaffResetPasswordNotification;
+use App\Support\Auth\EmailVerificationService;
 use App\Support\Identity\UserUid;
 use App\Support\Referrals\ReferralService;
 use App\Support\Staff\AdminPermissions;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
@@ -46,6 +48,7 @@ use Illuminate\Support\Str;
     'suspended_at',
     'suspension_reason',
     'trade',
+    'trades',
     'skills',
     'credentials',
     'experience_started_year',
@@ -68,6 +71,10 @@ use Illuminate\Support\Str;
     'plan',
     'annual_expires_at',
     'public_page_views',
+    'public_page_enabled',
+    'public_page_disabled_at',
+    'public_page_disabled_by',
+    'public_page_disabled_reason',
     'last_login_ip',
     'last_login_at',
     'last_logout_at',
@@ -79,10 +86,25 @@ use Illuminate\Support\Str;
     'session_epoch',
 ])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, MustVerifyEmailTrait, Notifiable, SoftDeletes;
+
+    /**
+     * Send the custom code + link verification email.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        if ($this->hasVerifiedEmail() || $this->isStaff()) {
+            return;
+        }
+
+        app(EmailVerificationService::class)->issue(
+            $this,
+            session()->getId(),
+        );
+    }
 
     /**
      * @return array<string, mixed>
@@ -91,6 +113,10 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'email_verification_code_expires_at' => 'datetime',
+            'email_verification_sent_at' => 'datetime',
+            'email_verification_link_expires_at' => 'datetime',
+            'email_verification_attempts' => 'integer',
             'password' => 'hashed',
             'password_set_at' => 'datetime',
             'role' => UserRole::class,
@@ -102,6 +128,7 @@ class User extends Authenticatable
             'referred_by_user_id' => 'integer',
             'referred_at' => 'datetime',
             'skills' => 'array',
+            'trades' => 'array',
             'credentials' => 'array',
             'coverage_areas' => 'array',
             'experience_started_year' => 'integer',
@@ -109,6 +136,9 @@ class User extends Authenticatable
             'token_balance' => 'integer',
             'annual_expires_at' => 'datetime',
             'public_page_views' => 'integer',
+            'public_page_enabled' => 'boolean',
+            'public_page_disabled_at' => 'datetime',
+            'public_page_disabled_by' => 'integer',
             'last_login_at' => 'datetime',
             'last_logout_at' => 'datetime',
             'last_seen_at' => 'datetime',
@@ -534,6 +564,50 @@ class User extends Authenticatable
     public function scopeArtisans(Builder $query): Builder
     {
         return $query->where('role', UserRole::User);
+    }
+
+    /**
+     * Artisans whose public page is visible to the open web.
+     */
+    public function scopePubliclyListed(Builder $query): Builder
+    {
+        return $query
+            ->artisans()
+            ->where(function (Builder $q) {
+                $q->where('public_page_enabled', true)
+                    ->orWhereNull('public_page_enabled');
+            })
+            ->whereNull('suspended_at');
+    }
+
+    public function isPublicPageEnabled(): bool
+    {
+        if ($this->isSuspended()) {
+            return false;
+        }
+
+        // Treat null as enabled for rows created before the column existed.
+        return $this->public_page_enabled !== false;
+    }
+
+    public function disablePublicPage(?User $actor = null, ?string $reason = null): void
+    {
+        $this->forceFill([
+            'public_page_enabled' => false,
+            'public_page_disabled_at' => now(),
+            'public_page_disabled_by' => $actor?->id,
+            'public_page_disabled_reason' => $reason ? Str::limit($reason, 255) : null,
+        ])->save();
+    }
+
+    public function enablePublicPage(): void
+    {
+        $this->forceFill([
+            'public_page_enabled' => true,
+            'public_page_disabled_at' => null,
+            'public_page_disabled_by' => null,
+            'public_page_disabled_reason' => null,
+        ])->save();
     }
 
     public function scopeStaff(Builder $query): Builder

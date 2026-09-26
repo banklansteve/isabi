@@ -21,12 +21,19 @@ body,
 
 .header {
     width: 100%;
+    text-align: center;
 }
 
 .header a {
     color: #1A4FB5;
-    font-size: 20px;
-    font-weight: 800;
+    text-decoration: none;
+}
+
+.header img {
+    border: 0;
+    display: block;
+    margin: 0 auto;
+    outline: none;
     text-decoration: none;
 }
 

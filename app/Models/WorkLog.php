@@ -18,6 +18,7 @@ class WorkLog extends Model
         'uid',
         'reference',
         'slug',
+        'subject',
         'description',
         'worked_on',
         'client_name',
@@ -44,6 +45,17 @@ class WorkLog extends Model
         'referred_at',
         'created_ip',
     ];
+
+    public const SUBJECT_MAX = 80;
+
+    /** Max length for the “what was done” description. */
+    public const DESCRIPTION_MAX = 2000;
+
+    /** Prefix for public review invite tokens (`rvw_` + random body). */
+    public const REVIEW_TOKEN_PREFIX = 'rvw_';
+
+    /** Random body length for review tokens (crypto-secure). Total = prefix + this. */
+    public const REVIEW_TOKEN_BODY_LENGTH = 26;
 
     /**
      * @return array<string, string>
@@ -100,19 +112,21 @@ class WorkLog extends Model
             }
 
             if (blank($log->reference)) {
-                $log->reference = JobReference::unique(null, $log->description);
+                $log->reference = JobReference::unique();
             }
 
-            if (blank($log->slug) && filled($log->user_id)) {
-                $log->slug = JobSlug::uniqueFor($log->user_id, $log->description);
+            if (blank($log->slug)) {
+                $log->slug = JobSlug::seoPrefix($log->job_category, $log->job_subcategory);
             }
         });
 
-        // A corrected description should fix the URL with it, but only while
-        // nothing has been shared publicly — once a review link is out or a
-        // review has landed, the slug is frozen so the link can't rot.
+        // Category/subcategory may refresh the SEO prefix. The opaque reference
+        // never changes. Old full paths are remembered so shared links 301.
         static::updating(function (WorkLog $log): void {
-            if (! $log->isDirty('description') || blank($log->user_id)) {
+            if (
+                ! $log->isDirty('job_category')
+                && ! $log->isDirty('job_subcategory')
+            ) {
                 return;
             }
 
@@ -120,8 +134,41 @@ class WorkLog extends Model
                 return;
             }
 
-            $log->slug = JobSlug::uniqueFor($log->user_id, $log->description, $log->id);
+            $oldPath = $log->getOriginal('slug') && $log->getOriginal('reference')
+                ? JobSlug::compose(
+                    (string) $log->getOriginal('slug'),
+                    (string) $log->getOriginal('reference'),
+                )
+                : null;
+
+            $log->slug = JobSlug::seoPrefix($log->job_category, $log->job_subcategory);
+
+            if ($oldPath) {
+                $log->pendingSlugRedirect = $oldPath;
+            }
         });
+
+        static::updated(function (WorkLog $log): void {
+            if (! empty($log->pendingSlugRedirect)) {
+                JobSlugRedirect::remember((string) $log->pendingSlugRedirect, $log);
+                $log->pendingSlugRedirect = null;
+            }
+        });
+    }
+
+    /** @internal */
+    public ?string $pendingSlugRedirect = null;
+
+    /** Short title for lists and page headings (not used in public URLs). */
+    public function displayTitle(): string
+    {
+        if (filled($this->subject)) {
+            return (string) $this->subject;
+        }
+
+        return filled($this->description)
+            ? (string) $this->description
+            : 'Completed job';
     }
 
     /** Public job pages only earn indexing once there's something to show. */
@@ -147,13 +194,56 @@ class WorkLog extends Model
 
     public function publicUrl(): ?string
     {
-        $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
+        $params = $this->publicRouteParams();
 
-        if (blank($user?->slug) || blank($this->reference)) {
+        return $params ? route('public.job', $params) : null;
+    }
+
+    /**
+     * Route params for the canonical public job URL:
+     * /p/{artisan-slug}/{seo-context}/{opaque-reference}
+     *
+     * @return list<string>|null
+     */
+    public function publicRouteParams(): ?array
+    {
+        $user = $this->relationLoaded('user') ? $this->user : $this->user()->first();
+        $context = $this->publicContext();
+
+        if (blank($user?->slug) || blank($context) || blank($this->reference)) {
             return null;
         }
 
-        return route('public.job', [$user->slug, $this->reference]);
+        return [(string) $user->slug, $context, (string) $this->reference];
+    }
+
+    /**
+     * SEO context segment only (catalog-derived, never free text).
+     */
+    public function publicContext(): ?string
+    {
+        if (filled($this->slug)) {
+            return (string) $this->slug;
+        }
+
+        return JobSlug::seoPrefix($this->job_category, $this->job_subcategory);
+    }
+
+    /**
+     * Relative path after artisan slug: {seo-context}/{opaque-reference}
+     * Used for redirects and embed lookups.
+     */
+    public function publicPathSegment(): ?string
+    {
+        if (blank($this->reference)) {
+            return null;
+        }
+
+        $context = $this->publicContext();
+
+        return $context
+            ? JobSlug::compose($context, (string) $this->reference)
+            : null;
     }
 
     public function quoteRequests(): HasMany

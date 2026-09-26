@@ -21,7 +21,7 @@
                     aria-hidden="true"
                 />
 
-                <div class="relative max-w-2xl">
+                <div class="relative mx-auto max-w-2xl text-center">
                     <p
                         class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
                     >
@@ -33,11 +33,11 @@
                     >
                         Frequently asked questions
                     </h1>
-                    <p class="mt-3 text-sm font-medium leading-relaxed text-white/65 sm:text-base">
+                    <p class="mx-auto mt-3 text-sm font-medium leading-relaxed text-white/65 sm:text-base">
                         Clear answers about pricing, reviews, your page, and how Kraftrack works — without
                         the sales gloss.
                     </p>
-                    <div class="mt-6 flex flex-wrap gap-3">
+                    <div class="mt-6 flex flex-wrap justify-center gap-3">
                         <Link
                             :href="route('how-it-works')"
                             class="tap-target inline-flex items-center gap-2 rounded-2xl bg-white/12 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 transition-colors hover:bg-white/18"

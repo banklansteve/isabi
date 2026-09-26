@@ -25,7 +25,7 @@
                         "
                         aria-hidden="true"
                     />
-                    <div class="relative max-w-2xl">
+                    <div class="relative mx-auto max-w-2xl text-center">
                         <p
                             class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
                         >
@@ -38,7 +38,7 @@
                             Proof that travels with the work
                         </h1>
                         <p
-                            class="mt-4 max-w-xl text-sm font-medium leading-relaxed text-white/65 sm:text-base sm:leading-relaxed"
+                            class="mx-auto mt-4 max-w-xl text-sm font-medium leading-relaxed text-white/65 sm:text-base sm:leading-relaxed"
                         >
                             Kraftrack helps Nigerian artisans turn finished jobs and real client
                             reviews into a shareable track record — without self-written testimonials

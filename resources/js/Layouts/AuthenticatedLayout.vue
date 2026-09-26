@@ -14,12 +14,15 @@
                 Leave
             </Link>
         </div>
+
+        <EmailVerificationBanner />
+
         <header
             class="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-xl transition-[box-shadow] duration-300"
             :class="{ 'shadow-nav': scrolled }"
             style="padding-top: env(safe-area-inset-top)"
         >
-            <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-10">
+            <div class="mx-auto flex h-[4.25rem] max-w-7xl items-center gap-6 px-5 sm:px-8 lg:px-10">
                 <Link
                     :href="route('dashboard')"
                     class="flex shrink-0 items-center gap-2.5 text-ink transition-opacity duration-200 hover:opacity-80"
@@ -31,7 +34,7 @@
                 <div class="min-w-0 flex-1" />
 
                 <nav
-                    class="hidden items-center md:flex md:gap-1 lg:gap-2"
+                    class="hidden items-center md:flex md:gap-2 lg:gap-3"
                     aria-label="Primary"
                 >
                     <Link
@@ -79,7 +82,7 @@
                     v-if="mobileOpen"
                     class="border-t border-ink/10 bg-white md:hidden"
                 >
-                    <nav class="mx-auto max-w-7xl space-y-1 px-4 py-4 sm:px-6" aria-label="Mobile">
+                    <nav class="mx-auto max-w-7xl space-y-1 px-5 py-4 sm:px-8 lg:px-10" aria-label="Mobile">
                         <Link
                             v-for="item in primaryNav"
                             :key="`m-${item.href}`"
@@ -114,7 +117,7 @@
             v-if="$slots.header"
             class="border-b border-ink/10 bg-white/60"
         >
-            <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-10">
+            <div class="mx-auto max-w-7xl px-5 py-5 sm:px-8 lg:px-10">
                 <slot name="header" />
             </div>
         </header>
@@ -125,7 +128,7 @@
                     ? 'overflow-hidden'
                     : fullBleed
                       ? 'pb-28 sm:pb-14'
-                      : 'mx-auto max-w-7xl px-4 pb-28 pt-7 sm:px-6 sm:pb-14 sm:pt-9 lg:px-10'
+                      : 'mx-auto max-w-7xl px-5 pb-28 pt-7 sm:px-8 sm:pb-14 sm:pt-9 lg:px-10'
             "
         >
             <slot />
@@ -156,6 +159,7 @@
 
 <script setup>
 import BrandMark from '@/Components/BrandMark.vue';
+import EmailVerificationBanner from '@/Components/App/EmailVerificationBanner.vue';
 import NotificationBell from '@/Components/App/NotificationBell.vue';
 import ProfileCompletionRing from '@/Components/App/ProfileCompletionRing.vue';
 import UserProfileMenu from '@/Components/App/UserProfileMenu.vue';
@@ -230,7 +234,7 @@ onUnmounted(() => {
 
 <style scoped>
 .nav-link {
-    @apply relative inline-flex items-center rounded-xl px-4 py-2.5 text-[0.95rem] font-bold tracking-tight text-ink/70 transition-[color,background-color] duration-200 ease-out lg:px-5;
+    @apply relative inline-flex min-h-10 items-center justify-center rounded-2xl px-5 py-2.5 text-[0.95rem] font-bold tracking-tight text-ink/70 transition-[color,background-color] duration-200 ease-out;
 }
 
 .nav-link:hover {

@@ -22,6 +22,12 @@
                             {{ shown.verified ? 'Verified' : 'Unverified' }}
                         </span>
                         <span
+                            v-if="!shown.public_page_enabled"
+                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600"
+                        >
+                            Page off
+                        </span>
+                        <span
                             v-if="shown.suspended"
                             class="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600"
                         >
@@ -41,6 +47,9 @@
                     <AdminSlideMenu :open="menu">
                         <button type="button" class="menu-item" @click="ask('verify')">
                             {{ shown.verified ? 'Unverify email' : 'Manually verify' }}
+                        </button>
+                        <button type="button" class="menu-item" @click="ask(shown.public_page_enabled ? 'hide-page' : 'show-page')">
+                            {{ shown.public_page_enabled ? 'Turn public page off' : 'Turn public page on' }}
                         </button>
                         <button type="button" class="menu-item" @click="ask('edit')">Edit profile</button>
                         <button v-if="isSuper" type="button" class="menu-item" @click="ask('credits')">Adjust credits</button>
@@ -401,12 +410,9 @@
                 <option value="payg">Pay-as-you-go</option>
                 <option value="annual">Annual</option>
             </select>
-            <input
-                v-if="planForm.plan === 'annual'"
-                v-model="planForm.annual_expires_at"
-                type="date"
-                class="mt-2 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium"
-            />
+            <div v-if="planForm.plan === 'annual'" class="mt-2">
+                <FormDatePicker v-model="planForm.annual_expires_at" label="Annual expiry" />
+            </div>
         </template>
         <template v-else-if="dialog === 'edit' && detail">
             <div class="mt-4 grid gap-2 sm:grid-cols-2">
@@ -424,7 +430,9 @@
         <template v-else-if="dialog === 'edit-job' && editJob">
             <input v-model="editJob.description" class="field mt-4" />
             <input v-model="editJob.client_name" placeholder="Client" class="field mt-2" />
-            <input v-model="editJob.worked_on" type="date" class="field mt-2" />
+            <div class="mt-2">
+                <FormDatePicker v-model="editJob.worked_on" label="Worked on" />
+            </div>
         </template>
     </AdminConfirmDialog>
 
@@ -433,6 +441,7 @@
 
 <script setup>
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminSlideMenu from '@/Components/Admin/AdminSlideMenu.vue';
 import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
@@ -577,6 +586,17 @@ const dialogMeta = computed(() => {
         suspend: { title: 'Suspend account', description: 'They will be signed out and blocked from signing in.', confirmLabel: 'Suspend', tone: 'danger' },
         reinstate: { title: 'Reinstate account', description: 'They can sign in again.', confirmLabel: 'Reinstate' },
         verify: { title: shown.value?.verified ? 'Clear verification' : 'Manually verify', description: 'This is logged on the account.', confirmLabel: 'Save' },
+        'hide-page': {
+            title: 'Turn public page off',
+            description: 'Hides their page from the directory and public links. They can still sign in.',
+            confirmLabel: 'Turn off',
+            tone: 'danger',
+        },
+        'show-page': {
+            title: 'Turn public page on',
+            description: 'Restores their public page and directory listing.',
+            confirmLabel: 'Turn on',
+        },
         impersonate: { title: 'View as this artisan', description: 'You’ll see Kraftrack exactly as they do. Leave from the banner at the top.', confirmLabel: 'View as' },
         logout: { title: 'Force logout', description: 'Clears every active session on this account.', confirmLabel: 'Sign them out' },
         password: { title: 'Send password reset', description: 'Emails a reset link to this artisan.', confirmLabel: 'Send link' },
@@ -733,6 +753,14 @@ const runDialog = async ({ reason, confirmation }) => {
             emit('refresh');
         } else if (dialog.value === 'verify') {
             const url = shown.value.verified ? route('admin.users.unverify', id) : route('admin.users.verify', id);
+            const { data } = await axios.post(url, { reason });
+            toast(data.toast);
+            if (data.user) emit('updated', data.user);
+            emit('refresh');
+        } else if (dialog.value === 'hide-page' || dialog.value === 'show-page') {
+            const url = dialog.value === 'hide-page'
+                ? route('admin.users.hide-page', id)
+                : route('admin.users.show-page', id);
             const { data } = await axios.post(url, { reason });
             toast(data.toast);
             if (data.user) emit('updated', data.user);

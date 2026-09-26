@@ -2,6 +2,7 @@
 
 namespace App\Support\Quotes;
 
+use App\Mail\QuoteClientRespondedArtisanMail;
 use App\Mail\QuoteDeliveredClientMail;
 use App\Mail\QuoteRequestArtisanAlertMail;
 use App\Mail\QuoteRequestClientConfirmationMail;
@@ -160,6 +161,57 @@ class QuoteMailer
         }
 
         return ['client' => $client, 'artisan' => $artisanSent];
+    }
+
+    /**
+     * Notify the artisan when a client accepts, declines, or requests changes.
+     */
+    public function notifyArtisanOfClientResponse(QuoteRequest $request, string $decision): bool
+    {
+        $request->loadMissing(['artisan', 'artisanQuote']);
+        $artisan = $request->artisan;
+        $quote = $request->artisanQuote;
+
+        if (! $artisan || ! $quote) {
+            Log::warning('quote.client_response.artisan.skipped', [
+                'quote_request_uid' => $request->uid,
+                'reason' => 'missing_artisan_or_quote',
+                'decision' => $decision,
+            ]);
+
+            return false;
+        }
+
+        if (! $this->validEmail($artisan->email)) {
+            Log::warning('quote.client_response.artisan.skipped', [
+                'quote_request_uid' => $request->uid,
+                'reason' => 'missing_or_invalid_artisan_email',
+                'email' => $artisan->email,
+                'decision' => $decision,
+            ]);
+
+            return false;
+        }
+
+        return $this->attempt(
+            'quote.client_response.artisan',
+            (string) $artisan->email,
+            fn () => $this->dispatch(
+                (string) $artisan->email,
+                new QuoteClientRespondedArtisanMail(
+                    $request,
+                    $quote,
+                    $artisan,
+                    $decision,
+                    route('quotes.show', $request, absolute: true),
+                )
+            ),
+            [
+                'quote_request_uid' => $request->uid,
+                'quote_number' => $quote->quote_number,
+                'decision' => $decision,
+            ],
+        );
     }
 
     private function dispatch(string $to, object $mailable): ?SentMessage

@@ -205,6 +205,41 @@
                                 </form>
                             </Transition>
                         </div>
+
+                        <div
+                            class="rounded-2xl px-4 py-4 ring-1 sm:px-5"
+                            :class="
+                                profile.public_page_enabled
+                                    ? 'bg-white ring-ink/[0.05]'
+                                    : 'bg-amber-50/80 ring-amber-100'
+                            "
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[11px] font-bold uppercase tracking-[0.1em] text-ink/40">
+                                        Public page visibility
+                                    </p>
+                                    <p class="mt-1.5 text-sm font-semibold text-ink">
+                                        {{
+                                            profile.public_page_enabled
+                                                ? 'Your page is live for clients and the directory.'
+                                                : 'Your page is off — the public can’t view it.'
+                                        }}
+                                    </p>
+                                    <p class="mt-1 text-xs font-medium text-ink/45">
+                                        You can still sign in and manage jobs while it’s off.
+                                    </p>
+                                </div>
+                                <FormButton
+                                    type="button"
+                                    :variant="profile.public_page_enabled ? 'secondary' : 'primary'"
+                                    :label="profile.public_page_enabled ? 'Turn page off' : 'Turn page on'"
+                                    :loading="visibilityForm.processing"
+                                    loading-label="Saving…"
+                                    @click="togglePublicPage"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <form
@@ -261,18 +296,19 @@
                             v-model="basicsForm.trade"
                             label="Trade / profession"
                             icon="ti ti-briefcase"
-                            :options="trades"
+                            :options="tradeOptions"
                             searchable
                             :error="basicsForm.errors.trade"
                         />
 
                         <FormTextarea
                             id="bio"
-                            v-model="basicsForm.bio"
+                            :model-value="basicsForm.bio"
                             label="Short bio (optional)"
                             icon="ti ti-quote"
                             placeholder="A sentence clients will see on your page"
                             :error="basicsForm.errors.bio"
+                            @update:model-value="basicsForm.bio = $event ?? ''"
                         />
 
                         <div
@@ -407,78 +443,17 @@
                         @submit.prevent="submitSection('expertise')"
                     >
                         <div class="relative">
-                            <div class="mb-2 flex items-end justify-between gap-3">
-                                <div>
-                                    <p class="text-sm font-bold text-ink">Skills</p>
-                                    <p class="mt-0.5 text-xs font-medium text-ink/45">
-                                        Type to search, then tap a match. Up to 8.
-                                    </p>
-                                </div>
-                                <span class="text-[11px] font-bold tabular-nums text-ink/40">
-                                    {{ expertiseForm.skills.length }}/8
-                                </span>
-                            </div>
-
-                            <div v-if="expertiseForm.skills.length" class="mb-3 flex flex-wrap gap-2">
-                                <button
-                                    v-for="skill in expertiseForm.skills"
-                                    :key="skill"
-                                    type="button"
-                                    class="tap-target inline-flex items-center gap-1.5 rounded-full bg-base-action px-3 py-1.5 text-xs font-bold text-white transition hover:bg-base-hover"
-                                    @click="removeSkill(skill)"
-                                >
-                                    {{ skill }}
-                                    <i class="ti ti-x text-[13px] opacity-80" aria-hidden="true" />
-                                </button>
-                            </div>
-
-                            <div class="relative">
-                                <FormTextInput
-                                    id="skill_search"
-                                    v-model="skillQuery"
-                                    label="Add a skill"
-                                    placeholder="Start typing, e.g. wiring or tiling"
-                                    icon="ti ti-search"
-                                    autocomplete="off"
-                                    :disabled="expertiseForm.skills.length >= 8"
-                                    :error="expertiseForm.errors.skills || expertiseForm.errors['skills.0']"
-                                    @focus="skillsOpen = true"
-                                    @keydown.enter.prevent="pickFirstMatch"
-                                    @keydown.escape="skillsOpen = false"
-                                />
-
-                                <ul
-                                    v-if="skillsOpen && skillMatches.length"
-                                    class="absolute z-20 mt-1.5 max-h-56 w-full overflow-auto rounded-2xl bg-white py-1.5 shadow-premium-hover ring-1 ring-ink/[0.08]"
-                                    role="listbox"
-                                >
-                                    <li v-for="skill in skillMatches" :key="skill">
-                                        <button
-                                            type="button"
-                                            class="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-semibold text-ink transition-colors hover:bg-tint"
-                                            @mousedown.prevent="addSkill(skill)"
-                                        >
-                                            <i class="ti ti-plus text-base text-ink/35" aria-hidden="true" />
-                                            {{ skill }}
-                                        </button>
-                                    </li>
-                                </ul>
-
-                                <p
-                                    v-else-if="skillsOpen && skillQuery.trim() && !skillMatches.length"
-                                    class="mt-2 text-xs font-medium text-ink/45"
-                                >
-                                    No match in the list.
-                                    <button
-                                        type="button"
-                                        class="font-bold text-base-action hover:text-base-hover"
-                                        :disabled="expertiseForm.skills.length >= 8"
-                                        @click="addCustomSkill"
-                                    >
-                                        Add “{{ skillQuery.trim() }}” anyway
-                                    </button>
-                                </p>
-                            </div>
+                            <FormMultiSelect
+                                id="skills"
+                                v-model="expertiseForm.skills"
+                                label="Skills"
+                                hint="Search and add skills clients hire you for. Up to 8."
+                                icon="ti ti-sparkles"
+                                placeholder="Start typing, e.g. wiring or tiling"
+                                :options="skillSuggestions"
+                                :max="8"
+                                :error="expertiseForm.errors.skills || expertiseForm.errors['skills.0']"
+                            />
                         </div>
 
                         <div class="border-t border-ink/[0.06] pt-5">
@@ -735,12 +710,13 @@
 
 <script setup>
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormMultiSelect from '@/Components/Form/FormMultiSelect.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import CredentialsFieldset from '@/Components/Profile/CredentialsFieldset.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     mustVerifyEmail: { type: Boolean, default: false },
@@ -757,8 +733,6 @@ const props = defineProps({
 const user = usePage().props.auth.user;
 const editing = ref(null);
 const editingSlug = ref(false);
-const skillQuery = ref('');
-const skillsOpen = ref(false);
 const areaPicker = ref('');
 const currentYear = new Date().getFullYear();
 
@@ -850,6 +824,10 @@ const slugForm = useForm({
     slug: props.profile.slug || '',
 });
 
+const visibilityForm = useForm({
+    enabled: props.profile.public_page_enabled !== false,
+});
+
 const yearsActive = computed(() => {
     const year = Number(props.profile.experience_started_year);
     if (!year || year > currentYear) return null;
@@ -935,16 +913,6 @@ const nearbySuggestions = computed(() => {
     return lgas.value.filter((lga) => !chosen.has(lga)).slice(0, 12);
 });
 
-const skillMatches = computed(() => {
-    const q = skillQuery.value.trim().toLowerCase();
-    if (!q) return [];
-    const selected = new Set(expertiseForm.skills.map((s) => s.toLowerCase()));
-    return props.skillSuggestions
-        .filter((s) => !selected.has(String(s).toLowerCase()))
-        .filter((s) => String(s).toLowerCase().includes(q))
-        .slice(0, 8);
-});
-
 const hydrateBasics = () => {
     basicsForm.first_name = props.profile.first_name || '';
     basicsForm.last_name = props.profile.last_name || '';
@@ -976,21 +944,14 @@ const hydrateContact = () => {
 const startEditing = (section) => {
     editingSlug.value = false;
     if (section === 'basics') hydrateBasics();
-    if (section === 'expertise') {
-        hydrateExpertise();
-        skillQuery.value = '';
-    }
+    if (section === 'expertise') hydrateExpertise();
     if (section === 'contact') hydrateContact();
     editing.value = section;
 };
 
 const cancelEditing = () => {
     if (editing.value === 'basics') hydrateBasics();
-    if (editing.value === 'expertise') {
-        hydrateExpertise();
-        skillQuery.value = '';
-        skillsOpen.value = false;
-    }
+    if (editing.value === 'expertise') hydrateExpertise();
     if (editing.value === 'contact') hydrateContact();
     editing.value = null;
 };
@@ -1002,14 +963,40 @@ const forms = {
 };
 
 const submitSection = (section) => {
-    forms[section].patch(route('profile.update'), {
+    const form = forms[section];
+    const options = {
         preserveScroll: true,
         onSuccess: () => {
             editing.value = null;
-            skillQuery.value = '';
         },
-    });
+    };
+
+    if (section === 'basics') {
+        form
+            .transform((data) => ({
+                ...data,
+                section: 'basics',
+                first_name: String(data.first_name || '').trim(),
+                last_name: String(data.last_name || '').trim(),
+                business_name: String(data.business_name || '').trim(),
+                trade: String(data.trade || '').trim(),
+                bio: String(data.bio || '').trim(),
+            }))
+            .patch(route('profile.update'), options);
+        return;
+    }
+
+    form.patch(route('profile.update'), options);
 };
+
+const tradeOptions = computed(() => {
+    const list = Array.isArray(props.trades) ? [...props.trades] : [];
+    const current = String(basicsForm.trade || '').trim();
+    if (current && !list.some((t) => String(t).toLowerCase() === current.toLowerCase())) {
+        list.unshift(current);
+    }
+    return list;
+});
 
 const addArea = (area) => {
     const value = String(area || '').trim();
@@ -1037,33 +1024,6 @@ watch(areaPicker, (value) => {
     areaPicker.value = '';
 });
 
-watch(skillQuery, () => {
-    skillsOpen.value = true;
-});
-
-const addSkill = (skill) => {
-    const value = String(skill || '').trim();
-    if (!value || expertiseForm.skills.length >= 8) return;
-    if (expertiseForm.skills.some((s) => s.toLowerCase() === value.toLowerCase())) return;
-    expertiseForm.skills = [...expertiseForm.skills, value.slice(0, 40)];
-    skillQuery.value = '';
-    skillsOpen.value = false;
-};
-
-const removeSkill = (skill) => {
-    expertiseForm.skills = expertiseForm.skills.filter((s) => s !== skill);
-};
-
-const addCustomSkill = () => addSkill(skillQuery.value);
-
-const pickFirstMatch = () => {
-    if (skillMatches.value.length) {
-        addSkill(skillMatches.value[0]);
-        return;
-    }
-    if (skillQuery.value.trim()) addCustomSkill();
-};
-
 const submitSlug = () => {
     slugForm.patch(route('profile.slug'), {
         preserveScroll: true,
@@ -1079,12 +1039,11 @@ const cancelSlug = () => {
     editingSlug.value = false;
 };
 
-const onDocClick = (event) => {
-    if (!event.target.closest?.('#skill_search') && !event.target.closest?.('[role="listbox"]')) {
-        skillsOpen.value = false;
-    }
+const togglePublicPage = () => {
+    const next = !(props.profile.public_page_enabled !== false);
+    visibilityForm.enabled = next;
+    visibilityForm.patch(route('profile.public-page'), {
+        preserveScroll: true,
+    });
 };
-
-onMounted(() => document.addEventListener('click', onDocClick));
-onUnmounted(() => document.removeEventListener('click', onDocClick));
 </script>

@@ -30,36 +30,48 @@
                     </span>
                 </Link>
 
-                <nav class="hidden items-center gap-1 lg:flex lg:gap-2">
-                    <a
-                        href="#how-it-works"
-                        class="tap-target inline-flex items-center px-3 text-sm font-semibold transition-colors duration-300"
+                <nav class="hidden items-center gap-2 lg:flex lg:gap-3">
+                    <Link
+                        v-if="!$page.props.auth.user"
+                        :href="route('public.directory')"
+                        class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition-colors duration-300"
                         :class="
                             navScrolled
-                                ? 'text-ink/70 hover:text-ink'
-                                : 'text-white/75 hover:text-white'
+                                ? 'text-ink/70 hover:bg-ink/[0.04] hover:text-ink'
+                                : 'text-white/75 hover:bg-white/10 hover:text-white'
+                        "
+                    >
+                        Find artisans
+                    </Link>
+                    <a
+                        href="#how-it-works"
+                        class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition-colors duration-300"
+                        :class="
+                            navScrolled
+                                ? 'text-ink/70 hover:bg-ink/[0.04] hover:text-ink'
+                                : 'text-white/75 hover:bg-white/10 hover:text-white'
                         "
                     >
                         How it works
                     </a>
                     <a
                         href="#pricing"
-                        class="tap-target inline-flex items-center px-3 text-sm font-semibold transition-colors duration-300"
+                        class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition-colors duration-300"
                         :class="
                             navScrolled
-                                ? 'text-ink/70 hover:text-ink'
-                                : 'text-white/75 hover:text-white'
+                                ? 'text-ink/70 hover:bg-ink/[0.04] hover:text-ink'
+                                : 'text-white/75 hover:bg-white/10 hover:text-white'
                         "
                     >
                         Pricing
                     </a>
                 </nav>
 
-                <div class="hidden items-center gap-2 lg:flex">
+                <div class="hidden items-center gap-3 lg:flex">
                     <template v-if="$page.props.auth.user">
                         <Link
                             :href="route('dashboard')"
-                            class="tap-target inline-flex items-center justify-center rounded-2xl bg-coral px-5 text-sm font-semibold text-white transition-colors duration-native hover:bg-coral-deep"
+                            class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl bg-coral px-5 text-sm font-semibold text-white transition-colors duration-native hover:bg-coral-deep"
                         >
                             Open dashboard
                         </Link>
@@ -68,11 +80,11 @@
                         <Link
                             v-if="canLogin"
                             :href="route('login')"
-                            class="tap-target inline-flex items-center justify-center px-3 text-sm font-semibold transition-colors duration-300"
+                            class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition-colors duration-300"
                             :class="
                                 navScrolled
-                                    ? 'text-ink/75 hover:text-ink'
-                                    : 'text-white/80 hover:text-white'
+                                    ? 'text-ink/75 hover:bg-ink/[0.04] hover:text-ink'
+                                    : 'text-white/80 hover:bg-white/10 hover:text-white'
                             "
                         >
                             Sign in
@@ -80,7 +92,7 @@
                         <Link
                             v-if="canRegister"
                             :href="route('register')"
-                            class="tap-target inline-flex items-center justify-center rounded-2xl bg-coral px-5 text-sm font-semibold text-white transition-colors duration-native hover:bg-coral-deep"
+                            class="tap-target inline-flex min-h-10 items-center justify-center rounded-2xl bg-coral px-5 text-sm font-semibold text-white transition-colors duration-native hover:bg-coral-deep"
                         >
                             Get started
                         </Link>
@@ -115,6 +127,14 @@
                     class="border-t border-ink/10 bg-white px-5 py-4 text-ink lg:hidden"
                 >
                     <div class="mx-auto flex max-w-7xl flex-col gap-1">
+                        <Link
+                            v-if="!$page.props.auth.user"
+                            :href="route('public.directory')"
+                            class="tap-target flex items-center rounded-xl px-3 text-sm font-semibold text-ink/75 transition-colors hover:text-ink"
+                            @click="mobileNavOpen = false"
+                        >
+                            Find artisans
+                        </Link>
                         <a
                             href="#how-it-works"
                             class="tap-target flex items-center rounded-xl px-3 text-sm font-semibold text-ink/75 transition-colors hover:text-ink"
@@ -220,9 +240,12 @@
                             >
                                 Open dashboard
                             </Link>
-                            <p class="text-sm font-medium text-white/55">
-                                Free to start · No card needed
-                            </p>
+                            <Link
+                                :href="route('public.directory')"
+                                class="tap-target inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 text-base font-semibold text-white ring-1 ring-white/20 transition-colors duration-native hover:bg-white/15"
+                            >
+                                Find an artisan
+                            </Link>
                         </div>
                     </div>
 

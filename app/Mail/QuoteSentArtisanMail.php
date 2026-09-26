@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TransactionalMailDefaults;
 use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Models\User;
@@ -10,11 +11,12 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Queue\SerializesModels;
 
 class QuoteSentArtisanMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TransactionalMailDefaults;
 
     /**
      * @param  string|null  $pdfBytes  Raw PDF bytes; null skips the attachment.
@@ -33,13 +35,19 @@ class QuoteSentArtisanMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Your quote has been sent — {$this->quote->quote_number}",
+            subject: $this->cleanSubject("Quote {$this->quote->quote_number} was sent"),
+            from: $this->kraftrackFrom(),
             tags: ['quote-sent', 'artisan'],
             metadata: [
                 'quote_request_uid' => (string) $this->quoteRequest->uid,
                 'quote_number' => (string) $this->quote->quote_number,
             ],
         );
+    }
+
+    public function headers(): Headers
+    {
+        return $this->transactionalHeaders('quote-sent-artisan');
     }
 
     public function content(): Content
@@ -62,6 +70,7 @@ class QuoteSentArtisanMail extends Mailable
                 'quoteUrl' => $this->quoteUrl,
                 'pdfUrl' => $this->pdfUrl,
                 'builderUrl' => $this->builderUrl,
+                'hasPdfAttachment' => filled($this->pdfBytes),
             ],
         );
     }

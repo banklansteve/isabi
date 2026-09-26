@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProfileViewMonth;
 use App\Support\JobCategories;
 use App\Support\PublicArtisan;
+use App\Support\SearchReferrer;
 use App\Support\Seo;
 use App\Support\SeoSchema;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +24,11 @@ class PublicProfileController extends Controller
         }
 
         $viewer = $request->user();
+
+        if ($denied = PublicArtisan::denyUnlessVisible($user, $viewer)) {
+            return $denied;
+        }
+
         $viewerIsOwner = $viewer !== null && (int) $viewer->id === (int) $user->id;
 
         $workLogs = $user->workLogs()
@@ -35,14 +42,11 @@ class PublicProfileController extends Controller
                 'uid' => $log->uid,
                 'reference' => $log->reference,
                 'slug' => $log->slug,
-                'public_url' => ($user->slug && $log->reference)
-                    ? route('public.job', [$user->slug, $log->reference])
-                    : null,
+                'public_url' => $log->publicUrl(),
                 'detail_url' => $viewerIsOwner
                     ? route('work-log.show', $log->uid)
-                    : (($user->slug && $log->reference)
-                        ? route('public.job', [$user->slug, $log->reference])
-                        : null),
+                    : $log->publicUrl(),
+                'subject' => $log->displayTitle(),
                 'description' => $log->description,
                 'job_category' => $log->job_category,
                 'job_subcategory' => $log->job_subcategory,
@@ -68,7 +72,6 @@ class PublicProfileController extends Controller
                     'would_recommend' => $log->review->would_recommend,
                     'comment' => $log->review->comment,
                     'client_display_name' => $log->review->client_display_name,
-                    'referred_by' => $log->review->referred_by,
                     'photo_url' => $log->review->photoUrl(),
                     'photo_thumb_url' => $log->review->photoThumbUrl(700),
                     'photo_preview_url' => $log->review->photoPreviewUrl(),
@@ -115,6 +118,10 @@ class PublicProfileController extends Controller
             $sessionKey = 'profile_viewed:'.$user->id;
             if (! $request->session()->has($sessionKey)) {
                 $user->increment('public_page_views');
+                ProfileViewMonth::record(
+                    (int) $user->id,
+                    SearchReferrer::isSearch($request->headers->get('referer')),
+                );
                 $request->session()->put($sessionKey, true);
             }
         }
@@ -156,6 +163,7 @@ class PublicProfileController extends Controller
                 'slug' => $user->slug,
                 'public_url' => $user->publicUrl(),
                 'trade' => $user->trade,
+                'trades' => array_values($user->trades ?? (filled($user->trade) ? [$user->trade] : [])),
                 'skills' => array_values($user->skills ?? []),
                 'state' => $user->state,
                 'lga' => $user->lga,
@@ -190,6 +198,7 @@ class PublicProfileController extends Controller
             ],
             'timeline' => $workLogs,
             'viewerIsOwner' => $viewerIsOwner,
+            'publicPageEnabled' => $user->isPublicPageEnabled(),
             'quoteUrl' => $user->slug ? route('public.profile.quote', $user->slug) : null,
         ]);
     }

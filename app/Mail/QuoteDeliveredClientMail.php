@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TransactionalMailDefaults;
 use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Models\User;
@@ -11,11 +12,12 @@ use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Queue\SerializesModels;
 
 class QuoteDeliveredClientMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TransactionalMailDefaults;
 
     /**
      * @param  string|null  $pdfBytes  Raw PDF bytes; null skips the attachment.
@@ -36,18 +38,28 @@ class QuoteDeliveredClientMail extends Mailable
     public function envelope(): Envelope
     {
         $business = $this->artisan->displayBusinessName();
+        $app = (string) config('app.name', 'Kraftrack');
 
         return new Envelope(
-            subject: "Your quote from {$business} — {$this->quote->quote_number}",
+            subject: $this->cleanSubject("Quote from {$business} ({$this->quote->quote_number})"),
+            from: $this->kraftrackFrom(),
             replyTo: filled($this->artisan->email)
                 ? [new Address($this->artisan->email, $business)]
-                : [],
+                : [new Address(
+                    (string) config('mail.from.address'),
+                    (string) config('mail.from.name', $app),
+                )],
             tags: ['quote-delivered', 'client'],
             metadata: [
                 'quote_request_uid' => (string) $this->quoteRequest->uid,
                 'quote_number' => (string) $this->quote->quote_number,
             ],
         );
+    }
+
+    public function headers(): Headers
+    {
+        return $this->transactionalHeaders('quote-delivered-client');
     }
 
     public function content(): Content
@@ -71,6 +83,7 @@ class QuoteDeliveredClientMail extends Mailable
                     ->format('j M Y'),
                 'quoteUrl' => $this->quoteUrl,
                 'pdfUrl' => $this->pdfUrl,
+                'hasPdfAttachment' => filled($this->pdfBytes),
             ],
         );
     }

@@ -9,7 +9,7 @@
             aria-hidden="true"
         />
 
-        <div class="relative mx-auto max-w-7xl px-5 pt-16 sm:px-8 lg:px-10 lg:pt-20">
+        <div class="relative mx-auto max-w-7xl px-2.5 pt-16 sm:px-6 lg:px-8 lg:pt-20">
             <!-- Brand masthead -->
             <div class="relative overflow-hidden rounded-[2rem] bg-ink px-6 py-8 text-white sm:px-10 sm:py-10">
                 <div
@@ -148,7 +148,8 @@
 
 <script setup>
 import BrandMark from '@/Components/BrandMark.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 defineProps({
     /**
@@ -164,6 +165,8 @@ defineProps({
     },
 });
 
+const page = usePage();
+const authUser = computed(() => page.props.auth?.user);
 const currentYear = new Date().getFullYear();
 
 const homeHash = (hash) => `/#${hash}`;
@@ -172,45 +175,60 @@ const openCookiePreferences = () => {
     window.dispatchEvent(new CustomEvent('kraftrack:open-cookie-consent'));
 };
 
-const columns = [
-    {
-        title: 'Product',
-        links: [
-            { type: 'route', name: 'public.directory', label: 'Find artisans' },
-            { type: 'route', name: 'how-it-works', label: 'How it works' },
-            { type: 'hash', hash: 'on-your-page', label: "What's on your page" },
-            { type: 'hash', hash: 'pricing', label: 'Pricing' },
-            { type: 'hash', hash: 'samples', label: 'Sample profiles' },
-            { type: 'route', name: 'faq', label: 'FAQ' },
-        ],
-    },
-    {
-        title: 'Company',
-        links: [
-            { type: 'route', name: 'about', label: 'About' },
-            { type: 'route', name: 'contact', label: 'Contact' },
-            { type: 'route', name: 'careers', label: 'Careers' },
-            { type: 'external', href: 'mailto:hello@kraftrack.com', label: 'hello@kraftrack.com' },
-        ],
-    },
-    {
-        title: 'Legal',
-        links: [
-            { type: 'route', name: 'terms', label: 'Terms of use' },
-            { type: 'route', name: 'privacy', label: 'Privacy policy' },
-            { type: 'route', name: 'cookies', label: 'Cookie policy' },
-            { type: 'action', action: 'cookies', label: 'Manage cookies' },
-            { type: 'route', name: 'acceptable-use', label: 'Acceptable use' },
-        ],
-    },
-    {
-        title: 'Connect',
-        links: [
-            { type: 'external', href: 'https://wa.me/', label: 'WhatsApp' },
-            { type: 'external', href: 'https://instagram.com/', label: 'Instagram' },
-            { type: 'external', href: 'https://x.com/', label: 'X / Twitter' },
+const columns = computed(() => {
+    const connectLinks = [
+        { type: 'external', href: 'https://wa.me/', label: 'WhatsApp' },
+        { type: 'external', href: 'https://instagram.com/', label: 'Instagram' },
+        { type: 'external', href: 'https://x.com/', label: 'X / Twitter' },
+    ];
+
+    if (authUser.value) {
+        connectLinks.push(
+            { type: 'route', name: 'dashboard', label: 'Dashboard' },
+            { type: 'route', name: 'page.index', label: 'My page' },
+        );
+    } else {
+        connectLinks.push(
             { type: 'route', name: 'login', label: 'Sign in' },
-        ],
-    },
-];
+            { type: 'route', name: 'register', label: 'Get started' },
+        );
+    }
+
+    return [
+        {
+            title: 'Product',
+            links: [
+                { type: 'route', name: 'public.directory', label: 'Find artisans' },
+                { type: 'route', name: 'how-it-works', label: 'How it works' },
+                { type: 'hash', hash: 'pricing', label: 'Pricing' },
+                { type: 'hash', hash: 'samples', label: 'Sample profiles' },
+                { type: 'hash', hash: 'on-your-page', label: "What's on your page" },
+            ],
+        },
+        {
+            title: 'Company',
+            links: [
+                { type: 'route', name: 'about', label: 'About' },
+                { type: 'route', name: 'careers', label: 'Careers' },
+                { type: 'route', name: 'contact', label: 'Contact' },
+                { type: 'route', name: 'faq', label: 'FAQ' },
+                { type: 'external', href: 'mailto:hello@kraftrack.com', label: 'hello@kraftrack.com' },
+            ],
+        },
+        {
+            title: 'Legal',
+            links: [
+                { type: 'route', name: 'terms', label: 'Terms of use' },
+                { type: 'route', name: 'privacy', label: 'Privacy policy' },
+                { type: 'route', name: 'cookies', label: 'Cookie policy' },
+                { type: 'route', name: 'acceptable-use', label: 'Acceptable use' },
+                { type: 'action', action: 'cookies', label: 'Manage cookies' },
+            ],
+        },
+        {
+            title: 'Connect',
+            links: connectLinks,
+        },
+    ];
+});
 </script>

@@ -18,7 +18,7 @@ class UpdateAdminWorkLogRequest extends FormRequest
     {
         return [
             'reason' => ['required', 'string', 'min:4', 'max:500'],
-            'description' => ['required', 'string', 'min:3', 'max:255'],
+            'description' => ['required', 'string', 'min:3', 'max:'.\App\Models\WorkLog::DESCRIPTION_MAX],
             'client_name' => ['nullable', 'string', 'max:120'],
             'worked_on' => ['required', 'date'],
             'job_category' => ['nullable', 'string', 'max:160'],

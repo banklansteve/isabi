@@ -52,6 +52,60 @@ class JobCategories
     }
 
     /**
+     * Parent category for a subcategory label, or null if unknown.
+     */
+    public static function parentFor(?string $subcategory): ?string
+    {
+        if ($subcategory === null || $subcategory === '') {
+            return null;
+        }
+
+        foreach (self::all() as $parent => $subs) {
+            if (array_key_exists($subcategory, $subs)) {
+                return $parent;
+            }
+        }
+
+        if (strcasecmp($subcategory, 'Other') === 0) {
+            return 'Other';
+        }
+
+        return null;
+    }
+
+    /**
+     * Subcategory options a user may pick when logging a job (from signup trades).
+     *
+     * @param  list<string>|null  $trades
+     * @return list<string>
+     */
+    public static function workLogTradeOptions(?array $trades, ?string $legacyTrade = null): array
+    {
+        $labels = collect($trades ?? [])
+            ->map(fn ($t) => is_string($t) ? trim($t) : '')
+            ->filter()
+            ->values();
+
+        if ($labels->isEmpty() && filled($legacyTrade)) {
+            $labels = collect([trim((string) $legacyTrade)])->filter()->values();
+        }
+
+        if ($labels->isEmpty()) {
+            return self::tradeLabels();
+        }
+
+        $allowed = self::tradeLabels();
+        $filtered = $labels
+            ->filter(fn (string $label) => in_array($label, $allowed, true) || strcasecmp($label, 'Other') === 0)
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+
+        return $filtered !== [] ? $filtered : self::tradeLabels();
+    }
+
+    /**
      * Flat trade labels for registration / profile (subcategories + Other).
      *
      * @return list<string>

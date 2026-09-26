@@ -203,7 +203,7 @@ const renderPreview = (template) => {
     const name = 'Ada';
     const greeting = `Hi ${name},`;
     const job = 'rewiring';
-    const link = 'https://kraftrack.com/r/…';
+    const link = 'https://kraftrack.com/r/rvw_…';
 
     return String(template || '')
         .replaceAll('{greeting}', greeting)

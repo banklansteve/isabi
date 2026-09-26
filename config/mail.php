@@ -119,6 +119,12 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    | Absolute logo URL override for email clients that block CID embeds.
+    | Leave empty to use APP_URL/brand/kraftrack-kt-mark.png (must be publicly reachable).
+    */
+    'logo_url' => env('MAIL_LOGO_URL'),
+
     'markdown' => [
         'theme' => 'kraftrack',
         'paths' => [

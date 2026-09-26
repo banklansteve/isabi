@@ -53,6 +53,7 @@ class PublicReviewController extends Controller
             ],
             'job' => [
                 'description' => $workLog->description,
+                'subject' => $workLog->displayTitle(),
                 'job_category' => $workLog->job_category,
                 'job_subcategory' => $workLog->job_subcategory,
                 'category_label' => JobCategories::displayLabel(
@@ -110,7 +111,6 @@ class PublicReviewController extends Controller
                     'would_recommend' => (bool) $data['would_recommend'],
                     'comment' => $data['comment'] ?? null,
                     'client_display_name' => $data['client_display_name'] ?? null,
-                    'referred_by' => $data['referred_by'] ?? null,
                     'photo_disk' => $photoDisk,
                     'photo_path' => $photoPath,
                     'photo_url' => $photoUrl,

@@ -4,20 +4,33 @@ namespace App\Support;
 
 use App\Models\WorkLog;
 
+/**
+ * Opaque public job IDs — never derived from subject, client, or free text.
+ *
+ * Fixed-length, cryptographically random, URL-safe alphabet (no ambiguous 0/O/1/I/l).
+ * Always a mix of lowercase letters and digits.
+ */
 class JobReference
 {
-    /** Lowercase letters + digits, no ambiguous i/l/o/0/1. */
-    private const CHARSET = 'abcdefghjkmnpqrstuvwxyz23456789';
+    /** Lowercase letters, no ambiguous i/l/o. */
+    private const LETTERS = 'abcdefghjkmnpqrstuvwxyz';
 
+    /** Digits, no ambiguous 0/1. */
+    private const DIGITS = '23456789';
+
+    /** Canonical length for new references. */
+    public const LENGTH = 6;
+
+    /** Accept legacy lengths during redirects (pre–6-char era). */
     public const MIN_LENGTH = 6;
 
     public const MAX_LENGTH = 8;
 
-    /** Short, site-neutral share code — e.g. bath7k2m */
-    public static function unique(?int $ignoreId = null, ?string $description = null): string
+    /** Short opaque share code — never derived from client or job free text. */
+    public static function unique(?int $ignoreId = null, ?string $unused = null): string
     {
         do {
-            $reference = self::generate($description);
+            $reference = self::generate();
         } while (
             WorkLog::query()
                 ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
@@ -36,48 +49,51 @@ class JobReference
 
         $length = strlen($reference);
 
+        // Accept legacy 6–8 during redirects; new IDs are always LENGTH.
         return $length >= self::MIN_LENGTH
             && $length <= self::MAX_LENGTH
             && (bool) preg_match('/^[a-z0-9]+$/', $reference);
     }
 
-    private static function generate(?string $description): string
+    public static function isCanonical(?string $reference): bool
     {
-        $targetLength = random_int(self::MIN_LENGTH, self::MAX_LENGTH);
-        $seed = self::seedFromDescription($description, min(4, $targetLength - 2));
-        $suffixLength = max(2, $targetLength - strlen($seed));
-        $suffix = self::randomString($suffixLength);
-
-        $reference = substr($seed.$suffix, 0, $targetLength);
-
-        if (strlen($reference) < self::MIN_LENGTH) {
-            $reference .= self::randomString(self::MIN_LENGTH - strlen($reference));
+        if (! is_string($reference) || strlen($reference) !== self::LENGTH) {
+            return false;
         }
 
-        return $reference;
+        if (! preg_match('/^[a-z0-9]+$/', $reference)) {
+            return false;
+        }
+
+        // Canonical IDs always mix letters and digits.
+        return (bool) preg_match('/[a-z]/', $reference)
+            && (bool) preg_match('/[0-9]/', $reference);
     }
 
-    private static function seedFromDescription(?string $description, int $max): string
+    private static function generate(): string
     {
-        if ($max < 1 || blank($description)) {
-            return '';
+        $length = self::LENGTH;
+        $letters = self::LETTERS;
+        $digits = self::DIGITS;
+        $charset = $letters.$digits;
+        $charsetLen = strlen($charset) - 1;
+
+        // Guarantee at least one letter and one digit.
+        $chars = [
+            $letters[random_int(0, strlen($letters) - 1)],
+            $digits[random_int(0, strlen($digits) - 1)],
+        ];
+
+        for ($i = 2; $i < $length; $i++) {
+            $chars[] = $charset[random_int(0, $charsetLen)];
         }
 
-        $slug = JobSlug::normalize($description);
-        $letters = preg_replace('/[^a-z]/', '', $slug) ?? '';
-
-        return substr($letters, 0, $max);
-    }
-
-    private static function randomString(int $length): string
-    {
-        $out = '';
-        $charsetLength = strlen(self::CHARSET) - 1;
-
-        for ($i = 0; $i < $length; $i++) {
-            $out .= self::CHARSET[random_int(0, $charsetLength)];
+        // Fisher–Yates shuffle so the guaranteed pair isn't positional.
+        for ($i = $length - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
         }
 
-        return $out;
+        return implode('', $chars);
     }
 }

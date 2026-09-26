@@ -131,6 +131,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('users/{user}/reinstate', [UserAdminController::class, 'reinstate'])->name('users.reinstate');
         Route::post('users/{user}/verify', [UserAdminController::class, 'verify'])->name('users.verify');
         Route::post('users/{user}/unverify', [UserAdminController::class, 'unverify'])->name('users.unverify');
+        Route::post('users/{user}/hide-page', [UserAdminController::class, 'hidePublicPage'])->name('users.hide-page');
+        Route::post('users/{user}/show-page', [UserAdminController::class, 'showPublicPage'])->name('users.show-page');
         Route::post('users/{user}/plan', [UserAdminController::class, 'updatePlan'])->name('users.plan');
         Route::post('users/{user}/credits', [UserAdminController::class, 'adjustCredits'])->name('users.credits');
         Route::post('users/{user}/impersonate', [UserAdminController::class, 'impersonate'])->name('users.impersonate');

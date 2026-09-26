@@ -1,9 +1,7 @@
 <x-mail::layout>
-{{-- Header --}}
+{{-- Header: brand mark only (CID-embedded when possible) --}}
 <x-slot:header>
-<x-mail::header :url="config('app.url')">
-{{ config('app.name') }}
-</x-mail::header>
+<x-mail::header :url="config('app.url')" />
 </x-slot:header>
 
 {{-- Body --}}
@@ -21,7 +19,7 @@
 {{-- Footer --}}
 <x-slot:footer>
 <x-mail::footer>
-© {{ date('Y') }} {{ config('app.name') }} · Quotes &amp; proof of work for trusted artisans
+© {{ date('Y') }} {{ config('app.name') }} · Quotes and proof of work for trusted artisans
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>

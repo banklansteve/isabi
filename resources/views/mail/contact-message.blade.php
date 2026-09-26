@@ -1,11 +1,23 @@
-Kraftrack contact form
-======================
+<x-mail::message>
+# New contact message
 
-Name:  {{ $payload['name'] }}
-Email: {{ $payload['email'] }}
-Phone: {{ $payload['phone'] ?: '—' }}
-Topic: {{ $payload['topic'] }}
+Someone reached out via the {{ config('app.name') }} contact form.
 
-Message
--------
+<x-mail::panel>
+**From**  
+{{ $payload['name'] }}  
+{{ $payload['email'] }}  
+@if(!empty($payload['phone']))
+{{ $payload['phone'] }}  
+@endif
+
+**Topic:** {{ $payload['topic'] }}
+</x-mail::panel>
+
+**Message**
+
 {{ $payload['message'] }}
+
+Thanks,  
+{{ config('app.name') }}
+</x-mail::message>

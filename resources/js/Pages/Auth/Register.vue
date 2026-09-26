@@ -109,7 +109,7 @@
                         </p>
                     </div>
 
-                    <!-- Step 2: Trade / category -->
+                    <!-- Step 2: Trade / category + skills -->
                     <div v-else-if="step === 2" class="mt-8 space-y-4">
                         <FormSelect
                             id="job_category"
@@ -125,33 +125,58 @@
                         />
 
                         <template v-if="jobCategory">
-                            <FormTextInput
-                                id="trade_search"
-                                v-model="tradeQuery"
-                                type="search"
-                                icon="ti ti-search"
-                                placeholder="Search trades…"
-                                clearable
-                                aria-label="Search trades"
-                            />
+                            <div>
+                                <p class="mb-1.5 text-sm font-semibold text-ink/70">
+                                    Your trades / specialties
+                                </p>
+                                <p class="mb-2.5 text-xs font-medium text-ink/40">
+                                    Pick one or more — clients can find you under each.
+                                </p>
+                                <FormTextInput
+                                    id="trade_search"
+                                    v-model="tradeQuery"
+                                    type="search"
+                                    icon="ti ti-search"
+                                    placeholder="Search trades…"
+                                    clearable
+                                    aria-label="Search trades"
+                                />
 
-                            <FormChoiceGrid
-                                v-model="form.trade"
-                                :options="filteredTrades"
-                                :error="displayError('trade')"
-                                :icon-resolver="(label) => tradeIcon(label)"
-                                @change="onTradeChange"
-                            />
+                                <div class="mt-3">
+                                    <FormChoiceGrid
+                                        v-model="selectedTrades"
+                                        multiple
+                                        :max="6"
+                                        :options="filteredTrades"
+                                        :error="displayError('trades') || displayError('trade')"
+                                        :icon-resolver="(label) => tradeIcon(label)"
+                                        @change="onTradeChange"
+                                    />
+                                </div>
+                            </div>
 
                             <FormTextInput
-                                v-if="form.trade === 'Other'"
+                                v-if="selectedTrades.includes('Other')"
                                 id="trade_other"
                                 v-model="tradeOther"
-                                label="Tell us your trade"
+                                label="Tell us your other trade"
                                 icon="ti ti-briefcase"
                                 placeholder="e.g. Solar streetlight installer"
                                 :error="localErrors.trade_other"
-                                @blur="validateField('trade')"
+                                @blur="validateField('trades')"
+                            />
+
+                            <FormMultiSelect
+                                id="skills"
+                                v-model="form.skills"
+                                label="Skills"
+                                hint="Search and add skills related to your trades. Up to 8."
+                                icon="ti ti-sparkles"
+                                placeholder="Search skills, e.g. wiring or tiling"
+                                :options="skillOptions"
+                                :max="8"
+                                :error="displayError('skills') || displayError('skills.0')"
+                                @change="clearError('skills')"
                             />
                         </template>
                     </div>
@@ -312,6 +337,7 @@
 <script setup>
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormChoiceGrid from '@/Components/Form/FormChoiceGrid.vue';
+import FormMultiSelect from '@/Components/Form/FormMultiSelect.vue';
 import FormPasswordInput from '@/Components/Form/FormPasswordInput.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
@@ -329,6 +355,10 @@ const props = defineProps({
     jobCategories: {
         type: Object,
         default: () => ({ parents: [], groups: {} }),
+    },
+    skillCatalog: {
+        type: Object,
+        default: () => ({ all: [], groups: {} }),
     },
     locations: {
         type: Object,
@@ -351,7 +381,7 @@ const steps = [
         key: 'trade',
         eyebrow: 'Your craft',
         title: 'What do you do?',
-        support: 'Pick a category, then the trade clients should find you under.',
+        support: 'Pick a category, the trades clients should find you under, then skills you’re known for.',
     },
     {
         key: 'location',
@@ -371,6 +401,7 @@ const step = ref(1);
 const tradeQuery = ref('');
 const tradeOther = ref('');
 const jobCategory = ref('');
+const selectedTrades = ref([]);
 const localErrors = reactive({});
 
 const form = useForm({
@@ -378,7 +409,10 @@ const form = useForm({
     last_name: '',
     business_name: '',
     email: '',
+    job_category: '',
     trade: '',
+    trades: [],
+    skills: [],
     state: '',
     lga: '',
     office_address: '',
@@ -423,29 +457,39 @@ const filteredTrades = computed(() => {
     return source.filter((t) => t.toLowerCase().includes(q));
 });
 
+const skillOptions = computed(() => {
+    const all = props.skillCatalog?.all || [];
+    const group = props.skillCatalog?.groups?.[jobCategory.value] || [];
+    if (!group.length) {
+        return all;
+    }
+    const preferredLower = new Set(group.map((s) => s.toLowerCase()));
+    const preferred = [];
+    const seen = new Set();
+    for (const skill of group) {
+        const match = all.find((s) => s.toLowerCase() === skill.toLowerCase()) || skill;
+        const key = match.toLowerCase();
+        if (!seen.has(key)) {
+            preferred.push(match);
+            seen.add(key);
+        }
+    }
+    const rest = all.filter((s) => !preferredLower.has(s.toLowerCase()));
+    return [...preferred, ...rest];
+});
+
 const onCategoryChange = () => {
-    form.trade = '';
+    selectedTrades.value = [];
     tradeOther.value = '';
     tradeQuery.value = '';
+    form.skills = [];
+    form.job_category = jobCategory.value;
     clearError('trade');
+    clearError('trades');
     clearError('trade_other');
     clearError('job_category');
+    clearError('skills');
 };
-
-const passwordRules = computed(() => [
-    { key: 'len', label: '8+ chars', ok: form.password.length >= 8 },
-    { key: 'letter', label: 'A letter', ok: /[A-Za-z]/.test(form.password) },
-    { key: 'number', label: 'A number', ok: /\d/.test(form.password) },
-]);
-
-watch(
-    () => form.password,
-    () => {
-        if (form.password) {
-            validateField('password');
-        }
-    },
-);
 
 watch(
     () => form.errors,
@@ -457,7 +501,9 @@ watch(
         restoreOtherTradeUi();
         if (['first_name', 'last_name', 'email', 'business_name'].some((k) => keys.includes(k))) {
             step.value = 1;
-        } else if (keys.includes('trade')) {
+        } else if (
+            keys.some((k) => k === 'trade' || k === 'trades' || k.startsWith('trades.') || k === 'skills' || k.startsWith('skills.') || k === 'job_category')
+        ) {
             step.value = 2;
         } else if (['state', 'lga', 'office_address'].some((k) => keys.includes(k))) {
             step.value = 3;
@@ -467,17 +513,29 @@ watch(
     },
 );
 
-const resolveTradeForSubmit = () => {
-    if (form.trade === 'Other') {
-        return tradeOther.value.trim();
+const resolveTradesForSubmit = () => {
+    const trades = [...selectedTrades.value];
+    if (trades.includes('Other')) {
+        const custom = tradeOther.value.trim();
+        return trades
+            .filter((t) => t !== 'Other')
+            .concat(custom ? [custom] : [])
+            .filter(Boolean);
     }
-    return form.trade;
+    return trades;
 };
 
 const restoreOtherTradeUi = () => {
-    if (form.trade && form.trade !== 'Other' && !props.trades.includes(form.trade)) {
-        tradeOther.value = form.trade;
-        form.trade = 'Other';
+    const known = new Set(props.trades.map((t) => t.toLowerCase()));
+    const customs = (form.trades || []).filter((t) => !known.has(String(t).toLowerCase()) && t !== 'Other');
+    if (customs.length) {
+        tradeOther.value = customs[0];
+        selectedTrades.value = [
+            ...(form.trades || []).filter((t) => known.has(String(t).toLowerCase())),
+            'Other',
+        ];
+    } else if (Array.isArray(form.trades) && form.trades.length) {
+        selectedTrades.value = [...form.trades];
     }
 };
 
@@ -496,8 +554,10 @@ const isWhatsapp = (value) => {
 
 const validateField = (field) => {
     clearError(field);
-    if (field === 'trade') {
+    if (field === 'trades' || field === 'trade') {
         clearError('trade_other');
+        clearError('trades');
+        clearError('trade');
     }
 
     if (field === 'first_name' && !form.first_name.trim()) {
@@ -520,10 +580,10 @@ const validateField = (field) => {
             localErrors.business_name = 'Use letters or numbers so we can build a URL.';
         }
     }
-    if (field === 'trade') {
-        if (!form.trade) {
-            localErrors.trade = 'Select your trade or profession.';
-        } else if (form.trade === 'Other' && !tradeOther.value.trim()) {
+    if (field === 'trades' || field === 'trade') {
+        if (!selectedTrades.value.length) {
+            localErrors.trades = 'Select at least one trade or specialty.';
+        } else if (selectedTrades.value.includes('Other') && !tradeOther.value.trim()) {
             localErrors.trade_other = 'Tell us what you do.';
         }
     }
@@ -554,7 +614,7 @@ const validateField = (field) => {
         }
     }
 
-    return !localErrors[field] && !localErrors.trade_other;
+    return !localErrors[field] && !localErrors.trade_other && !localErrors.trades;
 };
 
 const validateStep = (n) => {
@@ -567,7 +627,7 @@ const validateStep = (n) => {
             return false;
         }
         clearError('job_category');
-        return validateField('trade') && !localErrors.trade_other;
+        return validateField('trades') && !localErrors.trade_other;
     }
     if (n === 3) {
         return ['state', 'lga', 'office_address'].every((f) => validateField(f));
@@ -580,8 +640,9 @@ const validateStep = (n) => {
 
 const onTradeChange = () => {
     clearError('trade');
+    clearError('trades');
     clearError('trade_other');
-    if (form.trade !== 'Other') {
+    if (!selectedTrades.value.includes('Other')) {
         tradeOther.value = '';
     }
 };
@@ -614,14 +675,16 @@ const submit = () => {
         return;
     }
 
-    const tradeValue = resolveTradeForSubmit();
-    if (!tradeValue) {
+    const trades = resolveTradesForSubmit();
+    if (!trades.length) {
         step.value = 2;
-        localErrors.trade = 'Select your trade or profession.';
+        localErrors.trades = 'Select at least one trade or specialty.';
         return;
     }
 
-    form.trade = tradeValue;
+    form.job_category = jobCategory.value;
+    form.trades = trades;
+    form.trade = trades[0];
     form.whatsapp = form.whatsapp.replace(/\s+/g, '');
 
     form.post(route('register'), {
@@ -629,6 +692,21 @@ const submit = () => {
         onError: () => restoreOtherTradeUi(),
     });
 };
+
+const passwordRules = computed(() => [
+    { key: 'len', label: '8+ chars', ok: form.password.length >= 8 },
+    { key: 'letter', label: 'A letter', ok: /[A-Za-z]/.test(form.password) },
+    { key: 'number', label: 'A number', ok: /\d/.test(form.password) },
+]);
+
+watch(
+    () => form.password,
+    () => {
+        if (form.password) {
+            validateField('password');
+        }
+    },
+);
 </script>
 
 <style scoped>

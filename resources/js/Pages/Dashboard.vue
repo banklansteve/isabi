@@ -190,12 +190,19 @@
                             What next?
                         </h2>
                         <p class="mt-0.5 text-sm font-medium text-ink/45">
-                            Three moves that grow your reputation.
+                            {{
+                                pendingReview
+                                    ? 'Three moves that grow your reputation.'
+                                    : 'Moves that grow your reputation.'
+                            }}
                         </p>
                     </div>
                 </div>
 
-                <div class="grid gap-3 sm:grid-cols-3">
+                <div
+                    class="grid gap-3"
+                    :class="pendingReview ? 'sm:grid-cols-3' : 'sm:grid-cols-2'"
+                >
                     <Link
                         :href="route('work-log.create')"
                         class="group relative flex items-center gap-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#FF8A5B] via-coral to-[#C94C24] px-4 py-4 text-white shadow-[0_14px_36px_-14px_rgba(255,106,61,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-14px_rgba(255,106,61,0.6)] sm:block sm:px-5 sm:py-6"
@@ -288,11 +295,8 @@
                     </div>
 
                     <Link
-                        :href="
-                            pendingReview
-                                ? route('work-log.show', pendingReview.uid)
-                                : route('work-log.index')
-                        "
+                        v-if="pendingReview"
+                        :href="route('work-log.show', pendingReview.uid)"
                         class="group relative flex items-center gap-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#1A4FB5] via-[#2F6FED] to-[#123B72] px-4 py-4 text-white shadow-[0_14px_36px_-14px_rgba(26,79,181,0.45)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-14px_rgba(26,79,181,0.55)] sm:block sm:px-5 sm:py-6"
                     >
                         <div
@@ -313,16 +317,12 @@
                             <span
                                 class="mt-0.5 line-clamp-2 block text-xs font-medium leading-relaxed text-pretty text-white/80 sm:mt-1.5 sm:line-clamp-none sm:text-sm"
                             >
-                                {{
-                                    pendingReview
-                                        ? `Send a WhatsApp link for “${pendingReview.description}”.`
-                                        : 'Open a logged job and send a private review link to your client.'
-                                }}
+                                Send a WhatsApp link for “{{ pendingReview.description }}”.
                             </span>
                             <span
                                 class="mt-5 hidden items-center gap-1.5 text-sm font-bold sm:inline-flex"
                             >
-                                {{ pendingReview ? 'Open job & send' : 'Open work log' }}
+                                Open job &amp; send
                                 <i
                                     class="ti ti-arrow-right text-sm transition-transform duration-200 group-hover:translate-x-0.5"
                                     aria-hidden="true"
@@ -340,6 +340,60 @@
             <!-- Reputation -->
             <section class="dash-rise">
                 <DashboardReputation :reputation="reputation" />
+            </section>
+
+            <!-- Search visibility -->
+            <section class="dash-rise" aria-labelledby="search-visibility-heading">
+                <div
+                    class="overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
+                >
+                    <div class="flex items-start gap-4 px-5 py-5 sm:px-6 sm:py-6">
+                        <span
+                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-tint text-lg text-base-action"
+                            aria-hidden="true"
+                        >
+                            <i class="ti ti-world-search" />
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base">
+                                Search visibility
+                            </p>
+                            <h2
+                                id="search-visibility-heading"
+                                class="mt-1 font-editorial text-lg font-semibold tracking-tight text-ink"
+                            >
+                                {{
+                                    searchVisibility.headline ||
+                                    'Search hasn’t found you yet this month'
+                                }}
+                            </h2>
+                            <p class="mt-1.5 text-sm font-medium leading-relaxed text-ink/50">
+                                {{ searchVisibility.detail }}
+                            </p>
+                            <div
+                                v-if="searchVisibility.views > 0"
+                                class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs font-semibold tabular-nums text-ink/40"
+                            >
+                                <span>
+                                    <span class="text-ink/70">{{ searchVisibility.search_views }}</span>
+                                    from search
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                    <span class="text-ink/70">{{ searchVisibility.views }}</span>
+                                    total in {{ searchVisibility.month_label }}
+                                </span>
+                            </div>
+                            <Link
+                                :href="route('page.index')"
+                                class="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-base-action transition-colors hover:text-base-hover"
+                            >
+                                Improve your public page
+                                <i class="ti ti-arrow-right text-sm" aria-hidden="true" />
+                            </Link>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Chart -->
@@ -501,6 +555,16 @@ const props = defineProps({
             response_rate: 0,
             latest: null,
             links: {},
+        }),
+    },
+    searchVisibility: {
+        type: Object,
+        default: () => ({
+            views: 0,
+            search_views: 0,
+            month_label: '',
+            headline: null,
+            detail: '',
         }),
     },
     nudge: {

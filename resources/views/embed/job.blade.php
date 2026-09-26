@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $log->description }} · {{ $artisan->displayBusinessName() }}</title>
+    <title>{{ $log->displayTitle() }} · {{ $artisan->displayBusinessName() }}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -120,7 +120,7 @@
             @if($categoryLabel)
                 <div class="eyebrow">{{ $categoryLabel }}</div>
             @endif
-            <div class="title">{{ $log->description }}</div>
+            <div class="title">{{ $log->displayTitle() }}</div>
             <div class="meta">
                 {{ $log->worked_on?->timezone(config('app.display_timezone'))->format('j M Y') }}
                 · {{ $artisan->displayBusinessName() }}

@@ -56,7 +56,7 @@ class ProfileUpdateRequest extends FormRequest
                 'first_name' => ['required', 'string', 'max:100'],
                 'last_name' => ['required', 'string', 'max:100'],
                 'business_name' => ['required', 'string', 'max:120'],
-                'trade' => ['required', 'string', 'max:120'],
+                'trade' => ['required', 'string', 'max:160'],
                 'bio' => ['nullable', 'string', 'max:500'],
             ],
         };
@@ -92,6 +92,7 @@ class ProfileUpdateRequest extends FormRequest
                 'first_name' => trim((string) $this->input('first_name')),
                 'last_name' => trim((string) $this->input('last_name')),
                 'business_name' => trim((string) $this->input('business_name')),
+                'trade' => trim((string) $this->input('trade')),
                 'bio' => trim((string) $this->input('bio')) ?: null,
             ];
         }

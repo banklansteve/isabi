@@ -4,7 +4,7 @@
         style="padding-top: env(safe-area-inset-top)"
     >
         <div
-            class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-[3.75rem] sm:gap-4 sm:px-8"
+            class="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-2.5 sm:h-[3.75rem] sm:px-6 lg:px-8"
         >
             <Link
                 :href="route('home')"
@@ -16,17 +16,25 @@
                 </span>
             </Link>
 
-            <nav class="flex h-full items-center gap-0.5 sm:gap-1" aria-label="Primary">
+            <nav class="flex h-full items-center gap-1 sm:gap-2 lg:gap-3" aria-label="Primary">
+                <Link
+                    v-if="!authUser"
+                    :href="route('public.directory')"
+                    class="nav-item hidden sm:inline-flex"
+                    :class="navLinkClass(['public.directory', 'public.directory.trade', 'public.directory.trade-state'])"
+                >
+                    Find artisans
+                </Link>
                 <Link
                     :href="route('how-it-works')"
-                    class="hidden items-center rounded-xl px-3 py-2 text-[0.9rem] font-semibold leading-none tracking-tight transition-colors sm:inline-flex"
+                    class="nav-item hidden sm:inline-flex"
                     :class="navLinkClass('how-it-works')"
                 >
                     How it works
                 </Link>
                 <Link
                     :href="route('faq')"
-                    class="hidden items-center rounded-xl px-3 py-2 text-[0.9rem] font-semibold leading-none tracking-tight transition-colors sm:inline-flex"
+                    class="nav-item hidden sm:inline-flex"
                     :class="navLinkClass('faq')"
                 >
                     FAQ
@@ -34,21 +42,22 @@
                 <Link
                     v-if="canLogin && !authUser"
                     :href="route('login')"
-                    class="inline-flex items-center rounded-xl px-3 py-2 text-[0.9rem] font-semibold leading-none tracking-tight text-ink/55 transition-colors hover:bg-ink/[0.04] hover:text-ink"
+                    class="nav-item"
+                    :class="navLinkClass('login')"
                 >
                     Sign in
                 </Link>
                 <Link
                     v-if="canRegister && !authUser"
                     :href="route('register')"
-                    class="ms-0.5 inline-flex min-h-10 items-center justify-center rounded-xl bg-coral px-3.5 text-[0.9rem] font-bold leading-none text-white transition-colors hover:bg-coral-deep sm:ms-1 sm:rounded-2xl sm:px-4"
+                    class="nav-cta"
                 >
                     Get started
                 </Link>
                 <Link
                     v-else-if="authUser"
                     :href="route('dashboard')"
-                    class="ms-0.5 inline-flex min-h-10 items-center justify-center rounded-xl bg-coral px-3.5 text-[0.9rem] font-bold leading-none text-white transition-colors hover:bg-coral-deep sm:ms-1 sm:rounded-2xl sm:px-4"
+                    class="nav-cta"
                 >
                     Dashboard
                 </Link>
@@ -78,9 +87,20 @@ const current = computed(() => {
 });
 
 const navLinkClass = (name) => {
-    const active = current.value === name;
+    const names = Array.isArray(name) ? name : [name];
+    const active = names.some((n) => current.value === n);
     return active
         ? 'bg-ink/[0.06] text-ink'
         : 'text-ink/55 hover:bg-ink/[0.04] hover:text-ink';
 };
 </script>
+
+<style scoped>
+.nav-item {
+    @apply items-center justify-center rounded-2xl px-4 py-2.5 text-[0.9rem] font-semibold leading-none tracking-tight transition-colors sm:min-h-10 sm:px-5;
+}
+
+.nav-cta {
+    @apply ms-0.5 inline-flex min-h-10 items-center justify-center rounded-2xl bg-coral px-4 text-[0.9rem] font-bold leading-none text-white transition-colors hover:bg-coral-deep sm:ms-1 sm:px-5;
+}
+</style>

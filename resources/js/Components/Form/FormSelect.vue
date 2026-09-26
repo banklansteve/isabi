@@ -1,14 +1,15 @@
 <template>
     <FormField :id="id" :label="label" :hint="hint" :error="error">
         <template #default="{ id: fieldId, describedBy }">
-            <div ref="rootRef" class="relative">
+            <div ref="rootRef" class="relative" :class="wrapperClass">
                 <button
                     :id="fieldId"
                     ref="triggerRef"
                     type="button"
                     class="form-control form-select-trigger"
                     :class="[
-                        icon ? 'ps-11' : 'ps-4',
+                        icon ? (size === 'sm' ? 'ps-9' : 'ps-11') : size === 'sm' ? 'ps-3.5' : 'ps-4',
+                        size === 'sm' ? 'form-select-trigger--sm' : '',
                         {
                             'has-error': !!error,
                             'is-disabled': disabled,
@@ -28,13 +29,16 @@
                     <i
                         v-if="icon"
                         class="form-control-icon pointer-events-none"
-                        :class="[icon, { 'text-base': open || !!model }]"
+                        :class="[icon, size === 'sm' ? 'left-3 text-base' : '', { 'text-base': open || hasValue }]"
                         aria-hidden="true"
                     />
                     <span class="truncate">{{ selectedLabel || placeholder }}</span>
                     <i
-                        class="ti ti-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-ink/30 transition-transform duration-200"
-                        :class="{ 'rotate-180 text-base': open }"
+                        class="ti ti-chevron-down absolute top-1/2 -translate-y-1/2 text-ink/30 transition-transform duration-200 ease-out"
+                        :class="[
+                            size === 'sm' ? 'right-3 text-sm' : 'right-3.5',
+                            { 'rotate-180 text-base': open },
+                        ]"
                         aria-hidden="true"
                     />
                 </button>
@@ -52,19 +56,25 @@
                         >
                             <div v-if="searchable" class="sticky top-0 z-10 border-b border-ink/6 bg-white p-2">
                                 <div class="relative">
-                                    <i class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
+                                    <i
+                                        class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/30"
+                                        aria-hidden="true"
+                                    />
                                     <input
                                         ref="searchRef"
                                         v-model="query"
                                         type="search"
                                         class="w-full rounded-xl border border-ink/10 bg-pale py-2.5 ps-9 pe-3 text-sm font-medium text-ink outline-none placeholder:text-ink/30 focus:border-base focus:bg-white focus:ring-2 focus:ring-base/15"
                                         :placeholder="searchPlaceholder"
-                                        @keydown="onSearchKeydown"
+                                        @keydown="onListKeydown"
                                     />
                                 </div>
                             </div>
 
-                            <div class="max-h-60 overflow-y-auto p-1.5">
+                            <div
+                                class="overflow-y-auto p-1.5"
+                                :class="size === 'sm' ? 'max-h-52' : 'max-h-60'"
+                            >
                                 <p
                                     v-if="!filteredOptions.length"
                                     class="px-3 py-6 text-center text-sm font-medium text-ink/40"
@@ -73,17 +83,20 @@
                                 </p>
                                 <button
                                     v-for="(option, index) in filteredOptions"
-                                    :key="optionValue(option)"
+                                    :key="String(optionValue(option))"
                                     type="button"
                                     role="option"
-                                    class="tap-target flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors"
-                                    :class="
+                                    class="tap-target flex w-full items-center gap-2.5 text-left font-semibold transition-colors duration-150"
+                                    :class="[
+                                        size === 'sm'
+                                            ? 'rounded-lg px-2.5 py-2 text-[13px]'
+                                            : 'rounded-xl px-3 py-2.5 text-sm',
                                         isSelected(option)
                                             ? 'bg-tint text-ink'
                                             : index === activeIndex
                                               ? 'bg-pale text-ink'
-                                              : 'text-ink/75 hover:bg-pale'
-                                    "
+                                              : 'text-ink/75 hover:bg-pale',
+                                    ]"
                                     :aria-selected="isSelected(option)"
                                     @mouseenter="activeIndex = index"
                                     @click="select(option)"
@@ -125,6 +138,13 @@ const props = defineProps({
     searchable: { type: Boolean, default: false },
     searchPlaceholder: { type: String, default: 'Search…' },
     disabled: { type: Boolean, default: false },
+    /** Compact trigger for filter bars */
+    size: {
+        type: String,
+        default: 'md',
+        validator: (value) => ['md', 'sm'].includes(value),
+    },
+    wrapperClass: { type: String, default: '' },
 });
 
 const emit = defineEmits(['change', 'blur']);
@@ -150,14 +170,19 @@ const filteredOptions = computed(() => {
     if (!q) {
         return props.options;
     }
-    return props.options.filter((option) =>
-        optionLabel(option).toLowerCase().includes(q),
-    );
+    return props.options.filter((option) => optionLabel(option).toLowerCase().includes(q));
 });
 
 const selectedLabel = computed(() => {
     const match = props.options.find((option) => optionValue(option) === model.value);
     return match ? optionLabel(match) : '';
+});
+
+const hasValue = computed(() => {
+    if (model.value === null || model.value === undefined) {
+        return false;
+    }
+    return String(model.value).length > 0;
 });
 
 const isSelected = (option) => optionValue(option) === model.value;
@@ -181,8 +206,8 @@ const updatePanelPosition = async () => {
 
     const rect = trigger.getBoundingClientRect();
     const gutter = 8;
-    const panelWidth = rect.width;
-    const approxHeight = 280;
+    const panelWidth = Math.max(rect.width, props.size === 'sm' ? 160 : 180);
+    const approxHeight = props.size === 'sm' ? 240 : 280;
     const spaceBelow = window.innerHeight - rect.bottom - gutter;
     const openUp = spaceBelow < approxHeight && rect.top > spaceBelow;
 
@@ -225,41 +250,92 @@ const select = (option) => {
     model.value = optionValue(option);
     emit('change', model.value);
     close();
+    nextTick(() => triggerRef.value?.focus());
+};
+
+const moveActive = (delta) => {
+    const len = filteredOptions.value.length;
+    if (!len) {
+        activeIndex.value = -1;
+        return;
+    }
+    if (activeIndex.value < 0) {
+        activeIndex.value = delta > 0 ? 0 : len - 1;
+        return;
+    }
+    activeIndex.value = (activeIndex.value + delta + len) % len;
+};
+
+const commitActive = () => {
+    if (activeIndex.value < 0) {
+        return;
+    }
+    const option = filteredOptions.value[activeIndex.value];
+    if (option !== undefined) {
+        select(option);
+    }
+};
+
+const onListKeydown = (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        nextTick(() => triggerRef.value?.focus());
+        return;
+    }
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveActive(1);
+        return;
+    }
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveActive(-1);
+        return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        commitActive();
+        return;
+    }
+    if (event.key === 'Home') {
+        event.preventDefault();
+        activeIndex.value = filteredOptions.value.length ? 0 : -1;
+        return;
+    }
+    if (event.key === 'End') {
+        event.preventDefault();
+        activeIndex.value = filteredOptions.value.length - 1;
+    }
 };
 
 const onTriggerKeydown = (event) => {
     if (props.disabled) {
         return;
     }
-    if (['ArrowDown', 'Enter', ' '].includes(event.key)) {
-        event.preventDefault();
-        if (!open.value) {
-            openPanel();
-        }
-    }
-};
 
-const onSearchKeydown = (event) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && open.value) {
         event.preventDefault();
         close();
         return;
     }
-    if (event.key === 'ArrowDown') {
+
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
-        activeIndex.value = Math.min(activeIndex.value + 1, filteredOptions.value.length - 1);
-        return;
-    }
-    if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        activeIndex.value = Math.max(activeIndex.value - 1, 0);
-        return;
-    }
-    if (event.key === 'Enter' && activeIndex.value >= 0) {
-        event.preventDefault();
-        const option = filteredOptions.value[activeIndex.value];
-        if (option !== undefined) {
-            select(option);
+        if (!open.value) {
+            openPanel();
+            return;
+        }
+        if (event.key === 'ArrowDown') {
+            moveActive(1);
+            return;
+        }
+        if (event.key === 'ArrowUp') {
+            moveActive(-1);
+            return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+            commitActive();
         }
     }
 };

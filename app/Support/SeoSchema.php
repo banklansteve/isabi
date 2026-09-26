@@ -135,7 +135,7 @@ class SeoSchema
             '@type' => 'Review',
             'datePublished' => $review->submitted_at?->toDateString(),
             'reviewBody' => $review->comment,
-            'name' => $log->description,
+            'name' => $log->displayTitle(),
             'author' => [
                 '@type' => 'Person',
                 'name' => $review->client_display_name ?: 'Verified client',
@@ -152,13 +152,18 @@ class SeoSchema
     /** A single finished job, presented as the service that was delivered. */
     public static function job(WorkLog $log, User $user): array
     {
-        $url = route('public.job', [$user->slug, $log->slug]);
+        $url = $log->publicUrl()
+            ?: (($params = $log->setRelation('user', $user)->publicRouteParams())
+                ? route('public.job', $params)
+                : route('public.profile', $user->slug));
 
         $schema = [
             '@context' => 'https://schema.org',
             '@type' => 'Service',
             '@id' => $url.'#service',
-            'name' => $log->description,
+            'name' => JobCategories::displayLabel($log->job_category, $log->job_subcategory)
+                ?: $log->displayTitle(),
+            'description' => filled($log->description) ? (string) $log->description : null,
             'url' => $url,
             'serviceType' => JobCategories::displayLabel($log->job_category, $log->job_subcategory)
                 ?: $user->trade,
@@ -182,9 +187,13 @@ class SeoSchema
             ->filter(fn ($m) => $m->isImage())
             ->map(fn ($m) => $m->previewUrl(1600))
             ->filter()
-            ->take(6)
-            ->values()
-            ->all();
+            ->values();
+
+        if ($log->relationLoaded('review') && $log->review?->isPubliclyVisible() && $log->review->photoUrl()) {
+            $images = $images->prepend($log->review->photoPreviewUrl() ?: $log->review->photoUrl());
+        }
+
+        $images = $images->take(6)->values()->all();
 
         if ($images !== []) {
             $schema['image'] = $images;

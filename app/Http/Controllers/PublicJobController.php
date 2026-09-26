@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\WorkLog;
 use App\Support\JobCategories;
+use App\Support\JobPublicLocator;
 use App\Support\PublicArtisan;
 use App\Support\Seo;
 use App\Support\SeoSchema;
@@ -14,55 +14,104 @@ use Inertia\Response;
 
 class PublicJobController extends Controller
 {
-    public function show(Request $request, string $slug, string $job): Response|RedirectResponse
+    public function show(Request $request, string $slug, string $context, string $ref): Response|RedirectResponse
     {
         $artisan = PublicArtisan::locate($slug);
 
         if ($artisan instanceof RedirectResponse) {
-            $target = $artisan->getTargetUrl();
+            $target = rtrim($artisan->getTargetUrl(), '/');
 
-            return redirect()->to(rtrim($target, '/').'/'.$job, 301);
+            return redirect()->to($target.'/'.$context.'/'.$ref, 301);
         }
 
-        $log = WorkLog::query()
-            ->where('user_id', $artisan->id)
-            ->where(function ($query) use ($job) {
-                $query->where('reference', strtolower($job))
-                    ->orWhere('slug', $job)
-                    ->orWhere('uid', $job);
-            })
-            ->with(['media', 'review'])
-            ->firstOrFail();
+        return $this->render($request, $artisan, $context, $ref);
+    }
+
+    /**
+     * Legacy /p/{artisan}/{segment} → 301 to /p/{artisan}/{context}/{ref}
+     */
+    public function showLegacy(Request $request, string $slug, string $job): Response|RedirectResponse
+    {
+        $artisan = PublicArtisan::locate($slug);
+
+        if ($artisan instanceof RedirectResponse) {
+            $target = rtrim($artisan->getTargetUrl(), '/');
+
+            return redirect()->to($target.'/'.$job, 301);
+        }
 
         $viewer = $request->user();
+
+        if ($denied = PublicArtisan::denyUnlessVisible($artisan, $viewer)) {
+            return $denied;
+        }
+
+        $log = JobPublicLocator::findForArtisan((int) $artisan->id, $job);
+
+        if (! $log) {
+            abort(404);
+        }
+
+        $params = $log->publicRouteParams();
+        if (! $params) {
+            abort(404);
+        }
+
+        return redirect()->route('public.job', $params, 301);
+    }
+
+    private function render(Request $request, $artisan, string $context, string $ref): Response|RedirectResponse
+    {
+        $viewer = $request->user();
+
+        if ($denied = PublicArtisan::denyUnlessVisible($artisan, $viewer)) {
+            return $denied;
+        }
+
+        $log = JobPublicLocator::findForArtisan((int) $artisan->id, $context, $ref);
+
+        if (! $log) {
+            abort(404);
+        }
+
+        $log->load(['media', 'review']);
+
         $viewerIsOwner = $viewer !== null && (int) $viewer->id === (int) $artisan->id;
 
         if (! $log->isPubliclyVisible() && ! $viewerIsOwner) {
             abort(404);
         }
 
-        if (filled($log->reference) && strtolower($job) !== (string) $log->reference) {
-            return redirect()->route('public.job', [$artisan->slug, $log->reference], 301);
+        $params = $log->publicRouteParams();
+        if (
+            $params
+            && ($context !== $params[1] || strtolower($ref) !== strtolower($params[2]))
+        ) {
+            return redirect()->route('public.job', $params, 301);
         }
 
         $seo = app(Seo::class);
-        $url = route('public.job', [$artisan->slug, $log->reference]);
+        $url = $log->publicUrl() ?: ($params ? route('public.job', $params) : null);
+        // Public SEO title uses catalog labels only — never free-text subject/client details.
+        $title = JobCategories::displayLabel($log->job_category, $log->job_subcategory)
+            ?: 'Completed work';
         $location = collect([$log->service_city, $log->service_lga, $log->service_state])
             ->filter()
             ->implode(', ');
         $description = filled($log->review?->comment)
             ? $log->review->comment
-            : $log->description.' by '.$artisan->displayBusinessName()
+            : ($log->description ?: $title).' by '.$artisan->displayBusinessName()
                 .($location ? ' in '.$location : '').'.';
 
         $firstImage = $log->media->first(fn ($m) => $m->isImage());
+        $reviewPhoto = $log->review?->isPubliclyVisible() ? $log->review->photoUrl() : null;
 
         $wa = preg_replace('/\D+/', '', (string) $artisan->whatsapp) ?? '';
 
-        $seo->title($log->description.' · '.$artisan->displayBusinessName())
+        $seo->title($title.' · '.$artisan->displayBusinessName())
             ->description($description)
             ->canonical($url)
-            ->image($firstImage?->previewUrl(1200) ?: $artisan->avatar_url)
+            ->image($firstImage?->previewUrl(1200) ?: ($reviewPhoto ?: $artisan->avatar_url))
             ->type('article');
 
         if (! $log->isPubliclySubstantial()) {
@@ -74,7 +123,7 @@ class PublicJobController extends Controller
                 ['name' => 'Home', 'url' => url('/')],
                 ['name' => 'Artisans', 'url' => route('public.directory')],
                 ['name' => $artisan->displayBusinessName(), 'url' => route('public.profile', $artisan->slug)],
-                ['name' => $log->description, 'url' => $url],
+                ['name' => $title, 'url' => $url],
             ]));
 
         return Inertia::render('Public/Job', [
@@ -93,7 +142,8 @@ class PublicJobController extends Controller
                 'reference' => $log->reference,
                 'slug' => $log->slug,
                 'public_url' => $url,
-                'embed_url' => route('embed.job', [$artisan->slug, $log->reference]),
+                'embed_url' => $params ? route('embed.job', $params) : null,
+                'subject' => $log->displayTitle(),
                 'description' => $log->description,
                 'job_category' => $log->job_category,
                 'job_subcategory' => $log->job_subcategory,
@@ -119,7 +169,6 @@ class PublicJobController extends Controller
                     'would_recommend' => $log->review->would_recommend,
                     'comment' => $log->review->comment,
                     'client_display_name' => $log->review->client_display_name,
-                    'referred_by' => $log->review->referred_by,
                     'photo_url' => $log->review->photoUrl(),
                     'photo_thumb_url' => $log->review->photoThumbUrl(700),
                     'photo_preview_url' => $log->review->photoPreviewUrl(),
@@ -129,8 +178,8 @@ class PublicJobController extends Controller
                     'submitted_at' => $log->review->submitted_at?->toDateString(),
                 ] : null,
             ],
-            'viewerIsOwner' => $viewer !== null && (int) $viewer->id === (int) $artisan->id,
-            'quoteUrl' => route('public.job.quote', [$artisan->slug, $log->reference]),
+            'viewerIsOwner' => $viewerIsOwner,
+            'quoteUrl' => $params ? route('public.job.quote', $params) : null,
         ]);
     }
 }

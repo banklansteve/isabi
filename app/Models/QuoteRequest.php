@@ -18,6 +18,8 @@ class QuoteRequest extends Model
 
     public const STATUS_DECLINED = 'declined';
 
+    public const STATUS_ADJUSTMENTS_REQUESTED = 'adjustments_requested';
+
     public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
@@ -101,6 +103,7 @@ class QuoteRequest extends Model
         return in_array($this->status, [
             self::STATUS_NEW,
             self::STATUS_DRAFT,
+            self::STATUS_ADJUSTMENTS_REQUESTED,
         ], true);
     }
 

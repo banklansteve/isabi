@@ -107,7 +107,25 @@ class Review extends Model
 
     public function photoUrl(): ?string
     {
-        return $this->photo_url ?: null;
+        if (filled($this->photo_url)) {
+            return (string) $this->photo_url;
+        }
+
+        // Rebuild from Cloudinary public_id when the stored URL is missing.
+        if (($this->photo_disk === 'cloudinary' || blank($this->photo_disk)) && filled($this->photo_path)) {
+            $cloud = trim((string) config('cloudinary.cloud_name', ''));
+            if ($cloud === '' && filled(config('cloudinary.url'))) {
+                if (preg_match('#@([^/\s]+)#', (string) config('cloudinary.url'), $matches)) {
+                    $cloud = $matches[1];
+                }
+            }
+
+            if ($cloud !== '') {
+                return 'https://res.cloudinary.com/'.$cloud.'/image/upload/'.ltrim((string) $this->photo_path, '/');
+            }
+        }
+
+        return null;
     }
 
     public function photoThumbUrl(int $width = 900): ?string

@@ -34,19 +34,19 @@ class UpdateWorkLogRequest extends FormRequest
         $states = NigeriaLocations::states();
         $state = (string) $this->input('service_state', '');
         $lgas = NigeriaLocations::all()[$state] ?? [];
-        $parent = (string) $this->input('job_category', '');
-        $subs = JobCategories::subcategoriesFor($parent);
+        $allowedSubs = JobCategories::workLogTradeOptions(
+            $this->user()?->trades,
+            $this->user()?->trade,
+        );
+        $currentSub = $log->job_subcategory;
+        if (filled($currentSub) && ! in_array($currentSub, $allowedSubs, true)) {
+            $allowedSubs[] = $currentSub;
+        }
 
         $rules = [
             'client_name' => ['nullable', 'string', 'max:120'],
-            'job_category' => ['nullable', 'string', 'max:160', Rule::in(JobCategories::parents())],
-            'job_subcategory' => array_values(array_filter([
-                'nullable',
-                'string',
-                'max:160',
-                Rule::requiredIf(fn () => filled($this->input('job_category'))),
-                filled($parent) ? Rule::in($subs) : null,
-            ])),
+            'job_category' => ['nullable', 'string', 'max:160'],
+            'job_subcategory' => ['required', 'string', 'max:160', Rule::in($allowedSubs)],
             'service_state' => ['nullable', 'string', Rule::in($states)],
             'service_lga' => array_values(array_filter([
                 'nullable',
@@ -72,7 +72,8 @@ class UpdateWorkLogRequest extends FormRequest
         ];
 
         if (WorkLogEditPolicy::canEditDescription($log)) {
-            $rules['description'] = ['required', 'string', 'min:3', 'max:255'];
+            $rules['subject'] = ['required', 'string', 'min:3', 'max:'.WorkLog::SUBJECT_MAX];
+            $rules['description'] = ['required', 'string', 'min:3', 'max:'.\App\Models\WorkLog::DESCRIPTION_MAX];
         }
 
         if (WorkLogEditPolicy::canEditDate($log)) {
@@ -92,9 +93,14 @@ class UpdateWorkLogRequest extends FormRequest
         return [
             'description.required' => 'Tell us what was done — even a short line is enough.',
             'description.min' => 'Add a bit more detail so this entry is meaningful.',
+            'subject.required' => 'Add a short subject — this is the title clients and search engines see.',
+            'subject.min' => 'Make the subject a little more specific.',
+            'subject.max' => 'Keep the subject under '.WorkLog::SUBJECT_MAX.' characters.',
             'worked_on.after_or_equal' => "You can only set job dates within the last {$days} days.",
             'worked_on.before_or_equal' => 'The job date can’t be in the future.',
             'job_category.in' => 'Pick a job category from the list.',
+            'job_subcategory.required' => 'Pick which trade this job falls under.',
+            'job_subcategory.in' => 'Pick one of the trades from your profile.',
             'service_state.in' => 'Pick a valid Nigerian state.',
             'service_lga.required' => 'Choose the LGA for this job location.',
             'service_lga.in' => 'Pick a valid LGA for the selected state.',
@@ -120,16 +126,26 @@ class UpdateWorkLogRequest extends FormRequest
 
         $nullable = static fn ($value) => is_string($value) ? (trim($value) ?: null) : $value;
 
+        $sub = $nullable($this->input('job_subcategory'));
+        $category = $nullable($this->input('job_category'));
+        if ($sub && ! $category) {
+            $category = JobCategories::parentFor($sub) ?? 'Other';
+        }
+
         $merge = [
             'client_name' => $nullable($this->input('client_name')),
-            'job_category' => $nullable($this->input('job_category')),
-            'job_subcategory' => $nullable($this->input('job_subcategory')),
+            'job_category' => $category,
+            'job_subcategory' => $sub,
             'service_state' => $nullable($this->input('service_state')),
             'service_lga' => $nullable($this->input('service_lga')),
             'service_city' => $nullable($this->input('service_city')),
             'client_whatsapp' => $whatsapp ?: null,
             'amount_charged' => $amount,
         ];
+
+        if ($this->has('subject')) {
+            $merge['subject'] = $nullable($this->input('subject'));
+        }
 
         if ($this->has('description')) {
             $merge['description'] = trim((string) $this->input('description'));
@@ -150,6 +166,15 @@ class UpdateWorkLogRequest extends FormRequest
                     WorkLogEditPolicy::hasReviewRequested($log)
                         ? 'Description is locked because a review was requested for this job.'
                         : 'Description can only be edited for '.WorkLogEditPolicy::DESCRIPTION_EDIT_DAYS.' days after logging.',
+                );
+            }
+
+            if ($this->has('subject') && ! WorkLogEditPolicy::canEditDescription($log)) {
+                $validator->errors()->add(
+                    'subject',
+                    WorkLogEditPolicy::hasReviewRequested($log)
+                        ? 'Subject is locked because a review was requested for this job.'
+                        : 'Subject can only be edited for '.WorkLogEditPolicy::DESCRIPTION_EDIT_DAYS.' days after logging.',
                 );
             }
 
@@ -187,10 +212,6 @@ class UpdateWorkLogRequest extends FormRequest
 
             if (filled($this->input('service_lga')) && blank($this->input('service_state'))) {
                 $validator->errors()->add('service_state', 'Choose a state before picking an LGA.');
-            }
-
-            if (filled($this->input('job_subcategory')) && blank($this->input('job_category'))) {
-                $validator->errors()->add('job_category', 'Choose a category before picking a subcategory.');
             }
         });
     }

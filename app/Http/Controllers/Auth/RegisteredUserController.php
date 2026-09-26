@@ -11,6 +11,7 @@ use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
 use App\Support\Referrals\ReferralService;
+use App\Support\SkillsCatalog;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class RegisteredUserController extends Controller
         return Inertia::render('Auth/Register', [
             'trades' => JobCategories::tradeLabels(),
             'jobCategories' => JobCategories::forFrontend(),
+            'skillCatalog' => SkillsCatalog::forFrontend(),
             'locations' => NigeriaLocations::all(),
             'referralCode' => $ref !== '' ? $ref : null,
         ]);
@@ -50,6 +52,8 @@ class RegisteredUserController extends Controller
             'slug' => $slug,
             'email' => $data['email'],
             'trade' => $data['trade'],
+            'trades' => $data['trades'],
+            'skills' => $data['skills'] ?? [],
             'state' => $data['state'],
             'lga' => $data['lga'],
             'office_address' => $data['office_address'],
@@ -70,6 +74,8 @@ class RegisteredUserController extends Controller
             user: $user,
             properties: [
                 'trade' => $user->trade,
+                'trades' => $user->trades,
+                'skills' => $user->skills,
                 'state' => $user->state,
                 'lga' => $user->lga,
                 'ref' => $data['ref'] ?? null,

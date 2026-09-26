@@ -24,6 +24,10 @@ class PublicProfileQuoteController extends Controller
             abort(404);
         }
 
+        if (! $artisan->isPublicPageEnabled()) {
+            abort(404);
+        }
+
         $data = $request->validated();
 
         $quote = QuoteRequest::query()->create([

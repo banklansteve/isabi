@@ -12,47 +12,49 @@ class JobTaxonomySeeder extends Seeder
 {
     public function run(): void
     {
-        if (! JobCategory::query()->exists()) {
-            $sort = 10;
-            foreach (config('job_categories', []) as $parent => $subs) {
-                $category = JobCategory::query()->create([
-                    'name' => $parent,
+        $sort = 10;
+        foreach (config('job_categories', []) as $parent => $subs) {
+            $category = JobCategory::query()->updateOrCreate(
+                ['name' => $parent],
+                [
                     'sort_order' => $sort,
                     'is_active' => true,
-                ]);
-                $sort += 10;
+                ],
+            );
+            $sort += 10;
 
-                $subSort = 10;
-                foreach ($subs as $key => $value) {
-                    if (is_string($key) && ! is_int($key)) {
-                        $name = $key;
-                        $phrase = (string) $value;
-                    } else {
-                        $name = (string) $value;
-                        $phrase = 'recent work';
-                    }
+            $subSort = 10;
+            foreach ($subs as $key => $value) {
+                if (is_string($key) && ! is_int($key)) {
+                    $name = $key;
+                    $phrase = (string) $value;
+                } else {
+                    $name = (string) $value;
+                    $phrase = 'recent work';
+                }
 
-                    $category->subcategories()->create([
-                        'name' => $name,
+                $category->subcategories()->updateOrCreate(
+                    ['name' => $name],
+                    [
                         'review_phrase' => $phrase,
                         'sort_order' => $subSort,
                         'is_active' => true,
-                    ]);
-                    $subSort += 10;
-                }
+                    ],
+                );
+                $subSort += 10;
             }
         }
 
-        if (! SkillTag::query()->exists()) {
-            $sort = 10;
-            foreach (config('skills', []) as $name) {
-                SkillTag::query()->create([
-                    'name' => $name,
-                    'sort_order' => $sort,
+        $skillSort = 10;
+        foreach (config('skills', []) as $name) {
+            SkillTag::query()->updateOrCreate(
+                ['name' => $name],
+                [
+                    'sort_order' => $skillSort,
                     'is_active' => true,
-                ]);
-                $sort += 10;
-            }
+                ],
+            );
+            $skillSort += 10;
         }
 
         JobCategories::forgetCache();

@@ -22,7 +22,6 @@ class StorePublicReviewRequest extends FormRequest
             'would_recommend' => ['required', 'boolean'],
             'comment' => ['nullable', 'string', 'max:1200'],
             'client_display_name' => ['nullable', 'string', 'max:120'],
-            'referred_by' => ['nullable', 'string', 'max:120'],
             'photo' => ['nullable', 'file', 'image', 'max:5120'],
         ];
     }
@@ -70,7 +69,6 @@ class StorePublicReviewRequest extends FormRequest
 
         $this->merge([
             'client_display_name' => trim((string) $this->input('client_display_name')) ?: null,
-            'referred_by' => trim((string) $this->input('referred_by')) ?: null,
             'comment' => trim((string) $this->input('comment')) ?: null,
             'would_recommend' => $recommend,
             'rating' => $this->input('rating') !== null && $this->input('rating') !== ''

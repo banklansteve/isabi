@@ -60,6 +60,7 @@ class HandleInertiaRequests extends Middleware
                         'first_name' => $user->first_name,
                         'last_name' => $user->last_name,
                         'email' => $user->email,
+                        'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                         'trade' => $user->trade,
                         'state' => $user->state,
                         'lga' => $user->lga,

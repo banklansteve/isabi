@@ -257,7 +257,7 @@
                                     <p
                                         class="truncate text-[0.98rem] font-semibold tracking-tight text-ink sm:text-[1.02rem]"
                                     >
-                                        {{ entry.description }}
+                                        {{ entry.subject || entry.description }}
                                     </p>
                                     <p class="mt-1 truncate text-xs font-medium text-ink/45">
                                         <span v-if="entry.client_name">{{ entry.client_name }}</span>
@@ -446,6 +446,7 @@ const filteredEntries = computed(() => {
         }
 
         const haystack = [
+            entry.subject,
             entry.description,
             entry.client_name,
             entry.job_category,

@@ -57,10 +57,12 @@ class WorkLogController extends Controller
                 'id' => $log->id,
                 'uid' => $log->uid,
                 'reference' => $log->reference,
+                'slug' => $log->slug,
                 'public_url' => $log->publicUrl(),
-                'embed_url' => filled($log->reference) && filled($user->slug)
-                    ? route('embed.job', [$user->slug, $log->reference])
+                'embed_url' => ($params = $log->publicRouteParams())
+                    ? route('embed.job', $params)
                     : null,
+                'subject' => $log->displayTitle(),
                 'description' => $log->description,
                 'worked_on' => $log->worked_on?->toDateString(),
                 'worked_on_label' => $log->worked_on?->timezone(config('app.display_timezone'))->format('j M Y'),
@@ -129,6 +131,8 @@ class WorkLogController extends Controller
         $defaults = [
             'service_state' => $user->state,
             'service_lga' => $user->lga,
+            'subject' => null,
+            'description' => null,
         ];
 
         $fromQuote = null;
@@ -142,6 +146,11 @@ class WorkLogController extends Controller
         }
 
         if ($fromQuote) {
+            $defaults['subject'] = \Illuminate\Support\Str::limit(
+                (string) ($fromQuote->subject ?: $fromQuote->displayTitle()),
+                WorkLog::SUBJECT_MAX,
+                '',
+            );
             $defaults['description'] = $fromQuote->subject
                 ?: ($fromQuote->artisanQuote?->scope_of_work ?: $fromQuote->message);
             $defaults['client_name'] = $fromQuote->name;
@@ -153,8 +162,11 @@ class WorkLogController extends Controller
             'today' => now()->toDateString(),
             'minDate' => now()->subDays(StoreWorkLogRequest::MAX_LOOKBACK_DAYS)->toDateString(),
             'jobCategories' => JobCategories::forFrontend(),
+            'tradeOptions' => JobCategories::workLogTradeOptions($user->trades, $user->trade),
             'locations' => NigeriaLocations::all(),
             'defaults' => $defaults,
+            'subjectMax' => WorkLog::SUBJECT_MAX,
+            'descriptionMax' => WorkLog::DESCRIPTION_MAX,
             'fromQuote' => $fromQuote ? [
                 'uid' => $fromQuote->uid,
                 'subject' => $fromQuote->displayTitle(),
@@ -172,6 +184,7 @@ class WorkLogController extends Controller
                 $workLog = WorkLog::create([
                     'user_id' => $user->id,
                     'created_ip' => $request->ip(),
+                    'subject' => $data['subject'],
                     'description' => $data['description'],
                     'worked_on' => $data['worked_on'],
                     'client_name' => $data['client_name'] ?? null,
@@ -200,7 +213,7 @@ class WorkLogController extends Controller
 
         ActivityLogger::log(
             action: 'work_log.created',
-            summary: "{$user->name} logged a job: “{$workLog->description}”.",
+            summary: "{$user->name} logged a job: “{$workLog->displayTitle()}”.",
             user: $user,
             properties: [
                 'work_log_id' => $workLog->id,
@@ -252,9 +265,10 @@ class WorkLogController extends Controller
                 'reference' => $workLog->reference,
                 'slug' => $workLog->slug,
                 'public_url' => $workLog->publicUrl(),
-                'embed_url' => filled($workLog->reference) && filled($workLog->user?->slug)
-                    ? route('embed.job', [$workLog->user->slug, $workLog->reference])
+                'embed_url' => ($params = $workLog->publicRouteParams())
+                    ? route('embed.job', $params)
                     : null,
+                'subject' => $workLog->displayTitle(),
                 'description' => $workLog->description,
                 'worked_on' => $workLog->worked_on?->toDateString(),
                 'worked_on_label' => $workLog->worked_on?->timezone(config('app.display_timezone'))->format('l, j F Y'),
@@ -464,10 +478,12 @@ class WorkLogController extends Controller
 
         $workLog->load('media');
         $flags = $workLog->editFlags();
+        $user = $request->user();
 
         return Inertia::render('WorkLog/Edit', [
             'entry' => [
                 'uid' => $workLog->uid,
+                'subject' => $workLog->displayTitle(),
                 'description' => $workLog->description,
                 'worked_on' => $workLog->worked_on?->toDateString(),
                 'client_name' => $workLog->client_name,
@@ -493,6 +509,7 @@ class WorkLogController extends Controller
             'today' => now()->toDateString(),
             'minDate' => now()->subDays(StoreWorkLogRequest::MAX_LOOKBACK_DAYS)->toDateString(),
             'jobCategories' => JobCategories::forFrontend(),
+            'tradeOptions' => JobCategories::workLogTradeOptions($user->trades, $user->trade),
             'locations' => NigeriaLocations::all(),
         ]);
     }
@@ -519,8 +536,13 @@ class WorkLogController extends Controller
                     'amount_charged' => $request->amountInKobo(),
                 ];
 
-                if (WorkLogEditPolicy::canEditDescription($workLog) && array_key_exists('description', $data)) {
-                    $payload['description'] = $data['description'];
+                if (WorkLogEditPolicy::canEditDescription($workLog)) {
+                    if (array_key_exists('subject', $data)) {
+                        $payload['subject'] = $data['subject'];
+                    }
+                    if (array_key_exists('description', $data)) {
+                        $payload['description'] = $data['description'];
+                    }
                 }
 
                 if (WorkLogEditPolicy::canEditDate($workLog) && array_key_exists('worked_on', $data)) {

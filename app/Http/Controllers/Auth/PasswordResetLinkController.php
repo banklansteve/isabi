@@ -34,14 +34,18 @@ class PasswordResetLinkController extends Controller
             'email' => 'required|email',
         ]);
 
-        // We will send the password reset link to this user. Once we have attempted
-        // to send the link, we will examine the response then see the message we
-        // need to show to the user. Finally, we'll send out a proper response.
         $email = strtolower(trim((string) $request->input('email')));
         $user = User::query()->where('email', $email)->first();
 
         if ($user?->isStaff()) {
             return back()->with('status', __(Password::RESET_LINK_SENT));
+        }
+
+        // Password reset targets email as the credential — require verification first.
+        if ($user && method_exists($user, 'hasVerifiedEmail') && ! $user->hasVerifiedEmail()) {
+            throw ValidationException::withMessages([
+                'email' => 'Verify your email before resetting your password. Check your inbox for a verification code, or log in and resend it.',
+            ]);
         }
 
         $status = Password::sendResetLink(

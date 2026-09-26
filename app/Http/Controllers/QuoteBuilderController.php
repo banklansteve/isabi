@@ -50,6 +50,8 @@ class QuoteBuilderController extends Controller
         $draft = $this->quotes->ensureDraft($quoteRequest, $artisan);
         $this->quotes->syncDraft($draft, $request->validated());
 
+        $isAdjustments = $quoteRequest->status === QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED;
+
         if ($quoteRequest->status === QuoteRequest::STATUS_NEW) {
             $quoteRequest->forceFill(['status' => QuoteRequest::STATUS_DRAFT])->save();
         }
@@ -66,7 +68,9 @@ class QuoteBuilderController extends Controller
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Draft saved',
-                'message' => 'Your quote is saved — send it when you’re ready.',
+                'message' => $isAdjustments
+                    ? 'Changes saved — send the updated quote when you’re ready.'
+                    : 'Your quote is saved — send it when you’re ready.',
                 'duration' => 4200,
             ]);
     }
@@ -74,12 +78,14 @@ class QuoteBuilderController extends Controller
     public function send(UpdateArtisanQuoteRequest $request, QuoteRequest $quoteRequest): RedirectResponse
     {
         abort_unless($quoteRequest->isEditableByArtisan()
-            || $quoteRequest->status === QuoteRequest::STATUS_AWAITING_CLIENT, 403);
+            || $quoteRequest->status === QuoteRequest::STATUS_AWAITING_CLIENT
+            || $quoteRequest->status === QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED, 403);
 
         if (! in_array($quoteRequest->status, [
             QuoteRequest::STATUS_NEW,
             QuoteRequest::STATUS_DRAFT,
             QuoteRequest::STATUS_AWAITING_CLIENT,
+            QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
         ], true)) {
             abort(403);
         }
@@ -96,12 +102,20 @@ class QuoteBuilderController extends Controller
             ]);
         }
 
+        $wasAdjustments = $quoteRequest->status === QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED;
+
         $draft->forceFill([
             'status' => ArtisanQuote::STATUS_SENT,
             'sent_at' => now(),
         ])->save();
 
-        $quoteRequest->forceFill(['status' => QuoteRequest::STATUS_AWAITING_CLIENT])->save();
+        $quoteRequest->forceFill([
+            'status' => QuoteRequest::STATUS_AWAITING_CLIENT,
+            ...($wasAdjustments ? [
+                'client_response' => null,
+                'client_responded_at' => null,
+            ] : []),
+        ])->save();
         $quoteRequest = QuoteDelivery::ensureToken($quoteRequest->fresh(['artisanQuote', 'artisan']));
         $draft = $quoteRequest->artisanQuote;
 
@@ -118,7 +132,9 @@ class QuoteBuilderController extends Controller
 
         ActivityLogger::log(
             action: 'quote.sent',
-            summary: "{$artisan->name} sent a quote to {$quoteRequest->name}.",
+            summary: $wasAdjustments
+                ? "{$artisan->name} sent an updated quote to {$quoteRequest->name}."
+                : "{$artisan->name} sent a quote to {$quoteRequest->name}.",
             user: $artisan,
             properties: [
                 'quote_request_uid' => $quoteRequest->uid,
@@ -126,13 +142,16 @@ class QuoteBuilderController extends Controller
                 'total_kobo' => $draft->total_kobo,
                 'mailed_client' => $mailed['client'],
                 'mailed_artisan' => $mailed['artisan'],
+                'was_adjustment_resend' => $wasAdjustments,
             ],
         );
 
         if (! filled($quoteRequest->email)) {
             $emailNote = 'No client email on file — share the link on WhatsApp.';
         } elseif ($mailed['client'] && $mailed['artisan']) {
-            $emailNote = 'We emailed the client and sent you a confirmation.';
+            $emailNote = $wasAdjustments
+                ? 'We emailed the updated quote to the client and sent you a confirmation.'
+                : 'We emailed the client and sent you a confirmation.';
         } elseif ($mailed['client']) {
             $emailNote = 'We emailed the client. Your confirmation email could not be delivered — check spam or SMTP settings.';
         } elseif ($mailed['artisan']) {
@@ -146,7 +165,7 @@ class QuoteBuilderController extends Controller
             ->with('whatsapp_share', $payload)
             ->with('toast', [
                 'type' => ($mailed['client'] || ! filled($quoteRequest->email)) ? 'success' : 'warning',
-                'title' => 'Quote sent',
+                'title' => $wasAdjustments ? 'Updated quote sent' : 'Quote sent',
                 'message' => $emailNote,
                 'duration' => 5500,
             ]);
@@ -177,12 +196,6 @@ class QuoteBuilderController extends Controller
         $artisan = $request->user();
         $quote = $this->quotes->ensureDraft($quoteRequest, $artisan);
 
-        $pdf = app(QuotePdfService::class);
-        $filename = $pdf->filename($quote, $artisan);
-
-        return response($pdf->output($quoteRequest, $quote, $artisan), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-        ]);
+        return app(QuotePdfService::class)->download($quoteRequest, $quote, $artisan, attachment: true);
     }
 }

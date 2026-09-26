@@ -22,6 +22,7 @@ class IndexQuotePipelineRequest extends FormRequest
             QuoteRequest::STATUS_AWAITING_CLIENT,
             QuoteRequest::STATUS_ACCEPTED,
             QuoteRequest::STATUS_DECLINED,
+            QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
             QuoteRequest::STATUS_EXPIRED,
         ];
         $focuses = ['ready_to_log', 'expiring'];
@@ -63,6 +64,7 @@ class IndexQuotePipelineRequest extends FormRequest
                 QuoteRequest::STATUS_AWAITING_CLIENT,
                 QuoteRequest::STATUS_ACCEPTED,
                 QuoteRequest::STATUS_DECLINED,
+                QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
                 QuoteRequest::STATUS_EXPIRED,
             ])],
             'focus' => ['nullable', 'string', Rule::in(['', 'ready_to_log', 'expiring'])],

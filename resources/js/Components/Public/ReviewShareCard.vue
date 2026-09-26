@@ -336,7 +336,7 @@ const render = async () => {
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '600 62px Fraunces, Georgia, serif';
     ctx.textBaseline = 'top';
-    wrapText(ctx, job.description || 'Completed job', WIDTH - pad * 2, 3).forEach((line) => {
+    wrapText(ctx, job.subject || job.description || 'Completed job', WIDTH - pad * 2, 3).forEach((line) => {
         ctx.fillText(line, pad, y);
         y += 74;
     });

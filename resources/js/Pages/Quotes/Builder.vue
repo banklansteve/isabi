@@ -43,8 +43,7 @@
                         <a
                             v-if="quote.pdf_url"
                             :href="quote.pdf_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download
                             class="tap-target inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-base-action shadow-sm ring-1 ring-white/20 transition hover:bg-tint"
                         >
                             <i class="ti ti-file-type-pdf text-sm" aria-hidden="true" />
@@ -142,20 +141,71 @@
                     </section>
 
                     <section
-                        v-if="request.client_response"
+                        v-if="request.wants_adjustments"
+                        class="overflow-hidden rounded-[1.5rem] bg-amber-50 shadow-premium ring-1 ring-amber-200/70"
+                    >
+                        <div class="space-y-4 px-5 py-5 sm:px-6">
+                            <div>
+                                <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-800">
+                                    Changes requested
+                                </p>
+                                <p class="mt-2 text-sm font-medium leading-relaxed text-ink/70">
+                                    {{ request.name }} asked for adjustments. Your previous quote details are still here —
+                                    update or add what you need, then send the quote again.
+                                </p>
+                            </div>
+                            <p
+                                v-if="request.client_response"
+                                class="rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium leading-relaxed text-ink/75 ring-1 ring-amber-200/60"
+                            >
+                                “{{ request.client_response }}”
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <FormButton
+                                    type="button"
+                                    variant="primary"
+                                    label="Send updated quote"
+                                    icon-right="ti ti-send"
+                                    :disabled="form.processing || totals.total <= 0"
+                                    :loading="form.processing"
+                                    loading-label="Sending…"
+                                    @click="sendQuote"
+                                />
+                                <a
+                                    href="#quote-editor"
+                                    class="tap-target inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition-colors hover:bg-tint"
+                                >
+                                    <i class="ti ti-pencil text-base" aria-hidden="true" />
+                                    Edit details
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section
+                        v-if="request.client_response && !request.wants_adjustments"
                         class="overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
                     >
                         <div class="border-b border-ink/[0.05] bg-emerald-50/50 px-5 py-4 sm:px-6">
-                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">Client response</p>
-                            <p class="mt-1 text-xs font-medium text-ink/45">{{ request.client_responded_at }}</p>
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">
+                                Client note
+                            </p>
+                            <p class="mt-1 text-xs font-medium text-ink/45">
+                                {{ request.client_responded_at }}
+                            </p>
                         </div>
                         <div class="px-5 py-5 sm:px-6">
-                            <p class="text-sm font-medium leading-relaxed text-ink/70">“{{ request.client_response }}”</p>
+                            <p class="text-sm font-medium leading-relaxed text-ink/70">
+                                “{{ request.client_response }}”
+                            </p>
                         </div>
                     </section>
 
                     <template v-if="request.is_editable">
-                    <section class="overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]">
+                    <section
+                        id="quote-editor"
+                        class="scroll-mt-24 overflow-hidden rounded-[1.5rem] bg-white shadow-premium ring-1 ring-ink/[0.06]"
+                    >
                         <div class="border-b border-ink/[0.05] px-5 py-4 sm:px-6">
                             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-base">Your quote</p>
                         </div>
@@ -328,8 +378,7 @@
                             <a
                                 v-if="quote.pdf_url"
                                 :href="quote.pdf_url"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                download
                                 class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition hover:bg-tint"
                             >
                                 <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
@@ -339,9 +388,11 @@
                         <FormButton
                             type="button"
                             variant="primary"
-                            label="Send quote"
+                            :label="request.wants_adjustments ? 'Send updated quote' : 'Send quote'"
                             icon-right="ti ti-send"
                             :disabled="form.processing || totals.total <= 0"
+                            :loading="form.processing"
+                            loading-label="Sending…"
                             @click="sendQuote"
                         />
                     </div>
@@ -350,8 +401,7 @@
                         <a
                             v-if="quote.pdf_url"
                             :href="quote.pdf_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download
                             class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-bold text-base-action ring-1 ring-base-action/25 transition hover:bg-tint"
                         >
                             <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
@@ -379,8 +429,7 @@
                     >
                         <a
                             :href="quote.pdf_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download
                             class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition hover:bg-base-hover"
                         >
                             <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
@@ -519,7 +568,7 @@ const estimatedStartMax = computed(
 
 const defaultLineItems = () => [
     { kind: 'labour', label: 'Labour', quantity: 1, unit: 'fee', unit_price: 0 },
-    { kind: 'materials', label: '', quantity: 0, unit: 'unit', unit_price: 0 },
+    { kind: 'materials', label: '', quantity: 1, unit: 'unit', unit_price: 0 },
 ];
 
 const form = useForm({
@@ -530,7 +579,7 @@ const form = useForm({
     line_items: (props.quote.line_items?.length ? props.quote.line_items : defaultLineItems()).map((row) => ({
         kind: row.kind || 'other',
         label: row.label || row.description || '',
-        quantity: row.quantity ?? 1,
+        quantity: Number(row.quantity) > 0 ? Number(row.quantity) : 1,
         unit: row.unit || (row.kind === 'materials' ? 'lot' : 'fee'),
         unit_price: row.unit_price ?? 0,
     })),

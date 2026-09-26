@@ -4,14 +4,12 @@
     <AdminChrome title="Disciplinary reports" eyebrow="Aggregate only — no names" />
 
     <form class="mb-5 flex flex-wrap items-end gap-2" @submit.prevent="applyFilters">
-        <label class="text-[12px] font-semibold text-ink/50">
-            From
-            <input v-model="form.from" type="date" class="mt-1 block rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm font-medium" />
-        </label>
-        <label class="text-[12px] font-semibold text-ink/50">
-            To
-            <input v-model="form.to" type="date" class="mt-1 block rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm font-medium" />
-        </label>
+        <div class="min-w-[10.5rem]">
+            <FormDatePicker v-model="form.from" label="From" />
+        </div>
+        <div class="min-w-[10.5rem]">
+            <FormDatePicker v-model="form.to" label="To" />
+        </div>
         <FormButton type="submit" variant="secondary" label="Apply" />
         <a :href="exportHref" class="text-xs font-semibold text-base-action hover:text-base-hover">Export CSV</a>
     </form>
@@ -49,6 +47,7 @@
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import { visitAdmin } from '@/utils/adminVisit';
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';

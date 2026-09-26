@@ -60,7 +60,7 @@ class CareerVacancyAdminController extends Controller
             'title' => 'Vacancy created',
             'message' => $vacancy->status === 'open' && $vacancy->is_public
                 ? 'It is live on the public Careers page.'
-                : 'Saved — set status to Open and public visibility when ready.',
+                : 'Saved — set status to Open when ready to post.',
         ], ['vacancy' => $vacancy->load(['hiringManager:id,name', 'staffRole:id,name'])->loadCount('applications')->toAdminArray()]);
     }
 
@@ -120,7 +120,6 @@ class CareerVacancyAdminController extends Controller
     private function preparePayload(array $data, ?CareerVacancy $existing = null): array
     {
         $data['salary_is_public'] = (bool) ($data['salary_is_public'] ?? false);
-        $data['is_public'] = (bool) ($data['is_public'] ?? false);
         $data['salary_currency'] = $data['salary_currency'] ?? 'NGN';
         $data['apply_url'] = $data['apply_url'] ?: null;
         $data['apply_email'] = $data['apply_email'] ?: null;
@@ -130,20 +129,27 @@ class CareerVacancyAdminController extends Controller
         $data['salary_max'] = $data['salary_max'] ?: null;
 
         $status = $data['status'] ?? $existing?->status ?? 'draft';
-        $wasOpenPublic = $existing && $existing->status === 'open' && $existing->is_public;
-        $willOpenPublic = $status === 'open' && ! empty($data['is_public']);
 
-        // Keep legacy is_published in sync for any leftover readers.
-        $data['is_published'] = $willOpenPublic;
+        // Status Open always posts to the public Careers page.
+        if ($status === 'open') {
+            $data['is_public'] = true;
+        } else {
+            $data['is_public'] = (bool) ($data['is_public'] ?? false);
+        }
 
-        if ($willOpenPublic && ! $wasOpenPublic) {
+        $wasLive = $existing && $existing->status === 'open' && $existing->is_public;
+        $willLive = $status === 'open';
+        $data['is_published'] = $willLive;
+        $data['is_public'] = $willLive ? true : (bool) ($data['is_public'] ?? false);
+
+        if ($willLive && ! $wasLive) {
             $data['published_at'] = ! empty($data['published_at'])
                 ? Carbon::parse($data['published_at'])
                 : ($existing?->published_at ?? Carbon::now());
         } elseif (! empty($data['published_at'])) {
             $data['published_at'] = Carbon::parse($data['published_at']);
         } elseif ($existing?->published_at) {
-            // keep existing unless cleared
+            unset($data['published_at']);
         } else {
             $data['published_at'] = null;
         }
@@ -198,10 +204,13 @@ class CareerVacancyAdminController extends Controller
             'departments' => $departments,
             'hiring_managers' => $managers,
             'staff_roles' => $roles,
-            'statuses' => collect(CareerVacancy::STATUSES)->map(fn ($v) => [
-                'value' => $v,
-                'label' => ucfirst($v),
-            ])->values()->all(),
+            'statuses' => [
+                ['value' => 'draft', 'label' => 'Draft (hidden)'],
+                ['value' => 'open', 'label' => 'Open (live on /careers)'],
+                ['value' => 'paused', 'label' => 'Paused'],
+                ['value' => 'closed', 'label' => 'Closed'],
+                ['value' => 'filled', 'label' => 'Filled'],
+            ],
             'employment_types' => [
                 ['value' => 'full-time', 'label' => 'Full-time'],
                 ['value' => 'part-time', 'label' => 'Part-time'],

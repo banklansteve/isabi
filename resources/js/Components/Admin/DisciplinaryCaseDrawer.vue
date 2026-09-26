@@ -204,8 +204,8 @@
         <form class="space-y-4" @submit.prevent="confirmActionOpen = true">
             <FormSelect id="act-type" v-model="actionForm.type" label="Outcome" icon="ti ti-file-text" :options="options.outcomes" :error="actionForm.errors.type" />
             <div v-if="actionForm.type === 'suspension'" class="grid gap-3 sm:grid-cols-2">
-                <FormTextInput id="act-from" v-model="actionForm.suspension_starts_on" type="date" label="Suspension starts" icon="ti ti-calendar" :error="actionForm.errors.suspension_starts_on" />
-                <FormTextInput id="act-to" v-model="actionForm.suspension_ends_on" type="date" label="Suspension ends" icon="ti ti-calendar" :error="actionForm.errors.suspension_ends_on" />
+                <FormDatePicker id="act-from" v-model="actionForm.suspension_starts_on" label="Suspension starts" icon="ti ti-calendar" :error="actionForm.errors.suspension_starts_on" />
+                <FormDatePicker id="act-to" v-model="actionForm.suspension_ends_on" label="Suspension ends" icon="ti ti-calendar" :error="actionForm.errors.suspension_ends_on" />
             </div>
             <FormTextarea id="act-just" v-model="actionForm.justification" label="Justification" :error="actionForm.errors.justification" required />
             <FormSelect v-if="matchingTemplates.length" id="act-tpl" v-model="actionForm.template_id" label="Letter template" icon="ti ti-template" :options="matchingTemplates" :error="actionForm.errors.template_id" />
@@ -284,6 +284,7 @@ import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { toast } from '@/utils/adminRange';

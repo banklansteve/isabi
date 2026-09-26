@@ -180,6 +180,68 @@ class UserAdminController extends Controller
         ], ['user' => $this->listPayload($user->fresh()->loadCount(['workLogs', 'reviews']))]);
     }
 
+    public function hidePublicPage(AdminReasonRequest $request, User $user): JsonResponse|RedirectResponse
+    {
+        abort_unless($user->isRegularUser(), 403);
+
+        $reason = $request->validated('reason');
+        $old = [
+            'public_page_enabled' => $user->isPublicPageEnabled(),
+            'public_page_disabled_at' => $user->public_page_disabled_at?->toIso8601String(),
+        ];
+
+        $user->disablePublicPage($request->user(), $reason);
+
+        AdminAudit::record(
+            'users.public_page_hidden',
+            "{$request->user()->name} hid {$user->email}'s public page: {$reason}",
+            $user,
+            $old,
+            [
+                'public_page_enabled' => false,
+                'public_page_disabled_at' => $user->public_page_disabled_at?->toIso8601String(),
+                'reason' => $reason,
+            ],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Public page off',
+            'message' => $user->displayBusinessName().' is hidden from the public.',
+        ], ['user' => $this->listPayload($user->fresh()->loadCount(['workLogs', 'reviews']))]);
+    }
+
+    public function showPublicPage(AdminReasonRequest $request, User $user): JsonResponse|RedirectResponse
+    {
+        abort_unless($user->isRegularUser(), 403);
+
+        $reason = $request->validated('reason');
+        $old = [
+            'public_page_enabled' => $user->isPublicPageEnabled(),
+            'public_page_disabled_at' => $user->public_page_disabled_at?->toIso8601String(),
+        ];
+
+        $user->enablePublicPage();
+
+        AdminAudit::record(
+            'users.public_page_shown',
+            "{$request->user()->name} restored {$user->email}'s public page: {$reason}",
+            $user,
+            $old,
+            [
+                'public_page_enabled' => true,
+                'public_page_disabled_at' => null,
+                'reason' => $reason,
+            ],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Public page on',
+            'message' => $user->displayBusinessName().' is visible to the public again.',
+        ], ['user' => $this->listPayload($user->fresh()->loadCount(['workLogs', 'reviews']))]);
+    }
+
     public function update(UpdateAdminUserRequest $request, User $user): JsonResponse|RedirectResponse
     {
         abort_unless($user->isRegularUser(), 403);
@@ -789,6 +851,7 @@ class UserAdminController extends Controller
             'revenue_label' => $this->revenueLabel((int) ($user->revenue ?? 0)),
             'suspended' => $user->suspended_at !== null,
             'verified' => $user->email_verified_at !== null,
+            'public_page_enabled' => $user->isPublicPageEnabled(),
             'avatar_url' => $user->avatar_url,
             'public_url' => $user->publicUrl(),
             'joined' => $user->created_at?->timezone(config('app.display_timezone'))->format('j M Y'),

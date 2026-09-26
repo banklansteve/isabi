@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\QuoteRequest;
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Support\JobReference;
+use App\Support\JobSlug;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,7 +14,7 @@ class PublicJobReferenceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_public_job_resolves_by_reference_and_redirects_slug_urls(): void
+    public function test_public_job_uses_seo_context_slash_opaque_id_and_redirects_legacy_paths(): void
     {
         $artisan = User::factory()->regularUser()->create([
             'business_name' => 'Bright Plumbing',
@@ -21,22 +23,52 @@ class PublicJobReferenceTest extends TestCase
 
         $log = WorkLog::query()->create([
             'user_id' => $artisan->id,
-            'description' => 'Bathroom retile',
+            'subject' => 'Mrs Adeyemi kitchen — Lekki phase 1',
+            'description' => 'Replaced pipes for Mrs Adeyemi at 12 Admiralty Way',
+            'job_category' => 'Plumbing',
+            'job_subcategory' => 'Kitchen plumbing',
             'worked_on' => now()->subDays(3),
-            'slug' => 'bathroom-retile',
         ])->fresh();
 
         $this->assertNotNull($log->reference);
-        $this->assertMatchesRegularExpression('/^[a-z0-9]{6,8}$/', $log->reference);
+        $this->assertTrue(JobReference::isCanonical($log->reference));
+        $publicUrl = strtolower((string) $log->publicUrl());
+        $this->assertStringNotContainsString('adeyemi', strtolower((string) $log->slug));
+        $this->assertStringNotContainsString('admiralty', strtolower((string) $log->slug));
+        $this->assertStringNotContainsString('adeyemi', $publicUrl);
+        $this->assertStringNotContainsString('admiralty', $publicUrl);
+        $this->assertStringNotContainsString('lekki', $publicUrl);
+        $this->assertMatchesRegularExpression('#/p/bright-plumbing/[a-z0-9-]+/[a-z0-9]{6}$#', $publicUrl);
+        $this->assertMatchesRegularExpression('/[a-z]/', $log->reference);
+        $this->assertMatchesRegularExpression('/[0-9]/', $log->reference);
 
-        $this->get(route('public.job', [$artisan->slug, $log->reference]))
+        $params = $log->publicRouteParams();
+        $this->assertSame([
+            'bright-plumbing',
+            $log->slug,
+            $log->reference,
+        ], $params);
+        $this->assertSame(
+            JobSlug::compose($log->slug, $log->reference),
+            $log->publicPathSegment(),
+        );
+        $this->assertStringContainsString('/'.$log->slug.'/'.$log->reference, $log->publicUrl());
+
+        $this->get(route('public.job', $params))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Public/Job')
-                ->where('job.reference', $log->reference));
+                ->where('job.reference', $log->reference)
+                ->where('job.slug', $log->slug));
 
-        $this->get(route('public.job', [$artisan->slug, $log->slug]))
-            ->assertRedirect(route('public.job', [$artisan->slug, $log->reference]));
+        // Legacy hyphenated segment
+        $legacy = JobSlug::composeLegacy($log->slug, $log->reference);
+        $this->get(route('public.job.legacy', [$artisan->slug, $legacy]))
+            ->assertRedirect(route('public.job', $params));
+
+        // Bare reference
+        $this->get(route('public.job.legacy', [$artisan->slug, $log->reference]))
+            ->assertRedirect(route('public.job', $params));
     }
 
     public function test_visitor_can_submit_quote_request_on_public_job(): void
@@ -48,11 +80,14 @@ class PublicJobReferenceTest extends TestCase
 
         $log = WorkLog::query()->create([
             'user_id' => $artisan->id,
+            'subject' => 'Kitchen pipes',
             'description' => 'Kitchen pipes',
+            'job_category' => 'Plumbing',
+            'job_subcategory' => 'Kitchen plumbing',
             'worked_on' => now()->subDays(2),
         ])->fresh();
 
-        $this->postJson(route('public.job.quote', [$artisan->slug, $log->reference]), [
+        $this->postJson(route('public.job.quote', $log->publicRouteParams()), [
             'name' => 'Ada George',
             'phone' => '08012345678',
             'email' => 'ada@example.com',
@@ -76,11 +111,12 @@ class PublicJobReferenceTest extends TestCase
         $artisan = User::factory()->regularUser()->create(['slug' => 'bright-plumbing']);
         $log = WorkLog::query()->create([
             'user_id' => $artisan->id,
+            'subject' => 'Kitchen pipes',
             'description' => 'Kitchen pipes',
             'worked_on' => now()->subDays(2),
         ])->fresh();
 
-        $this->postJson(route('public.job.quote', [$artisan->slug, $log->reference]), [
+        $this->postJson(route('public.job.quote.legacy', [$artisan->slug, $log->reference]), [
             'name' => 'Ada George',
             'phone' => '08012345678',
         ])->assertUnprocessable()

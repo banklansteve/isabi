@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ApplySessionLifetime;
+use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureInternalDocsAccess;
 use App\Http\Middleware\EnsureStaffAssigned;
 use App\Http\Middleware\EnsureStaffInvitationVerified;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff' => EnsureUserIsStaff::class,
             'assigned' => EnsureStaffAssigned::class,
             'staff.invitation' => EnsureStaffInvitationVerified::class,
+            'verified' => EnsureEmailIsVerified::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

@@ -67,7 +67,7 @@
                         The job
                     </p>
                     <p class="mt-2 text-[15px] font-semibold leading-relaxed text-white/90">
-                        {{ job.description }}
+                        {{ job.subject || job.description }}
                     </p>
                     <div class="mt-3.5 flex flex-wrap gap-2">
                         <span
@@ -236,7 +236,7 @@
                                     Make it count
                                 </span>
                                 <span class="block text-xs font-medium text-ink/45">
-                                    Your name, referrer or a photo — optional
+                                    Your name or a photo — optional
                                 </span>
                             </span>
                             <i
@@ -247,24 +247,14 @@
                         </button>
 
                         <div v-show="extrasOpen" class="mt-5 space-y-4">
-                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <FormTextInput
-                                    id="client_display_name"
-                                    v-model="form.client_display_name"
-                                    label="Your name"
-                                    icon="ti ti-user"
-                                    placeholder="First name is fine"
-                                    :error="form.errors.client_display_name"
-                                />
-                                <FormTextInput
-                                    id="referred_by"
-                                    v-model="form.referred_by"
-                                    label="Who referred you?"
-                                    icon="ti ti-users"
-                                    placeholder="A friend’s name"
-                                    :error="form.errors.referred_by"
-                                />
-                            </div>
+                            <FormTextInput
+                                id="client_display_name"
+                                v-model="form.client_display_name"
+                                label="Your name"
+                                icon="ti ti-user"
+                                placeholder="First name is fine"
+                                :error="form.errors.client_display_name"
+                            />
 
                             <FormFileUpload
                                 id="photo"
@@ -272,7 +262,7 @@
                                 label="Photo of the finished work"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 button-label="Add a photo"
-                                help-text="Images up to 5MB"
+                                help-text="Images up to 5MB — shown on the artisan’s public page"
                                 :multiple="false"
                                 :max-files="1"
                                 :error="form.errors.photo"
@@ -351,7 +341,6 @@ const form = useForm({
     would_recommend: null,
     comment: '',
     client_display_name: '',
-    referred_by: '',
     photo: null,
 });
 
@@ -364,7 +353,7 @@ watch(photoFiles, (files) => {
 watch(
     () => form.errors,
     (errors) => {
-        if (errors.client_display_name || errors.referred_by || errors.photo) {
+        if (errors.client_display_name || errors.photo) {
             extrasOpen.value = true;
         }
     },

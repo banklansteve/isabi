@@ -1,5 +1,5 @@
 <template>
-    <Head :title="entry.description" />
+    <Head :title="entry.subject || entry.description" />
 
     <AuthenticatedLayout>
         <div class="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -50,7 +50,7 @@
                     <h1
                         class="mt-2 max-w-3xl font-editorial text-[1.7rem] font-semibold leading-[1.15] tracking-tight text-white sm:text-[2.35rem]"
                     >
-                        {{ entry.description }}
+                        {{ entry.subject || entry.description }}
                     </h1>
 
                     <div class="mt-5 flex flex-wrap gap-2">

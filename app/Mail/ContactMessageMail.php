@@ -33,7 +33,10 @@ class ContactMessageMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            text: 'mail.contact-message',
+            markdown: 'mail.contact-message',
+            with: [
+                'payload' => $this->payload,
+            ],
         );
     }
 }

@@ -4,13 +4,25 @@
         <Head :title="`${profile.business_name} · ${profile.trade || 'Artisan'}`" />
 
         <!-- Guest chrome only — signed-in users rely on AuthenticatedLayout. -->
+        <div
+            v-if="viewerIsOwner && !publicPageEnabled"
+            class="relative z-30 border-b border-amber-200 bg-amber-50 px-4 py-3 text-center sm:px-8"
+        >
+            <p class="text-sm font-semibold text-amber-900">
+                Your public page is off — only you (and staff) can see this preview.
+                <Link :href="route('profile.edit')" class="ms-1 font-bold text-base-action underline-offset-2 hover:underline">
+                    Turn it back on
+                </Link>
+            </p>
+        </div>
+
         <header
             v-if="!isLoggedIn"
             ref="headerRef"
             class="fixed inset-x-0 top-0 z-40 bg-[#071427]"
         >
             <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:gap-4 sm:px-8 sm:py-3.5"
+                class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-2.5 py-3 sm:gap-4 sm:px-6 sm:py-3.5 lg:px-8"
                 style="padding-top: max(0.7rem, env(safe-area-inset-top))"
             >
                 <Link
@@ -81,6 +93,18 @@
                         >
                             {{ profile.trade }}
                         </p>
+                        <div
+                            v-if="extraTrades.length"
+                            class="mt-2.5 flex flex-wrap justify-center gap-1.5 lg:justify-start"
+                        >
+                            <span
+                                v-for="trade in extraTrades"
+                                :key="trade"
+                                class="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white/75 ring-1 ring-white/10"
+                            >
+                                {{ trade }}
+                            </span>
+                        </div>
                         <h1
                             class="mt-2 font-editorial text-[clamp(2.1rem,5vw,3.6rem)] font-semibold leading-[1.05] tracking-tight text-white"
                         >
@@ -383,7 +407,7 @@
                                             <button
                                                 type="button"
                                                 class="relative z-[2] tap-target ms-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold text-ink/40 transition-colors hover:bg-pale hover:text-deep"
-                                                :aria-label="`Share ${job.description}`"
+                                                :aria-label="`Share ${job.subject || job.description}`"
                                                 @click.stop="openShare(job)"
                                             >
                                                 <i class="ti ti-share-2 text-sm" aria-hidden="true" />
@@ -399,10 +423,10 @@
                                                 :href="jobHref(job)"
                                                 class="transition-colors hover:text-base-action hover:underline hover:decoration-base-action/40 hover:underline-offset-[6px]"
                                             >
-                                                {{ job.description }}
+                                                {{ job.subject || job.description }}
                                             </Link>
                                             <template v-else>
-                                                {{ job.description }}
+                                                {{ job.subject || job.description }}
                                             </template>
                                         </h3>
 
@@ -468,14 +492,6 @@
                                                     · {{ job.review.submitted_at_label }}
                                                 </span>
                                             </figcaption>
-
-                                            <p
-                                                v-if="job.review.referred_by"
-                                                class="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-deep"
-                                            >
-                                                <i class="ti ti-users text-[13px]" aria-hidden="true" />
-                                                Heard about them via {{ job.review.referred_by }}
-                                            </p>
 
                                             <button
                                                 v-if="job.review.photo_url"
@@ -795,11 +811,18 @@ const props = defineProps({
     profile: { type: Object, required: true },
     timeline: { type: Array, default: () => [] },
     viewerIsOwner: { type: Boolean, default: false },
+    publicPageEnabled: { type: Boolean, default: true },
     quoteUrl: { type: String, default: '' },
 });
 
 const page = usePage();
 const isLoggedIn = computed(() => !!page.props.auth?.user);
+
+const extraTrades = computed(() => {
+    const primary = String(props.profile.trade || '').toLowerCase();
+    const list = Array.isArray(props.profile.trades) ? props.profile.trades : [];
+    return list.filter((trade) => String(trade).toLowerCase() !== primary);
+});
 
 /** Guests and signed-in visitors can see chat; owners don’t message themselves. */
 const showWhatsAppBar = computed(
@@ -905,6 +928,7 @@ const filteredJobs = computed(() => {
             return true;
         }
         return [
+            job.subject,
             job.description,
             job.category_label,
             job.service_label,

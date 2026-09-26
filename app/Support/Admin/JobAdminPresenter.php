@@ -21,7 +21,8 @@ class JobAdminPresenter
         return [
             'id' => $log->id,
             'uid' => $log->uid,
-            'description' => $log->description,
+            'description' => $log->displayTitle(),
+            'subject' => $log->displayTitle(),
             'client_name' => $log->client_name,
             'category' => $log->job_category,
             'worked_on' => $log->worked_on?->format('j M Y'),

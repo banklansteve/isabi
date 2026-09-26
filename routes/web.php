@@ -26,6 +26,7 @@ use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TokenController;
 use App\Http\Controllers\WorkLogController;
+use App\Models\CareerVacancy;
 use App\Support\LegalContent;
 use App\Support\Seo;
 use App\Support\SeoSchema;
@@ -126,15 +127,23 @@ Route::get('/careers', function () {
     ]);
 })->name('careers');
 
-Route::get('/careers/{vacancy:public_uid}', [CareerApplicationController::class, 'show'])
+Route::get('/careers/{slug}/{vacancy:public_uid}', [CareerApplicationController::class, 'show'])
     ->name('careers.show');
-Route::get('/careers/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'apply'])
+Route::get('/careers/{slug}/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'apply'])
     ->name('careers.apply');
-Route::post('/careers/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'store'])
+Route::post('/careers/{slug}/{vacancy:public_uid}/apply', [CareerApplicationController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('careers.apply.store');
-Route::get('/careers/{vacancy:public_uid}/apply/thanks', [CareerApplicationController::class, 'thanks'])
+Route::get('/careers/{slug}/{vacancy:public_uid}/apply/thanks', [CareerApplicationController::class, 'thanks'])
     ->name('careers.apply.thanks');
+
+// Legacy public_uid-only URLs → canonical slug path
+Route::get('/careers/{vacancy:public_uid}', function (CareerVacancy $vacancy) {
+    return redirect()->route('careers.show', [
+        'slug' => $vacancy->slug ?: 'role',
+        'vacancy' => $vacancy->public_uid,
+    ], 301);
+})->where('vacancy', '[a-z0-9]{8,32}');
 
 foreach (LegalContent::all() as $slug => $page) {
     Route::get('/'.$slug, function () use ($slug, $page) {
@@ -157,32 +166,59 @@ Route::post('/cookie-consent', [CookieConsentController::class, 'store'])
 
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
-Route::get('/artisans', ArtisanDirectoryController::class)->name('public.directory');
+Route::get('/artisans', [ArtisanDirectoryController::class, 'index'])->name('public.directory');
+Route::get('/artisans/{tradeSlug}/in/{stateSlug}', [ArtisanDirectoryController::class, 'tradeState'])
+    ->where('tradeSlug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('stateSlug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->name('public.directory.trade-state');
+Route::get('/artisans/{tradeSlug}', [ArtisanDirectoryController::class, 'trade'])
+    ->where('tradeSlug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->name('public.directory.trade');
 
 Route::get('/p/{slug}', [PublicProfileController::class, 'show'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->name('public.profile');
-Route::get('/p/{slug}/{job}', [PublicJobController::class, 'show'])
-    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
-    ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
-    ->name('public.job');
 Route::post('/p/{slug}/quote', [PublicProfileQuoteController::class, 'store'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->middleware('throttle:8,1')
     ->name('public.profile.quote');
-Route::post('/p/{slug}/{job}/quote', [PublicQuoteRequestController::class, 'store'])
+
+// Canonical job URL: /p/{artisan}/{seo-context}/{opaque-ref}
+Route::get('/p/{slug}/{context}/{ref}', [PublicJobController::class, 'show'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('context', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('ref', '[a-z0-9]{6,8}')
+    ->name('public.job');
+Route::post('/p/{slug}/{context}/{ref}/quote', [PublicQuoteRequestController::class, 'store'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('context', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('ref', '[a-z0-9]{6,8}')
+    ->middleware('throttle:8,1')
+    ->name('public.job.quote');
+
+// Legacy single-segment job paths → 301 to canonical.
+Route::get('/p/{slug}/{job}', [PublicJobController::class, 'showLegacy'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
+    ->name('public.job.legacy');
+Route::post('/p/{slug}/{job}/quote', [PublicQuoteRequestController::class, 'storeLegacy'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
     ->middleware('throttle:8,1')
-    ->name('public.job.quote');
+    ->name('public.job.quote.legacy');
 
 Route::get('/embed/{slug}', [EmbedController::class, 'profile'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->name('embed.profile');
-Route::get('/embed/{slug}/{job}', [EmbedController::class, 'job'])
+Route::get('/embed/{slug}/{context}/{ref}', [EmbedController::class, 'job'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('context', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->where('ref', '[a-z0-9]{6,8}')
+    ->name('embed.job');
+Route::get('/embed/{slug}/{job}', [EmbedController::class, 'jobLegacy'])
     ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
     ->where('job', '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*')
-    ->name('embed.job');
+    ->name('embed.job.legacy');
 
 Route::get('/q/{token}', [PublicQuoteController::class, 'show'])
     ->where('token', '[A-Za-z0-9\-]+')
@@ -194,19 +230,23 @@ Route::post('/q/{token}', [PublicQuoteController::class, 'respond'])
 Route::get('/q/{token}/thanks', [PublicQuoteController::class, 'thanks'])
     ->where('token', '[A-Za-z0-9\-]+')
     ->name('quotes.public.thanks');
+// Email-safe HTML landing page (mail clients often block raw PDF responses).
+Route::get('/q/{token}/download', [PublicQuoteController::class, 'downloadPage'])
+    ->where('token', '[A-Za-z0-9\-]+')
+    ->name('quotes.public.pdf.page');
 Route::get('/q/{token}/pdf', [PublicQuoteController::class, 'pdf'])
     ->where('token', '[A-Za-z0-9\-]+')
     ->name('quotes.public.pdf');
 
 Route::get('/r/{token}', [PublicReviewController::class, 'show'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9_]+')
     ->name('reviews.show');
 Route::post('/r/{token}', [PublicReviewController::class, 'store'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9_]+')
     ->middleware('throttle:12,1')
     ->name('reviews.store');
 Route::get('/r/{token}/thanks', [PublicReviewController::class, 'thanks'])
-    ->where('token', '[A-Za-z0-9]+')
+    ->where('token', '[A-Za-z0-9_]+')
     ->name('reviews.thanks');
 
 Route::middleware(['auth'])->group(function () {
@@ -219,14 +259,16 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/work-log', [WorkLogController::class, 'index'])->name('work-log.index');
     Route::get('/work-log/export', [WorkLogController::class, 'export'])->name('work-log.export');
-    Route::get('/work-log/create', [WorkLogController::class, 'create'])->name('work-log.create');
-    Route::post('/work-log', [WorkLogController::class, 'store'])->name('work-log.store');
+    Route::get('/work-log/create', [WorkLogController::class, 'create'])->middleware('verified')->name('work-log.create');
+    Route::post('/work-log', [WorkLogController::class, 'store'])->middleware('verified')->name('work-log.store');
     Route::get('/work-log/{workLog}', [WorkLogController::class, 'show'])->name('work-log.show');
-    Route::get('/work-log/{workLog}/edit', [WorkLogController::class, 'edit'])->name('work-log.edit');
-    Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->name('work-log.update');
+    Route::get('/work-log/{workLog}/edit', [WorkLogController::class, 'edit'])->middleware('verified')->name('work-log.edit');
+    Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->middleware('verified')->name('work-log.update');
     Route::post('/work-log/{workLog}/request-review', [WorkLogController::class, 'requestReview'])
+        ->middleware('verified')
         ->name('work-log.request-review');
     Route::post('/work-log/{workLog}/remind-review', [WorkLogController::class, 'remindReview'])
+        ->middleware('verified')
         ->name('work-log.remind-review');
 
     Route::get('/tokens', [TokenController::class, 'index'])->name('tokens.index');
@@ -267,6 +309,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::post('/profile/logo', [ProfileController::class, 'updateLogo'])->name('profile.logo');
     Route::patch('/profile/slug', [ProfileController::class, 'updateSlug'])->name('profile.slug');
+    Route::patch('/profile/public-page', [ProfileController::class, 'updatePublicPageVisibility'])
+        ->name('profile.public-page');
     Route::patch('/profile/review-messages', [ProfileController::class, 'updateReviewMessages'])
         ->name('profile.review-messages');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

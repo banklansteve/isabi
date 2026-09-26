@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\ProfileViewMonth;
 use App\Models\Review;
 use App\Models\WorkLog;
 use App\Support\NumberFormat;
@@ -52,7 +53,7 @@ class DashboardController extends Controller
             ->values()
             ->map(fn (WorkLog $log) => [
                 'uid' => $log->uid,
-                'description' => $log->description,
+                'description' => $log->displayTitle(),
                 'client_name' => $log->client_name,
                 'requested_label' => $log->review_requested_at
                     ?->timezone(config('app.display_timezone'))
@@ -73,6 +74,7 @@ class DashboardController extends Controller
             'firstName' => $firstName,
             'glance' => $this->glanceStats($linkStatus, $user, $jobsCount, $reviewsCount),
             'reputation' => $this->reputation($user, $linkStatus, $reviewStats, $reviewsCount),
+            'searchVisibility' => $this->searchVisibility((int) $user->id),
             'page' => [
                 'url' => $user->publicUrl() ?: url('/p/'.$slug),
                 'slug' => $slug,
@@ -85,10 +87,50 @@ class DashboardController extends Controller
             'activity' => $activity,
             'pendingReview' => $pendingReviewJob ? [
                 'uid' => $pendingReviewJob->uid,
-                'description' => $pendingReviewJob->description,
+                'description' => $pendingReviewJob->displayTitle(),
             ] : null,
             'dueReminders' => $dueReminders,
         ]);
+    }
+
+    /**
+     * Honest search-engine attribution for this calendar month (HTTP Referer only).
+     *
+     * @return array{
+     *     views: int,
+     *     search_views: int,
+     *     month_label: string,
+     *     headline: string|null,
+     *     detail: string
+     * }
+     */
+    private function searchVisibility(int $userId): array
+    {
+        $stats = ProfileViewMonth::forUserThisMonth($userId);
+        $views = $stats['views'];
+        $search = $stats['search_views'];
+        $month = $stats['month_label'];
+
+        $headline = null;
+        if ($views > 0 && $search > 0) {
+            $headline = $search === 1
+                ? "1 of your views came from search this month"
+                : "{$search} of your views came from search this month";
+        } elseif ($views > 0) {
+            $headline = $views === 1
+                ? '1 page view this month — none from search yet'
+                : "{$views} page views this month — none from search yet";
+        }
+
+        return [
+            'views' => $views,
+            'search_views' => $search,
+            'month_label' => $month,
+            'headline' => $headline,
+            'detail' => $views > 0
+                ? 'Counted from search-engine visits only (Google, Bing, and similar) — not share links or ads.'
+                : 'When people find your page on Google or Bing, you’ll see it here. Keep your profile complete so you show up.',
+        ];
     }
 
     /**
@@ -152,7 +194,7 @@ class DashboardController extends Controller
                 'rating' => (float) $latest->rating,
                 'comment' => str($latest->comment ?? '')->squish()->limit(180)->toString(),
                 'client' => $latest->client_display_name ?: 'A client',
-                'job' => $latest->workLog?->description,
+                'job' => $latest->workLog?->displayTitle(),
                 'job_uid' => $latest->workLog?->uid,
                 'time' => $latest->submitted_at
                     ?->timezone(config('app.display_timezone'))

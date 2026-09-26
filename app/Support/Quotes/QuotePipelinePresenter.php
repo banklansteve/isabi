@@ -52,6 +52,14 @@ class QuotePipelinePresenter
             'show_url' => route('quotes.show', $request),
             'should_log_job' => $request->shouldPromptLogJob(),
             'log_job_url' => route('work-log.create', ['quote' => $request->uid]),
+            'needs_update' => $request->status === QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
+            'action_hint' => match ($request->status) {
+                QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED => 'Update & resend',
+                QuoteRequest::STATUS_NEW, QuoteRequest::STATUS_DRAFT => 'Write quote',
+                QuoteRequest::STATUS_AWAITING_CLIENT => 'View quote',
+                QuoteRequest::STATUS_ACCEPTED => $request->shouldPromptLogJob() ? 'Log as job' : 'View quote',
+                default => 'View',
+            },
         ];
     }
 
@@ -68,6 +76,7 @@ class QuotePipelinePresenter
 
         $new = (int) ($rows[QuoteRequest::STATUS_NEW] ?? 0);
         $draft = (int) ($rows[QuoteRequest::STATUS_DRAFT] ?? 0);
+        $adjustments = (int) ($rows[QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED] ?? 0);
         $declined = (int) ($rows[QuoteRequest::STATUS_DECLINED] ?? 0);
         $expired = (int) ($rows[QuoteRequest::STATUS_EXPIRED] ?? 0);
 
@@ -95,7 +104,7 @@ class QuotePipelinePresenter
             ->count();
 
         return [
-            'needs_response' => $new + $draft,
+            'needs_response' => $new + $draft + $adjustments,
             'awaiting_client' => (int) ($rows[QuoteRequest::STATUS_AWAITING_CLIENT] ?? 0),
             'accepted' => (int) ($rows[QuoteRequest::STATUS_ACCEPTED] ?? 0),
             'closed' => $declined + $expired,
@@ -119,6 +128,7 @@ class QuotePipelinePresenter
                 ['value' => QuoteRequest::STATUS_NEW, 'label' => 'New request'],
                 ['value' => QuoteRequest::STATUS_DRAFT, 'label' => 'Draft'],
                 ['value' => QuoteRequest::STATUS_AWAITING_CLIENT, 'label' => 'Awaiting client'],
+                ['value' => QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED, 'label' => 'Changes requested'],
                 ['value' => QuoteRequest::STATUS_ACCEPTED, 'label' => 'Accepted'],
                 ['value' => QuoteRequest::STATUS_DECLINED, 'label' => 'Declined'],
                 ['value' => QuoteRequest::STATUS_EXPIRED, 'label' => 'Expired'],
@@ -140,6 +150,7 @@ class QuotePipelinePresenter
             QuoteRequest::STATUS_NEW => 'New request',
             QuoteRequest::STATUS_DRAFT => 'Draft',
             QuoteRequest::STATUS_AWAITING_CLIENT => 'Awaiting client',
+            QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED => 'Changes requested',
             QuoteRequest::STATUS_ACCEPTED => 'Accepted',
             QuoteRequest::STATUS_DECLINED => 'Declined',
             QuoteRequest::STATUS_EXPIRED => 'Expired',
@@ -153,6 +164,7 @@ class QuotePipelinePresenter
             QuoteRequest::STATUS_NEW => 'rose',
             QuoteRequest::STATUS_DRAFT => 'blue',
             QuoteRequest::STATUS_AWAITING_CLIENT => 'amber',
+            QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED => 'amber',
             QuoteRequest::STATUS_ACCEPTED => 'emerald',
             QuoteRequest::STATUS_DECLINED => 'slate',
             QuoteRequest::STATUS_EXPIRED => 'slate',

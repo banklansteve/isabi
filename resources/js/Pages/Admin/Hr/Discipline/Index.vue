@@ -42,8 +42,12 @@
                     <option value="">All categories</option>
                     <option v-for="opt in options.categories" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
-                <input v-model="form.from" type="date" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base" />
-                <input v-model="form.to" type="date" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base" />
+                <div class="min-w-[10.5rem]">
+                    <FormDatePicker v-model="form.from" label="From" />
+                </div>
+                <div class="min-w-[10.5rem]">
+                    <FormDatePicker v-model="form.to" label="To" />
+                </div>
                 <label class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink">
                     <input v-model="form.archived" type="checkbox" class="rounded border-ink/20" />
                     Archived
@@ -126,7 +130,7 @@
             <FormSelect id="dc-category" v-model="createForm.category" label="Category" icon="ti ti-tag" :options="options.categories" :error="createForm.errors.category" />
             <FormTextInput v-if="createForm.category === 'other'" id="dc-category-label" v-model="createForm.category_label" label="Custom category" icon="ti ti-text-caption" :error="createForm.errors.category_label" required />
             <FormSelect id="dc-severity" v-model="createForm.severity" label="Initial severity" icon="ti ti-scale" :options="options.severities" :error="createForm.errors.severity" />
-            <FormTextInput id="dc-incident" v-model="createForm.incident_on" type="date" :max="today" label="Date of incident" icon="ti ti-calendar" :error="createForm.errors.incident_on" required />
+            <FormDatePicker id="dc-incident" v-model="createForm.incident_on" :max-date="today" label="Date of incident" icon="ti ti-calendar" :error="createForm.errors.incident_on" />
             <FormTextarea id="dc-desc" v-model="createForm.description" label="Incident description" :error="createForm.errors.description" required />
             <FormTextarea id="dc-reason" v-model="createForm.reason" label="Reason for opening this case" :error="createForm.errors.reason" required />
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -144,6 +148,7 @@ import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import DisciplinaryCaseDrawer from '@/Components/Admin/DisciplinaryCaseDrawer.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { adminPath, visitAdmin } from '@/utils/adminVisit';

@@ -174,7 +174,7 @@
                             :id="`material-qty-${index}`"
                             v-model="row.quantity"
                             type="number"
-                            min="0"
+                            min="0.01"
                             step="0.01"
                             label=""
                             placeholder="Units"
@@ -229,7 +229,7 @@
                             id="material-qty-draft"
                             v-model="draftMaterialEntry.row.quantity"
                             type="number"
-                            min="0"
+                            min="0.01"
                             step="0.01"
                             label=""
                             placeholder="Units"
@@ -525,7 +525,7 @@ const confirmMaterialRow = () => {
         {
             kind: 'materials',
             label: '',
-            quantity: 0,
+            quantity: 1,
             unit: 'unit',
             unit_price: 0,
         },

@@ -9,39 +9,48 @@ use App\Support\Careers\CareerCvUploadService;
 use App\Support\Seo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CareerApplicationController extends Controller
 {
-    public function show(CareerVacancy $vacancy): Response
+    public function show(string $slug, CareerVacancy $vacancy): Response|RedirectResponse
     {
         abort_unless($vacancy->isAcceptingApplications(), 404);
+
+        if ($redirect = $this->ensureSlug($slug, $vacancy, 'careers.show')) {
+            return $redirect;
+        }
 
         app(Seo::class)
             ->title($vacancy->title.' · Careers at Kraftrack')
             ->description($vacancy->summary)
-            ->canonical(url('/careers/'.$vacancy->public_uid));
+            ->canonical(url($vacancy->publicPath()));
 
         return Inertia::render('Careers/Show', [
-            'canLogin' => \Illuminate\Support\Facades\Route::has('login'),
-            'canRegister' => \Illuminate\Support\Facades\Route::has('register'),
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
             'vacancy' => $vacancy->toPublicArray(),
         ]);
     }
 
-    public function apply(CareerVacancy $vacancy): Response
+    public function apply(string $slug, CareerVacancy $vacancy): Response|RedirectResponse
     {
         abort_unless($vacancy->isAcceptingApplications(), 404);
+
+        if ($redirect = $this->ensureSlug($slug, $vacancy, 'careers.apply')) {
+            return $redirect;
+        }
 
         app(Seo::class)
             ->title('Apply · '.$vacancy->title)
             ->description('Apply for '.$vacancy->title.' at Kraftrack.')
-            ->canonical(url('/careers/'.$vacancy->public_uid.'/apply'));
+            ->canonical(url($vacancy->publicPath('apply')));
 
         return Inertia::render('Careers/Apply', [
-            'canLogin' => \Illuminate\Support\Facades\Route::has('login'),
-            'canRegister' => \Illuminate\Support\Facades\Route::has('register'),
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
             'vacancy' => $vacancy->toPublicArray(),
             'skillOptions' => [
                 'Customer support',
@@ -90,6 +99,7 @@ class CareerApplicationController extends Controller
 
     public function store(
         StoreCareerApplicationRequest $request,
+        string $slug,
         CareerVacancy $vacancy,
         CareerCvUploadService $cvUpload,
     ): RedirectResponse {
@@ -140,20 +150,40 @@ class CareerApplicationController extends Controller
         ]);
 
         return redirect()
-            ->route('careers.apply.thanks', $vacancy->public_uid)
+            ->route('careers.apply.thanks', [
+                'slug' => $vacancy->slug,
+                'vacancy' => $vacancy->public_uid,
+            ])
             ->with('success', 'Application received.');
     }
 
-    public function thanks(CareerVacancy $vacancy): Response
+    public function thanks(string $slug, CareerVacancy $vacancy): Response|RedirectResponse
     {
+        if ($redirect = $this->ensureSlug($slug, $vacancy, 'careers.apply.thanks')) {
+            return $redirect;
+        }
+
         return Inertia::render('Careers/ApplyThanks', [
-            'canLogin' => \Illuminate\Support\Facades\Route::has('login'),
-            'canRegister' => \Illuminate\Support\Facades\Route::has('register'),
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
             'vacancy' => [
                 'title' => $vacancy->title,
                 'public_uid' => $vacancy->public_uid,
+                'slug' => $vacancy->slug,
             ],
         ]);
+    }
+
+    private function ensureSlug(string $slug, CareerVacancy $vacancy, string $routeName): ?RedirectResponse
+    {
+        if ($vacancy->slug && $slug === $vacancy->slug) {
+            return null;
+        }
+
+        return redirect()->route($routeName, [
+            'slug' => $vacancy->slug ?: 'role',
+            'vacancy' => $vacancy->public_uid,
+        ], 301);
     }
 
     /**

@@ -25,7 +25,7 @@ class QuoteLineItem
     {
         return [
             self::normalizeRow(['kind' => self::KIND_LABOUR, 'unit_price' => 0]),
-            self::normalizeRow(['kind' => self::KIND_MATERIALS, 'label' => '', 'quantity' => 0, 'unit_price' => 0]),
+            self::normalizeRow(['kind' => self::KIND_MATERIALS, 'label' => '', 'quantity' => 1, 'unit_price' => 0]),
         ];
     }
 
@@ -186,7 +186,7 @@ class QuoteLineItem
             $materials->push(self::normalizeRow([
                 'kind' => self::KIND_MATERIALS,
                 'label' => '',
-                'quantity' => 0,
+                'quantity' => 1,
                 'unit_price' => 0,
             ]));
         }
@@ -239,12 +239,18 @@ class QuoteLineItem
      */
     private static function materialQuantity(array $row): float
     {
-        $quantity = max(0, (float) ($row['quantity'] ?? 0));
+        $raw = $row['quantity'] ?? null;
+
+        if ($raw === null || $raw === '') {
+            $quantity = 1.0;
+        } else {
+            $quantity = max(0, (float) $raw);
+        }
 
         if ($quantity <= 0 && is_numeric($row['unit'] ?? null)) {
             $quantity = max(0, (float) $row['unit']);
         }
 
-        return $quantity;
+        return $quantity > 0 ? $quantity : 1.0;
     }
 }

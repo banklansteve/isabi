@@ -17,31 +17,15 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <label class="sr-only" for="job-log-sort">Sort jobs</label>
-                <div class="relative min-w-[11.5rem] flex-1 lg:flex-none">
-                    <i
-                        class="ti ti-arrows-sort pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/35"
-                        aria-hidden="true"
-                    />
-                    <select
-                        id="job-log-sort"
-                        :value="sort"
-                        class="w-full appearance-none rounded-xl border border-ink/10 bg-pale py-3 pe-8 ps-9 text-xs font-bold text-ink outline-none focus:border-base focus:bg-white focus:ring-2 focus:ring-base/15"
-                        @change="$emit('update:sort', $event.target.value)"
-                    >
-                        <option
-                            v-for="option in sortOptions"
-                            :key="option.value"
-                            :value="option.value"
-                        >
-                            {{ option.label }}
-                        </option>
-                    </select>
-                    <i
-                        class="ti ti-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/30"
-                        aria-hidden="true"
-                    />
-                </div>
+                <FormSelect
+                    id="job-log-sort"
+                    :model-value="sort"
+                    size="sm"
+                    icon="ti ti-arrows-sort"
+                    :options="sortOptions"
+                    wrapper-class="min-w-[11.5rem] flex-1 lg:flex-none"
+                    @update:model-value="$emit('update:sort', $event)"
+                />
 
                 <button
                     v-if="hasActiveFilters"
@@ -100,6 +84,8 @@
 </template>
 
 <script setup>
+import FormSelect from '@/Components/Form/FormSelect.vue';
+
 defineProps({
     search: { type: String, default: '' },
     sort: { type: String, default: 'recent' },

@@ -109,8 +109,7 @@
                         <a
                             v-if="pdf_url"
                             :href="pdf_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            download
                             class="tap-target inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-base-action px-4 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] transition hover:bg-base-hover"
                         >
                             <i class="ti ti-file-type-pdf text-base" aria-hidden="true" />
@@ -179,11 +178,11 @@
                         <div>
                             <p class="text-sm font-bold text-ink">Your decision</p>
                             <p class="mt-1 text-xs font-medium text-ink/45">
-                                Accept or decline this quote — no account needed.
+                                Accept, ask for changes, or decline — no account needed.
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2.5">
+                        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                             <button
                                 type="button"
                                 class="tap-target rounded-2xl px-4 py-3.5 text-sm font-bold ring-1 transition"
@@ -200,6 +199,18 @@
                                 type="button"
                                 class="tap-target rounded-2xl px-4 py-3.5 text-sm font-bold ring-1 transition"
                                 :class="
+                                    decision === 'adjustments'
+                                        ? 'bg-base-action text-white ring-base-action shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)]'
+                                        : 'bg-white text-ink ring-ink/10 hover:bg-white'
+                                "
+                                @click="decision = 'adjustments'"
+                            >
+                                Request changes
+                            </button>
+                            <button
+                                type="button"
+                                class="tap-target rounded-2xl px-4 py-3.5 text-sm font-bold ring-1 transition"
+                                :class="
                                     decision === 'declined'
                                         ? 'bg-ink text-white ring-ink'
                                         : 'bg-white text-ink ring-ink/10 hover:bg-white'
@@ -210,19 +221,38 @@
                             </button>
                         </div>
 
-                        <textarea
-                            v-model="message"
-                            rows="3"
-                            placeholder="Optional note for the artisan…"
-                            class="w-full rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
-                        />
+                        <div>
+                            <label class="mb-1.5 block text-xs font-bold text-ink/55" for="quote-note">
+                                {{
+                                    decision === 'adjustments'
+                                        ? 'What should change?'
+                                        : 'Note for the artisan (optional)'
+                                }}
+                            </label>
+                            <textarea
+                                id="quote-note"
+                                v-model="message"
+                                rows="3"
+                                :required="decision === 'adjustments'"
+                                :placeholder="
+                                    decision === 'adjustments'
+                                        ? 'Tell them what to adjust — scope, price, timing…'
+                                        : 'Optional note for the artisan…'
+                                "
+                                class="w-full rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                                :class="noteError ? 'border-coral-deep focus:border-coral-deep focus:ring-coral/20' : ''"
+                            />
+                            <p v-if="noteError" class="mt-1.5 text-xs font-semibold text-coral-deep">
+                                {{ noteError }}
+                            </p>
+                        </div>
 
                         <button
                             type="submit"
                             class="tap-target w-full rounded-2xl bg-base-action px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(26,79,181,0.5)] hover:bg-base-hover disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="!decision || busy"
                         >
-                            {{ busy ? 'Submitting…' : 'Submit response' }}
+                            {{ busy ? 'Submitting…' : submitLabel }}
                         </button>
                     </form>
 
@@ -260,8 +290,22 @@ const props = defineProps({
 const decision = ref('');
 const message = ref('');
 const busy = ref(false);
+const noteError = ref('');
 
 const appName = computed(() => props.app_name || 'Kraftrack');
+
+const submitLabel = computed(() => {
+    if (decision.value === 'accepted') {
+        return 'Confirm acceptance';
+    }
+    if (decision.value === 'adjustments') {
+        return 'Send change request';
+    }
+    if (decision.value === 'declined') {
+        return 'Confirm decline';
+    }
+    return 'Submit response';
+});
 
 const businessInitials = computed(() => {
     const parts = String(props.business.business_name || 'Q')
@@ -293,11 +337,24 @@ const formatNaira = (amount) =>
     }).format(amount || 0);
 
 const submit = () => {
+    noteError.value = '';
+    if (decision.value === 'adjustments' && String(message.value || '').trim().length < 10) {
+        noteError.value = 'Please explain what you would like changed (at least a short note).';
+        return;
+    }
+
     busy.value = true;
     router.post(
         props.respond_url,
         { decision: decision.value, message: message.value },
         {
+            onError: (errors) => {
+                if (errors?.message) {
+                    noteError.value = Array.isArray(errors.message)
+                        ? errors.message[0]
+                        : String(errors.message);
+                }
+            },
             onFinish: () => {
                 busy.value = false;
             },

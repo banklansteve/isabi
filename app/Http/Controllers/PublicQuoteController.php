@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreQuoteResponseRequest;
+use App\Models\ArtisanQuote;
 use App\Models\QuoteRequest;
 use App\Support\Quotes\QuoteBuilderService;
 use App\Support\Quotes\QuoteDelivery;
+use App\Support\Quotes\QuoteMailer;
 use App\Support\Quotes\QuotePdfService;
 use App\Support\Seo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as IlluminateResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -48,6 +51,35 @@ class PublicQuoteController extends Controller
         return Inertia::render('Public/Quote', $this->quotes->presentPublicPage($request));
     }
 
+    public function downloadPage(string $token): IlluminateResponse|RedirectResponse
+    {
+        $request = QuoteRequest::query()
+            ->where('client_token', $token)
+            ->with(['artisan', 'artisanQuote'])
+            ->firstOrFail();
+
+        if ($request->client_token_expires_at?->isPast() || $request->isOfferExpired()) {
+            $request->refreshExpiry();
+
+            return redirect()->route('quotes.public.show', $token);
+        }
+
+        $quote = $request->artisanQuote;
+        $artisan = $request->artisan;
+
+        abort_unless($quote && $artisan, 404);
+
+        return response()
+            ->view('public.quote-pdf-download', [
+                'appName' => config('app.name', 'Kraftrack'),
+                'businessName' => $artisan->displayBusinessName(),
+                'quoteNumber' => $quote->quote_number,
+                'quoteUrl' => QuoteDelivery::publicUrl($request),
+                'pdfUrl' => QuoteDelivery::pdfFileUrl($request),
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function pdf(string $token): HttpResponse
     {
         $request = QuoteRequest::query()
@@ -65,21 +97,14 @@ class PublicQuoteController extends Controller
 
         abort_unless($quote && $artisan, 404);
 
-        $pdf = app(QuotePdfService::class);
-        $filename = $pdf->filename($quote, $artisan);
-        $disposition = request()->boolean('download') ? 'attachment' : 'inline';
-
-        return response($pdf->output($request, $quote, $artisan), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
-        ]);
+        return app(QuotePdfService::class)->download($request, $quote, $artisan, attachment: true);
     }
 
     public function respond(StoreQuoteResponseRequest $form, string $token): RedirectResponse
     {
         $request = QuoteRequest::query()
             ->where('client_token', $token)
-            ->with('artisanQuote')
+            ->with(['artisanQuote', 'artisan'])
             ->firstOrFail();
 
         if ($request->client_token_expires_at?->isPast() || $request->isOfferExpired()) {
@@ -100,16 +125,32 @@ class PublicQuoteController extends Controller
         }
 
         $decision = $form->validated()['decision'];
-        $message = $form->validated()['message'] ?? null;
+        $message = trim((string) ($form->validated()['message'] ?? ''));
+        $message = $message !== '' ? $message : null;
+
+        $status = match ($decision) {
+            'accepted' => QuoteRequest::STATUS_ACCEPTED,
+            'adjustments' => QuoteRequest::STATUS_ADJUSTMENTS_REQUESTED,
+            default => QuoteRequest::STATUS_DECLINED,
+        };
 
         $request->forceFill([
-            'status' => $decision === 'accepted'
-                ? QuoteRequest::STATUS_ACCEPTED
-                : QuoteRequest::STATUS_DECLINED,
+            'status' => $status,
             'client_response' => $message,
             'client_responded_at' => now(),
             'accepted_at' => $decision === 'accepted' ? now() : null,
         ])->save();
+
+        if ($decision === 'adjustments') {
+            $request->artisanQuote?->forceFill([
+                'status' => ArtisanQuote::STATUS_DRAFT,
+            ])->save();
+        }
+
+        app(QuoteMailer::class)->notifyArtisanOfClientResponse(
+            $request->fresh(['artisanQuote', 'artisan']),
+            $decision,
+        );
 
         return redirect()
             ->route('quotes.public.thanks', $token)

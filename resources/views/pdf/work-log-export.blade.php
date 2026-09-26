@@ -185,7 +185,7 @@
                         {{ \App\Support\JobCategories::displayLabel($log->job_category, $log->job_subcategory) }}
                     </div>
                 @endif
-                <h2>{{ $log->description }}</h2>
+                <h2>{{ $log->displayTitle() }}</h2>
                 @if($log->reference)
                     <div class="ref">{{ $log->reference }}</div>
                 @endif

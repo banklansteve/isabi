@@ -88,14 +88,26 @@
 
                     <div class="space-y-5 p-5 sm:p-7">
                         <FormTextInput
+                            id="subject"
+                            v-model="form.subject"
+                            label="Subject"
+                            icon="ti ti-heading"
+                            placeholder="e.g. Kitchen sink leak repair"
+                            autocomplete="off"
+                            :hint="`Short title for your work log and public page URL (max ${subjectMax}).`"
+                            :error="form.errors.subject || localErrors.subject"
+                            autofocus
+                        />
+
+                        <FormTextarea
                             id="description"
                             v-model="form.description"
                             label="What was done"
                             icon="ti ti-tool"
-                            placeholder="e.g. Fixed kitchen sink leak"
-                            autocomplete="off"
+                            :rows="2"
+                            placeholder="A bit more detail — materials, rooms, outcome…"
+                            :hint="`Optional detail beyond the subject (max ${descriptionMax}).`"
                             :error="form.errors.description || localErrors.description"
-                            autofocus
                         />
 
                         <FormDatePicker
@@ -146,30 +158,17 @@
                         />
 
                         <FormSelect
-                            id="job_category"
-                            v-model="form.job_category"
-                            label="Job category"
-                            icon="ti ti-category"
-                            placeholder="Select a category"
-                            :options="categoryParents"
-                            searchable
-                            search-placeholder="Search categories…"
-                            hint="Pick the broad type of work — then a more specific subcategory."
-                            :error="form.errors.job_category"
-                            @change="onCategoryChange"
-                        />
-
-                        <FormSelect
                             id="job_subcategory"
                             v-model="form.job_subcategory"
-                            label="Subcategory"
+                            label="Trade for this job"
                             icon="ti ti-tags"
-                            :placeholder="form.job_category ? 'Select a subcategory' : 'Choose a category first'"
-                            :options="subcategoryOptions"
+                            placeholder="Select a trade"
+                            :options="tradeOptions"
                             searchable
-                            search-placeholder="Search subcategories…"
-                            :disabled="!form.job_category"
+                            search-placeholder="Search your trades…"
+                            hint="From the trades on your profile — pick which one this job used."
                             :error="form.errors.job_subcategory"
+                            @change="onTradeChange"
                         />
 
                         <div class="rounded-2xl bg-pale/80 p-4 ring-1 ring-ink/[0.04] sm:p-5">
@@ -294,7 +293,7 @@
                                 <p
                                     class="mt-2 font-editorial text-xl font-semibold tracking-tight text-white sm:text-[1.35rem]"
                                 >
-                                    {{ form.description || '—' }}
+                                    {{ form.subject || form.description || '—' }}
                                 </p>
                                 <p class="mt-1.5 text-sm font-medium text-white/60">
                                     {{ workedOnLabel }}
@@ -443,27 +442,32 @@ import FormFileUpload from '@/Components/Form/FormFileUpload.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormStepProgress from '@/Components/Form/FormStepProgress.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
+import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     maxLookbackDays: { type: Number, default: 14 },
     today: { type: String, required: true },
     minDate: { type: String, required: true },
-    jobCategories: { type: Array, default: () => [] },
+    jobCategories: { type: Object, default: () => ({ parents: [], groups: {} }) },
+    tradeOptions: { type: Array, default: () => [] },
     locations: { type: Object, default: () => ({}) },
     defaults: {
         type: Object,
         default: () => ({ service_state: null, service_lga: null }),
     },
     fromQuote: { type: Object, default: null },
+    subjectMax: { type: Number, default: 80 },
+    descriptionMax: { type: Number, default: 2000 },
 });
 
 const step = ref(0);
 const maxReachable = ref(0);
 const mediaPreviews = ref([]);
 const localErrors = reactive({
+    subject: '',
     description: '',
     worked_on: '',
 });
@@ -474,7 +478,11 @@ const steps = [
     { key: 'preview', label: 'Preview', hint: 'Save' },
 ];
 
+const subjectMax = computed(() => props.subjectMax);
+const descriptionMax = computed(() => props.descriptionMax);
+
 const form = useForm({
+    subject: props.defaults.subject || props.fromQuote?.subject || '',
     description: props.defaults.description || '',
     worked_on: props.today,
     client_name: props.defaults.client_name || '',
@@ -490,19 +498,32 @@ const form = useForm({
 });
 
 const states = computed(() => Object.keys(props.locations || {}));
-const categoryParents = computed(() => props.jobCategories?.parents || []);
-const subcategoryOptions = computed(() => {
-    if (!form.job_category) return [];
-    return props.jobCategories?.groups?.[form.job_category] || [];
+const tradeOptions = computed(() => props.tradeOptions || []);
+const parentByTrade = computed(() => {
+    const map = {};
+    const groups = props.jobCategories?.groups || {};
+    for (const [parent, subs] of Object.entries(groups)) {
+        for (const sub of subs || []) {
+            map[sub] = parent;
+        }
+    }
+    return map;
 });
 const lgas = computed(() => {
     if (!form.service_state) return [];
     return props.locations[form.service_state] || [];
 });
 
-const onCategoryChange = () => {
-    form.job_subcategory = '';
+const onTradeChange = () => {
+    form.job_category = parentByTrade.value[form.job_subcategory] || 'Other';
 };
+
+onMounted(() => {
+    if (!form.job_subcategory && tradeOptions.value.length === 1) {
+        form.job_subcategory = tradeOptions.value[0];
+        onTradeChange();
+    }
+});
 
 const formHasErrors = computed(() => Object.keys(form.errors || {}).length > 0);
 
@@ -518,7 +539,7 @@ const onMediaPreviews = (items) => {
 
 const headerDescription = computed(() => {
     if (step.value === 0) {
-        return 'Start with what you did and when. Everything else is optional.';
+        return 'Start with a clear subject, what you did, and when.';
     }
     if (step.value === 1) {
         return 'Add context that helps later — photos, client notes, location, and more.';
@@ -552,16 +573,12 @@ const amountLabel = computed(() => {
     return `₦${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 });
 
-const categoryPreview = computed(() => {
-    if (form.job_subcategory && form.job_category) {
-        return `${form.job_subcategory} · ${form.job_category}`;
-    }
-    return form.job_subcategory || form.job_category || '—';
-});
+const categoryPreview = computed(() => form.job_subcategory || form.job_category || '—');
 
 const previewRows = computed(() => [
+    { label: 'Subject', value: form.subject.trim() || '—' },
     { label: 'Client', value: form.client_name || '—', private: !!form.client_name },
-    { label: 'Category', value: categoryPreview.value },
+    { label: 'Trade', value: categoryPreview.value },
     { label: 'Location', value: serviceLabel.value },
     { label: 'WhatsApp', value: form.client_whatsapp || '—' },
     { label: 'Amount', value: amountLabel.value, private: form.amount_charged !== '' },
@@ -578,20 +595,32 @@ const normalizeWhatsapp = () => {
 };
 
 const validateStep1 = () => {
+    localErrors.subject = '';
     localErrors.description = '';
     localErrors.worked_on = '';
+
+    const subject = form.subject.trim();
+    if (subject.length < 3) {
+        localErrors.subject = subject
+            ? 'Make the subject a little more specific.'
+            : 'Add a short subject — this is the title clients and search engines see.';
+    } else if (subject.length > subjectMax.value) {
+        localErrors.subject = `Keep the subject under ${subjectMax.value} characters.`;
+    }
 
     const desc = form.description.trim();
     if (desc.length < 3) {
         localErrors.description = desc
             ? 'Add a bit more detail so this entry is meaningful.'
             : 'Tell us what was done — even a short line is enough.';
+    } else if (desc.length > descriptionMax.value) {
+        localErrors.description = `Keep the description under ${descriptionMax.value} characters.`;
     }
     if (!form.worked_on) {
         localErrors.worked_on = 'Pick the date this job was done.';
     }
 
-    return !localErrors.description && !localErrors.worked_on;
+    return !localErrors.subject && !localErrors.description && !localErrors.worked_on;
 };
 
 const goNext = () => {
@@ -644,7 +673,7 @@ const submit = () => {
             forceFormData: true,
             preserveScroll: true,
             onError: (errors) => {
-                if (errors.description || errors.worked_on) {
+                if (errors.subject || errors.description || errors.worked_on) {
                     step.value = 0;
                 } else if (
                     errors.media ||

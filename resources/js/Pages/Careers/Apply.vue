@@ -7,7 +7,7 @@
         <main class="pb-20 sm:pb-24">
             <div class="mx-auto max-w-2xl px-4 pt-6 sm:px-8 sm:pt-10">
                 <Link
-                    :href="route('careers.show', vacancy.public_uid)"
+                    :href="route('careers.show', { slug: vacancy.slug, vacancy: vacancy.public_uid })"
                     class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink/45 hover:text-ink"
                 >
                     <i class="ti ti-arrow-left text-sm" aria-hidden="true" />
@@ -597,15 +597,21 @@ const onSubmit = () => {
             preferred_work_mode: data.preferred_work_mode || null,
             work_experience: data.no_work_experience ? [] : data.work_experience,
         }))
-        .post(route('careers.apply.store', props.vacancy.public_uid), {
-            forceFormData: true,
-            onSuccess: () => {
-                try {
-                    localStorage.removeItem(storageKey);
-                } catch {
-                    // ignore
-                }
+        .post(
+            route('careers.apply.store', {
+                slug: props.vacancy.slug,
+                vacancy: props.vacancy.public_uid,
+            }),
+            {
+                forceFormData: true,
+                onSuccess: () => {
+                    try {
+                        localStorage.removeItem(storageKey);
+                    } catch {
+                        // ignore
+                    }
+                },
             },
-        });
+        );
 };
 </script>

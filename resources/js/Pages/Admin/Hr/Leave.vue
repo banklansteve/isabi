@@ -101,8 +101,8 @@
             <FormSelect id="lv-staff" v-model="leaveForm.user_id" label="Staff member" icon="ti ti-user" :options="staffOptions" searchable :error="leaveForm.errors.user_id" />
             <FormSelect id="lv-type" v-model="leaveForm.leave_type_id" label="Leave type" icon="ti ti-category" :options="leaveTypeOptions" :error="leaveForm.errors.leave_type_id" />
             <div class="grid gap-4 sm:grid-cols-2">
-                <FormTextInput id="lv-start" v-model="leaveForm.start_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="leaveForm.errors.start_date" required />
-                <FormTextInput id="lv-end" v-model="leaveForm.end_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="End date" icon="ti ti-calendar" :error="leaveForm.errors.end_date" required />
+                <FormDatePicker id="lv-start" v-model="leaveForm.start_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="leaveForm.errors.start_date" />
+                <FormDatePicker id="lv-end" v-model="leaveForm.end_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="End date" icon="ti ti-calendar" :error="leaveForm.errors.end_date" />
             </div>
             <p v-if="leaveDayCount" class="text-xs font-semibold text-ink/50">{{ leaveDayCount }} day{{ leaveDayCount === 1 ? '' : 's' }}</p>
             <FormTextarea id="lv-note" v-model="leaveForm.note" label="Note (optional)" :error="leaveForm.errors.note" />
@@ -164,6 +164,7 @@ import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import { leaveDotClass, leaveStatusMeta, pillBase } from '@/utils/hrStatus';

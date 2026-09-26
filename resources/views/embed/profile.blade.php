@@ -208,7 +208,7 @@
                             <div class="thumb"></div>
                         @endif
                         <div>
-                            <div class="job-title">{{ $log->description }}</div>
+                            <div class="job-title">{{ $log->displayTitle() }}</div>
                             <div class="job-meta">
                                 @if($log->reference)
                                     <span class="ref">{{ $log->reference }}</span> ·

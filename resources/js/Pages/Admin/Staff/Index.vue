@@ -24,14 +24,15 @@
             </div>
 
             <div class="mt-3 no-scrollbar flex flex-wrap items-center gap-1.5 overflow-x-auto border-t border-ink/[0.05] pt-3">
-                <div class="inline-flex items-center gap-2 rounded-full bg-pale px-3 py-1.5 text-[12px] font-semibold text-ink/55">
-                    <span>Adherence</span>
-                    <input
-                        v-model="adherenceDateDraft"
-                        type="date"
-                        :max="todayIso"
-                        class="rounded-md border-0 bg-white px-2 py-0.5 text-[12px] font-semibold text-ink outline-none ring-1 ring-ink/10 focus:ring-base/30"
-                    />
+                <div class="inline-flex flex-wrap items-end gap-2 rounded-full bg-pale px-3 py-1.5">
+                    <span class="self-center text-[12px] font-semibold text-ink/55">Adherence</span>
+                    <div class="w-44">
+                        <FormDatePicker
+                            v-model="adherenceDateDraft"
+                            label="Date"
+                            :max-date="todayIso"
+                        />
+                    </div>
                     <button
                         type="button"
                         class="rounded-md bg-base-action px-2.5 py-0.5 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
@@ -409,6 +410,7 @@ import AdminStaffKebab from '@/Components/Admin/AdminStaffKebab.vue';
 import { useClientList } from '@/Composables/useClientList';
 import { toast } from '@/utils/adminRange';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Support\ArtisanDirectory;
+use App\Support\NigeriaLocations;
 use Illuminate\Http\Response;
 
 class SitemapController extends Controller
@@ -26,12 +28,34 @@ class SitemapController extends Controller
         $push(route('faq'), null, 'monthly', '0.7');
         $push(route('public.directory'), now()->toAtomString(), 'daily', '0.8');
 
+        foreach (ArtisanDirectory::catalogTrades() as $trade) {
+            $tradeSlug = ArtisanDirectory::tradeSlug($trade);
+            $push(
+                route('public.directory.trade', $tradeSlug),
+                now()->toAtomString(),
+                'weekly',
+                '0.7',
+            );
+
+            foreach (NigeriaLocations::states() as $state) {
+                $push(
+                    route('public.directory.trade-state', [
+                        $tradeSlug,
+                        ArtisanDirectory::stateSlug($state),
+                    ]),
+                    now()->toAtomString(),
+                    'weekly',
+                    '0.6',
+                );
+            }
+        }
+
         foreach (['about', 'contact', 'careers', 'terms', 'privacy', 'cookies', 'acceptable-use'] as $name) {
             $push(route($name), null, 'monthly', '0.4');
         }
 
         User::query()
-            ->artisans()
+            ->publiclyListed()
             ->whereNotNull('slug')
             ->where('slug', '!=', '')
             ->select(['id', 'slug', 'updated_at'])
@@ -48,22 +72,23 @@ class SitemapController extends Controller
             });
 
         WorkLog::query()
-            ->whereNotNull('slug')
-            ->whereHas('user', fn ($query) => $query->artisans()->whereNotNull('slug')->where('slug', '!=', ''))
+            ->whereNotNull('reference')
+            ->whereHas('user', fn ($query) => $query->publiclyListed()->whereNotNull('slug')->where('slug', '!=', ''))
             ->where(function ($query) {
                 $query->whereHas('review')->orWhereHas('media');
             })
             ->with(['user:id,slug'])
-            ->select(['id', 'user_id', 'slug', 'updated_at'])
+            ->select(['id', 'user_id', 'slug', 'reference', 'job_category', 'job_subcategory', 'updated_at'])
             ->orderBy('id')
             ->chunkById(500, function ($logs) use ($push): void {
                 foreach ($logs as $log) {
-                    if (! $log->user?->slug || ! $log->slug) {
+                    $params = $log->publicRouteParams();
+                    if (! $params) {
                         continue;
                     }
 
                     $push(
-                        route('public.job', [$log->user->slug, $log->slug]),
+                        route('public.job', $params),
                         $log->updated_at?->toAtomString(),
                         'weekly',
                         '0.6',

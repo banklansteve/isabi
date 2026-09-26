@@ -69,6 +69,10 @@
         @apply relative flex w-full items-center pe-11 text-left;
     }
 
+    .form-select-trigger--sm {
+        @apply rounded-xl py-2.5 pe-9 text-[13px] font-semibold shadow-none;
+    }
+
     .form-select-trigger.is-placeholder {
         @apply text-ink/30;
     }
@@ -79,17 +83,20 @@
 
     .form-select-panel {
         @apply overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-premium;
+        transform-origin: top center;
     }
 
     .select-panel-enter-active,
     .select-panel-leave-active {
-        transition: opacity 0.16s ease, transform 0.16s ease;
+        transition:
+            opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .select-panel-enter-from,
     .select-panel-leave-to {
         opacity: 0;
-        transform: translateY(-6px);
+        transform: translateY(-4px) scale(0.98);
     }
 }
 

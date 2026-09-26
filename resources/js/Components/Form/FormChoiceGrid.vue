@@ -4,6 +4,7 @@
             class="grid max-h-[min(22rem,48vh)] grid-cols-1 gap-2 overflow-y-auto pe-1 sm:grid-cols-2"
             role="listbox"
             :aria-label="label || 'Options'"
+            :aria-multiselectable="multiple || undefined"
         >
             <button
                 v-for="option in options"
@@ -34,13 +35,18 @@
                 />
             </button>
         </div>
+        <p v-if="multiple && selectedCount" class="mt-2 text-xs font-semibold text-ink/40">
+            {{ selectedCount }} selected
+            <span v-if="max" class="tabular-nums">· max {{ max }}</span>
+        </p>
     </FormField>
 </template>
 
 <script setup>
 import FormField from '@/Components/Form/FormField.vue';
+import { computed } from 'vue';
 
-const model = defineModel({ type: [String, Number], default: '' });
+const model = defineModel({ type: [String, Number, Array], default: '' });
 
 const props = defineProps({
     label: { type: String, default: '' },
@@ -53,6 +59,8 @@ const props = defineProps({
     showIcons: { type: Boolean, default: true },
     iconResolver: { type: Function, default: null },
     fallbackIcon: { type: String, default: 'ti ti-briefcase' },
+    multiple: { type: Boolean, default: false },
+    max: { type: Number, default: 0 },
 });
 
 const emit = defineEmits(['change']);
@@ -73,10 +81,43 @@ const optionIcon = (option) => {
     return props.fallbackIcon;
 };
 
-const isSelected = (option) => optionValue(option) === model.value;
+const selectedValues = computed(() => {
+    if (!props.multiple) {
+        return [];
+    }
+    return Array.isArray(model.value) ? model.value : [];
+});
+
+const selectedCount = computed(() => selectedValues.value.length);
+
+const isSelected = (option) => {
+    const value = optionValue(option);
+    if (props.multiple) {
+        return selectedValues.value.includes(value);
+    }
+    return value === model.value;
+};
 
 const select = (option) => {
-    model.value = optionValue(option);
+    const value = optionValue(option);
+
+    if (!props.multiple) {
+        model.value = value;
+        emit('change', model.value);
+        return;
+    }
+
+    const current = [...selectedValues.value];
+    const index = current.indexOf(value);
+    if (index >= 0) {
+        current.splice(index, 1);
+    } else {
+        if (props.max > 0 && current.length >= props.max) {
+            return;
+        }
+        current.push(value);
+    }
+    model.value = current;
     emit('change', model.value);
 };
 </script>

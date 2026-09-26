@@ -16,24 +16,38 @@
                 {{ item.label }}
             </button>
         </div>
-        <div v-if="preset === 'custom'" class="flex flex-wrap items-center gap-2">
-            <input
-                v-model="customFrom"
-                type="date"
-                class="rounded-xl border border-ink/10 bg-white px-3 py-2 text-[13px] font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
-            />
-            <span class="text-[12px] font-semibold text-ink/35">to</span>
-            <input
-                v-model="customTo"
-                type="date"
-                class="rounded-xl border border-ink/10 bg-white px-3 py-2 text-[13px] font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
-            />
+        <div v-if="preset === 'custom'" class="flex flex-wrap items-end gap-2">
+            <div class="min-w-[10.5rem] flex-1">
+                <FormDatePicker
+                    v-model="customFrom"
+                    label="From"
+                    :min-date="DATE_MIN"
+                    :max-date="DATE_MAX"
+                />
+            </div>
+            <span class="hidden pb-3 text-[12px] font-semibold text-ink/35 sm:inline">to</span>
+            <div class="min-w-[10.5rem] flex-1">
+                <FormDatePicker
+                    v-model="customTo"
+                    label="To"
+                    :min-date="DATE_MIN"
+                    :max-date="DATE_MAX"
+                />
+            </div>
         </div>
     </div>
 </template>
 
 <script setup>
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import { computed, unref } from 'vue';
+
+const DATE_MIN = '2000-01-01';
+const DATE_MAX = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 2);
+    return d.toISOString().slice(0, 10);
+})();
 
 const props = defineProps({
     range: { type: Object, required: true },

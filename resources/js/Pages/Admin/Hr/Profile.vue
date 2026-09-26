@@ -403,10 +403,10 @@
                     <FormTextInput id="hp-department" v-model="profileForm.department" label="Department" icon="ti ti-building" :error="profileForm.errors.department" />
                     <FormSelect id="hp-type" v-model="profileForm.employment_type" label="Employment type" icon="ti ti-clock" :options="employmentTypes" :error="profileForm.errors.employment_type" />
                     <FormSelect id="hp-status" v-model="profileForm.employment_status" label="Employment status" icon="ti ti-status-change" :options="employmentStatuses" :error="profileForm.errors.employment_status" />
-                    <FormTextInput id="hp-start" v-model="profileForm.start_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="profileForm.errors.start_date" />
+                    <FormDatePicker id="hp-start" v-model="profileForm.start_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="profileForm.errors.start_date" />
                     <FormTextInput id="hp-pemail" v-model="profileForm.personal_email" type="email" label="Personal email" icon="ti ti-mail" :error="profileForm.errors.personal_email" />
                     <FormTextInput id="hp-pphone" v-model="profileForm.personal_phone" label="Personal phone" icon="ti ti-phone" :error="profileForm.errors.personal_phone" />
-                    <FormTextInput id="hp-dob" v-model="profileForm.date_of_birth" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Date of birth" icon="ti ti-cake" :error="profileForm.errors.date_of_birth" />
+                    <FormDatePicker id="hp-dob" v-model="profileForm.date_of_birth" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Date of birth" icon="ti ti-cake" :error="profileForm.errors.date_of_birth" />
                     <FormTextInput id="hp-addr" v-model="profileForm.home_address" label="Home address" icon="ti ti-map-pin" :error="profileForm.errors.home_address" />
                     <FormTextInput id="hp-ecn" v-model="profileForm.emergency_contact_name" label="Emergency contact" icon="ti ti-user" :error="profileForm.errors.emergency_contact_name" />
                     <FormTextInput id="hp-ecp" v-model="profileForm.emergency_contact_phone" label="Emergency phone" icon="ti ti-phone" :error="profileForm.errors.emergency_contact_phone" />
@@ -415,7 +415,7 @@
                 <div v-if="profileForm.employment_status === 'exited'" class="rounded-2xl bg-amber-50 px-4 py-3">
                     <p class="text-sm font-medium text-amber-900">History stays on file. Also revoke platform access in Access &amp; staff — the two systems are not synced.</p>
                     <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                        <FormTextInput id="hp-exit-date" v-model="profileForm.exit_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Exit date" icon="ti ti-calendar" :error="profileForm.errors.exit_date" required />
+                        <FormDatePicker id="hp-exit-date" v-model="profileForm.exit_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Exit date" icon="ti ti-calendar" :error="profileForm.errors.exit_date" />
                         <FormTextarea id="hp-exit-reason" v-model="profileForm.exit_reason" label="Reason" :error="profileForm.errors.exit_reason" required />
                     </div>
                 </div>
@@ -429,7 +429,7 @@
         <!-- Exit modal -->
         <AppModal :show="exitOpen" title="Mark as exited?" description="Historical records stay for compliance. Remember to also revoke platform access in Access & Roles — the two systems are not synced." icon="ti ti-door-exit" icon-tone="coral" @close="exitOpen = false">
             <form class="space-y-4" @submit.prevent="submitExit">
-                <FormTextInput id="exit-date" v-model="exitForm.exit_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Exit date" icon="ti ti-calendar" :error="exitForm.errors.exit_date" required />
+                <FormDatePicker id="exit-date" v-model="exitForm.exit_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Exit date" icon="ti ti-calendar" :error="exitForm.errors.exit_date" />
                 <FormTextarea id="exit-reason" v-model="exitForm.exit_reason" label="Reason" placeholder="Resignation, end of contract, etc." :error="exitForm.errors.exit_reason" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="exitOpen = false" />
@@ -443,8 +443,8 @@
             <form class="space-y-4" @submit.prevent="submitLeave">
                 <FormSelect id="lv-type" v-model="leaveForm.leave_type_id" label="Leave type" icon="ti ti-category" :options="leaveTypeOptions" :error="leaveForm.errors.leave_type_id" />
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <FormTextInput id="lv-start" v-model="leaveForm.start_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="leaveForm.errors.start_date" required />
-                    <FormTextInput id="lv-end" v-model="leaveForm.end_date" type="date" :min="DATE_MIN" :max="DATE_MAX" label="End date" icon="ti ti-calendar" :error="leaveForm.errors.end_date" required />
+                    <FormDatePicker id="lv-start" v-model="leaveForm.start_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Start date" icon="ti ti-calendar" :error="leaveForm.errors.start_date" />
+                    <FormDatePicker id="lv-end" v-model="leaveForm.end_date" :min-date="DATE_MIN" :max-date="DATE_MAX" label="End date" icon="ti ti-calendar" :error="leaveForm.errors.end_date" />
                 </div>
                 <p v-if="leaveDayCount" class="text-xs font-semibold text-ink/50">{{ leaveDayCount }} day{{ leaveDayCount === 1 ? '' : 's' }}</p>
                 <FormTextarea id="lv-note" v-model="leaveForm.note" label="Note (optional)" :error="leaveForm.errors.note" />
@@ -510,7 +510,7 @@
                     <FormTextInput id="cp-base" v-model="compForm.base_salary" type="number" label="Base salary" icon="ti ti-cash" :error="compForm.errors.base_salary" required />
                     <FormSelect id="cp-freq" v-model="compForm.pay_frequency" label="Pay cycle" icon="ti ti-repeat" :options="payFrequencies" :error="compForm.errors.pay_frequency" />
                     <FormTextInput id="cp-cur" v-model="compForm.currency" label="Currency" icon="ti ti-currency-naira" :error="compForm.errors.currency" />
-                    <FormTextInput id="cp-eff" v-model="compForm.effective_from" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Effective from" icon="ti ti-calendar" :error="compForm.errors.effective_from" required />
+                    <FormDatePicker id="cp-eff" v-model="compForm.effective_from" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Effective from" icon="ti ti-calendar" :error="compForm.errors.effective_from" />
                 </div>
                 <div>
                     <div class="flex items-center justify-between">
@@ -538,7 +538,7 @@
                     <FormTextInput id="alw-amount" v-model="allowanceForm.amount" type="number" label="Amount" icon="ti ti-cash" :error="allowanceForm.errors.amount" required />
                 </template>
                 <p v-else class="text-sm font-medium text-ink/60">This ends {{ endingAllowance.label }} on the next dated package. Earlier records stay in history.</p>
-                <FormTextInput id="alw-eff" v-model="allowanceForm.effective_from" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Effective from" icon="ti ti-calendar" :error="allowanceForm.errors.effective_from" required />
+                <FormDatePicker id="alw-eff" v-model="allowanceForm.effective_from" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Effective from" icon="ti ti-calendar" :error="allowanceForm.errors.effective_from" />
                 <FormTextarea id="alw-reason" v-model="allowanceForm.reason" label="Reason" :error="allowanceForm.errors.reason" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <FormButton type="button" variant="secondary" label="Cancel" @click="allowanceOpen = false" />
@@ -581,8 +581,8 @@
             <form class="space-y-4" @submit.prevent="submitPayslip">
                 <FormTextInput id="ps-label" v-model="payslipForm.period_label" label="Period label" icon="ti ti-tag" placeholder="August 2026" :error="payslipForm.errors.period_label" required />
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <FormTextInput id="ps-start" v-model="payslipForm.period_start" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Period start" icon="ti ti-calendar" :error="payslipForm.errors.period_start" required />
-                    <FormTextInput id="ps-end" v-model="payslipForm.period_end" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Period end" icon="ti ti-calendar" :error="payslipForm.errors.period_end" required />
+                    <FormDatePicker id="ps-start" v-model="payslipForm.period_start" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Period start" icon="ti ti-calendar" :error="payslipForm.errors.period_start" />
+                    <FormDatePicker id="ps-end" v-model="payslipForm.period_end" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Period end" icon="ti ti-calendar" :error="payslipForm.errors.period_end" />
                 </div>
                 <FormTextInput id="ps-base" v-model="payslipForm.base_pay" type="number" label="Base pay" icon="ti ti-cash" :error="payslipForm.errors.base_pay" required />
                 <div>
@@ -620,7 +620,7 @@
         <!-- Note modal -->
         <AppModal :show="noteOpen" title="Add performance note" icon="ti ti-notes" @close="noteOpen = false">
             <form class="space-y-4" @submit.prevent="submitNote">
-                <FormTextInput id="nt-date" v-model="noteForm.noted_on" type="date" :min="DATE_MIN" :max="DATE_MAX" label="Date" icon="ti ti-calendar" :error="noteForm.errors.noted_on" required />
+                <FormDatePicker id="nt-date" v-model="noteForm.noted_on" :min-date="DATE_MIN" :max-date="DATE_MAX" label="Date" icon="ti ti-calendar" :error="noteForm.errors.noted_on" />
                 <FormSelect id="nt-rating" v-model="noteForm.rating" label="Rating (optional)" icon="ti ti-star" :options="ratingOptions" placeholder="No rating" :error="noteForm.errors.rating" />
                 <FormTextarea id="nt-body" v-model="noteForm.body" label="Note" rows="4" placeholder="Q2 check-in — strong response times, needs improvement on documentation." :error="noteForm.errors.body" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -635,7 +635,7 @@
             <form class="space-y-4" @submit.prevent="submitDoc">
                 <FormTextInput id="dc-title" v-model="docForm.title" label="Title" icon="ti ti-file" placeholder="Signed contract 2026" :error="docForm.errors.title" required />
                 <FormSelect id="dc-type" v-model="docForm.type" label="Type" icon="ti ti-category" :options="documentTypes" value-key="value" label-key="label" :error="docForm.errors.type" />
-                <FormTextInput id="dc-exp" v-model="docForm.expiry_date" type="date" label="Expiry date (optional)" icon="ti ti-calendar" :error="docForm.errors.expiry_date" />
+                <FormDatePicker id="dc-exp" v-model="docForm.expiry_date" label="Expiry date (optional)" icon="ti ti-calendar" :error="docForm.errors.expiry_date" />
                 <div>
                     <label class="mb-1.5 block text-sm font-semibold text-ink">{{ editingDoc ? 'Replace file (optional)' : 'File' }}</label>
                     <input type="file" class="block w-full text-sm text-ink/70 file:mr-3 file:rounded-xl file:border-0 file:bg-tint file:px-4 file:py-2 file:text-sm file:font-semibold file:text-deep" @change="docForm.file = $event.target.files[0]" />
@@ -669,7 +669,7 @@
                 <FormSelect id="pc-category" v-model="createCaseForm.category" label="Category" icon="ti ti-tag" :options="discipline.options?.categories || []" :error="createCaseForm.errors.category" />
                 <FormTextInput v-if="createCaseForm.category === 'other'" id="pc-category-label" v-model="createCaseForm.category_label" label="Custom category" icon="ti ti-text-caption" :error="createCaseForm.errors.category_label" required />
                 <FormSelect id="pc-severity" v-model="createCaseForm.severity" label="Initial severity" icon="ti ti-scale" :options="discipline.options?.severities || []" :error="createCaseForm.errors.severity" />
-                <FormTextInput id="pc-incident" v-model="createCaseForm.incident_on" type="date" :max="today()" label="Date of incident" icon="ti ti-calendar" :error="createCaseForm.errors.incident_on" required />
+                <FormDatePicker id="pc-incident" v-model="createCaseForm.incident_on" :max-date="today()" label="Date of incident" icon="ti ti-calendar" :error="createCaseForm.errors.incident_on" />
                 <FormTextarea id="pc-desc" v-model="createCaseForm.description" label="Incident description" :error="createCaseForm.errors.description" required />
                 <FormTextarea id="pc-reason" v-model="createCaseForm.reason" label="Reason for opening this case" :error="createCaseForm.errors.reason" required />
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -695,6 +695,7 @@ import AppModal from '@/Components/App/AppModal.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
