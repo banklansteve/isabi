@@ -14,11 +14,11 @@
         >
             <div
                 v-if="panelOpen"
-                class="pointer-events-auto w-[min(22.5rem,calc(100vw-2rem))] overflow-hidden rounded-[1.35rem] bg-white shadow-[0_24px_60px_-18px_rgba(7,20,39,0.35)] ring-1 ring-ink/[0.08]"
+                class="pointer-events-auto flex w-[min(22.5rem,calc(100vw-2rem))] max-h-[min(36rem,calc(100dvh-7.5rem))] flex-col overflow-hidden rounded-[1.35rem] bg-white shadow-[0_24px_60px_-18px_rgba(7,20,39,0.35)] ring-1 ring-ink/[0.08]"
                 role="dialog"
                 aria-label="Help and support"
             >
-                <div class="border-b border-ink/[0.06] px-5 pb-4 pt-5">
+                <div class="shrink-0 border-b border-ink/[0.06] px-5 pb-4 pt-5">
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <h2 class="font-editorial text-xl font-semibold tracking-tight text-ink">
@@ -56,7 +56,7 @@
                     </label>
                 </div>
 
-                <div class="px-5 py-4">
+                <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">
                         Popular topics
                     </p>
@@ -91,7 +91,7 @@
                     </Link>
                 </div>
 
-                <div class="px-4 pb-4">
+                <div class="shrink-0 border-t border-ink/[0.06] bg-white px-4 py-3.5">
                     <Link
                         v-if="isAuthenticated"
                         :href="route('help.chat')"
@@ -104,32 +104,44 @@
                             <i class="ti ti-message-circle-2 text-lg" aria-hidden="true" />
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-bold">Chat with us</span>
+                            <span class="block text-sm font-bold">{{ chatCtaTitle }}</span>
                             <span class="mt-0.5 block text-xs font-medium text-white/65">
-                                Usually replies within a few hours
+                                Chat with customer support — usually replies within a few hours
                             </span>
                         </span>
                         <i class="ti ti-arrow-right text-white/60" aria-hidden="true" />
                     </Link>
-                    <Link
+                    <div
                         v-else
-                        :href="route('register')"
-                        class="tap-target flex w-full items-center gap-3 rounded-2xl bg-gradient-to-br from-[#1A4FB5] via-[#123B72] to-[#071427] px-4 py-3.5 text-left text-white shadow-[0_12px_28px_-12px_rgba(26,79,181,0.55)] transition-opacity hover:opacity-95"
-                        @click="panelOpen = false"
+                        class="space-y-2"
                     >
-                        <span
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/12 ring-1 ring-white/15"
+                        <Link
+                            :href="route('login')"
+                            class="tap-target flex w-full items-center gap-3 rounded-2xl bg-gradient-to-br from-[#1A4FB5] via-[#123B72] to-[#071427] px-4 py-3.5 text-left text-white shadow-[0_12px_28px_-12px_rgba(26,79,181,0.55)] transition-opacity hover:opacity-95"
+                            @click="panelOpen = false"
                         >
-                            <i class="ti ti-sparkles text-lg" aria-hidden="true" />
-                        </span>
-                        <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-bold">Create your free page</span>
-                            <span class="mt-0.5 block text-xs font-medium text-white/65">
-                                No card required to get started
+                            <span
+                                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/12 ring-1 ring-white/15"
+                            >
+                                <i class="ti ti-message-circle-2 text-lg" aria-hidden="true" />
                             </span>
-                        </span>
-                        <i class="ti ti-arrow-right text-white/60" aria-hidden="true" />
-                    </Link>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-sm font-bold">Chat with customer support</span>
+                                <span class="mt-0.5 block text-xs font-medium text-white/65">
+                                    Sign in to start or continue a chat with our team
+                                </span>
+                            </span>
+                            <i class="ti ti-arrow-right text-white/60" aria-hidden="true" />
+                        </Link>
+                        <Link
+                            :href="route('register')"
+                            class="tap-target flex w-full items-center justify-center gap-1.5 rounded-xl bg-pale px-3 py-2.5 text-xs font-bold text-deep transition-colors hover:bg-tint"
+                            @click="panelOpen = false"
+                        >
+                            Or create a free page
+                            <i class="ti ti-arrow-right" aria-hidden="true" />
+                        </Link>
+                    </div>
                 </div>
             </div>
         </Transition>
@@ -178,7 +190,9 @@ const page = usePage();
 const panelOpen = ref(false);
 const query = ref('');
 
-const isAuthenticated = computed(() => !!page.props.auth?.user);
+const isAuthenticated = computed(() => !!page.props.auth?.user && !page.props.auth?.user?.is_staff);
+
+const chatCtaTitle = computed(() => 'Chat with us');
 
 const showFab = computed(() => {
     try {
@@ -186,7 +200,6 @@ const showFab = computed(() => {
         if (!current) return true;
         if (current === 'help.chat') return false;
         if (String(current).startsWith('admin.')) return false;
-        // Keep auth forms uncluttered
         if (
             current === 'login' ||
             current === 'register' ||
@@ -201,7 +214,7 @@ const showFab = computed(() => {
 });
 
 const fabPositionClass = computed(() => {
-    if (isAuthenticated.value) {
+    if (page.props.auth?.user && !page.props.auth?.user?.is_staff) {
         return 'bottom-[max(5.25rem,calc(env(safe-area-inset-bottom)+4.5rem))] right-4 md:bottom-6 md:right-6';
     }
     return 'bottom-[max(1.25rem,calc(env(safe-area-inset-bottom)+1rem))] right-4 md:bottom-6 md:right-6';

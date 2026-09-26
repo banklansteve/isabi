@@ -34,15 +34,14 @@ class SkillsCatalog
     }
 
     /**
-     * Skills prioritised for a job category (group first, then full catalog).
+     * Skills for a job category only — not the full catalog.
      *
      * @return list<string>
      */
     public static function suggestionsForCategory(?string $category): array
     {
-        $all = self::suggestions();
         if ($category === null || $category === '') {
-            return $all;
+            return [];
         }
 
         /** @var array<string, list<string>> $groups */
@@ -50,17 +49,12 @@ class SkillsCatalog
         $preferred = array_values(array_unique($groups[$category] ?? []));
 
         if ($preferred === []) {
-            return $all;
+            return [];
         }
 
-        $preferredLower = array_map(fn (string $s) => mb_strtolower($s), $preferred);
-        $rest = array_values(array_filter(
-            $all,
-            fn (string $skill) => ! in_array(mb_strtolower($skill), $preferredLower, true),
-        ));
-
-        // Prefer config group order, then any matching catalog names, then the rest.
+        $all = self::suggestions();
         $ordered = [];
+
         foreach ($preferred as $skill) {
             $match = collect($all)->first(
                 fn (string $s) => mb_strtolower($s) === mb_strtolower($skill),
@@ -68,7 +62,42 @@ class SkillsCatalog
             $ordered[] = $match ?: $skill;
         }
 
-        return array_values(array_unique([...$ordered, ...$rest]));
+        return array_values(array_unique($ordered));
+    }
+
+    /**
+     * Skills relevant to selected trades (and optional explicit category).
+     *
+     * @param  list<string>|null  $trades
+     * @return list<string>
+     */
+    public static function suggestionsForTrades(?array $trades, ?string $category = null): array
+    {
+        $parents = [];
+
+        if (filled($category)) {
+            $parents[] = (string) $category;
+        }
+
+        foreach ($trades ?? [] as $trade) {
+            $parent = JobCategories::parentFor(is_string($trade) ? $trade : null);
+            if ($parent) {
+                $parents[] = $parent;
+            }
+        }
+
+        $parents = array_values(array_unique($parents));
+
+        if ($parents === []) {
+            return [];
+        }
+
+        $skills = [];
+        foreach ($parents as $parent) {
+            $skills = [...$skills, ...self::suggestionsForCategory($parent)];
+        }
+
+        return array_values(array_unique($skills));
     }
 
     /**

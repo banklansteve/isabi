@@ -423,7 +423,7 @@ class StaffController extends Controller
         return [
             'staff' => $staff->map(fn (User $user) => StaffPresenter::listPayload($user, null, $adherenceDate))->values(),
             'roles' => StaffRole::query()
-                ->where('is_active', true)
+                ->assignable()
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get()

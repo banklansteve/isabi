@@ -259,11 +259,11 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/work-log', [WorkLogController::class, 'index'])->name('work-log.index');
     Route::get('/work-log/export', [WorkLogController::class, 'export'])->name('work-log.export');
-    Route::get('/work-log/create', [WorkLogController::class, 'create'])->middleware('verified')->name('work-log.create');
-    Route::post('/work-log', [WorkLogController::class, 'store'])->middleware('verified')->name('work-log.store');
+    Route::get('/work-log/create', [WorkLogController::class, 'create'])->name('work-log.create');
+    Route::post('/work-log', [WorkLogController::class, 'store'])->name('work-log.store');
     Route::get('/work-log/{workLog}', [WorkLogController::class, 'show'])->name('work-log.show');
-    Route::get('/work-log/{workLog}/edit', [WorkLogController::class, 'edit'])->middleware('verified')->name('work-log.edit');
-    Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->middleware('verified')->name('work-log.update');
+    Route::get('/work-log/{workLog}/edit', [WorkLogController::class, 'edit'])->name('work-log.edit');
+    Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->name('work-log.update');
     Route::post('/work-log/{workLog}/request-review', [WorkLogController::class, 'requestReview'])
         ->middleware('verified')
         ->name('work-log.request-review');

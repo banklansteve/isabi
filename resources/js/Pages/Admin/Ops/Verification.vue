@@ -1,12 +1,12 @@
 <template>
     <Head title="Verification" />
 
-    <AdminChrome title="Verification" eyebrow="Growth &amp; lifecycle" />
+    <AdminChrome title="Verification Officer" eyebrow="Ops duty" />
 
     <div class="space-y-5">
         <header class="flex flex-col gap-1">
             <h1 class="font-editorial text-[1.6rem] font-semibold leading-tight tracking-tight text-ink sm:text-[1.9rem]">
-                Verification queue
+                Verification Officer
             </h1>
             <p class="max-w-2xl text-[13px] font-medium leading-relaxed text-ink/50">
                 Review new sign-ups’ trade claims and confirm WhatsApp numbers. Verifying marks the account and clears it from this queue.

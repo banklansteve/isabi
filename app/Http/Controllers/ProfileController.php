@@ -10,6 +10,8 @@ use App\Http\Requests\UpdateReviewMessageSettingsRequest;
 use App\Models\ProfileSlugRedirect;
 use App\Services\CloudinaryMediaService;
 use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
+use App\Support\Seo;
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
@@ -37,7 +39,9 @@ class ProfileController extends Controller
             'status' => session('status'),
             'locations' => NigeriaLocations::all(),
             'trades' => JobCategories::tradeLabels(),
-            'skillSuggestions' => SkillsCatalog::suggestions(),
+            'skillSuggestions' => SkillsCatalog::suggestionsForTrades(
+                array_values($user->trades ?? (filled($user->trade) ? [$user->trade] : [])),
+            ),
             'credentialCatalogue' => config('credentials.groups'),
             'maxCredentials' => (int) config('credentials.max', 6),
             'profile' => [
@@ -183,7 +187,7 @@ class ProfileController extends Controller
                 : $user->review_reminder_days,
         ])->save();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'profile.review_messages_updated',
             summary: "{$user->name} updated their review WhatsApp message settings.",
             user: $user,

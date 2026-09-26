@@ -212,12 +212,30 @@ class StaffAuthTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.settings.update'), [
                 'settings' => [
-                    'app.name' => 'Kraftrack Ops',
+                    'app.display_timezone' => 'Africa/Lagos',
                 ],
             ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('app_settings', [
+            'key' => 'app.display_timezone',
+            'value' => 'Africa/Lagos',
+        ]);
+    }
+
+    public function test_super_admin_cannot_update_app_name_setting(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+
+        $this->actingAs($admin)
+            ->put(route('admin.settings.update'), [
+                'settings' => [
+                    'app.name' => 'Kraftrack Ops',
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('app_settings', [
             'key' => 'app.name',
             'value' => 'Kraftrack Ops',
         ]);

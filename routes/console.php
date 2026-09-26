@@ -32,3 +32,4 @@ Schedule::command('reviews:prepare-reminders')->dailyAt('09:15');
 Schedule::command('quotes:process-expiry')->dailyAt('08:30');
 Schedule::command('announcements:dispatch')->everyMinute();
 Schedule::command('patrol:scan')->hourly();
+Schedule::command('analytics:aggregate --days=2 --prune')->dailyAt('01:20');

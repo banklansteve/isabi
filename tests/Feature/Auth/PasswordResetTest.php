@@ -25,9 +25,25 @@ class PasswordResetTest extends TestCase
 
         $user = User::factory()->create();
 
-        $this->post('/forgot-password', ['email' => $user->email]);
+        $this->from('/forgot-password')
+            ->post('/forgot-password', ['email' => $user->email])
+            ->assertRedirect('/forgot-password')
+            ->assertSessionHas('status', 'reset-link-sent');
 
         Notification::assertSentTo($user, ResetPassword::class);
+    }
+
+    public function test_reset_link_request_does_not_reveal_unknown_emails(): void
+    {
+        Notification::fake();
+
+        $this->from('/forgot-password')
+            ->post('/forgot-password', ['email' => 'nobody@example.com'])
+            ->assertRedirect('/forgot-password')
+            ->assertSessionHas('status', 'reset-link-sent')
+            ->assertSessionHasNoErrors();
+
+        Notification::assertNothingSent();
     }
 
     public function test_reset_password_screen_can_be_rendered(): void

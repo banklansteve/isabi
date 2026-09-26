@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Models\User;
 use App\Support\Admin\DashboardMetrics;
+use App\Support\Analytics\ProductAnalyticsReports;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ReferralAdminController extends Controller
 {
-    public function index(DashboardMetrics $metrics): Response
+    public function index(DashboardMetrics $metrics, ProductAnalyticsReports $product): Response
     {
         $totals = [
             'signed_up' => Referral::query()->count(),
@@ -97,12 +98,15 @@ class ReferralAdminController extends Controller
             ])
             ->values();
 
+        $insights = $metrics->referralInsights();
+        $insights['trend'] = $product->referralSignupsTrend();
+
         return Inertia::render('Admin/Referrals/Index', [
             'totals' => $totals,
             'top' => $top,
             'signals' => $signals,
             'recent' => $recent,
-            'insights' => $metrics->referralInsights(),
+            'insights' => $insights,
         ]);
     }
 }

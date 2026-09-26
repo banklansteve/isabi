@@ -13,18 +13,18 @@
                     <i class="ti ti-mail-check text-lg" aria-hidden="true" />
                 </span>
                 <div class="min-w-0">
-                    <p class="text-sm font-bold text-ink">Verify your email to unlock all features</p>
+                    <p class="text-sm font-bold text-ink">Verify your email to unlock full access</p>
                     <p class="mt-0.5 text-xs font-medium text-ink/55">
                         Enter the code we sent to
                         <span class="font-semibold text-ink/70">{{ email }}</span>
-                        — takes a few seconds.
+                        — review requests stay locked until you do.
                     </p>
                 </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
                 <Link
-                    :href="route('verification.notice')"
+                    :href="route('register')"
                     class="tap-target inline-flex items-center justify-center rounded-xl bg-base-action px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-base-hover"
                 >
                     Enter code
@@ -57,6 +57,7 @@ const show = computed(
         !!user.value &&
         !user.value.is_staff &&
         user.value.email_verified_at === null &&
+        !route().current('register') &&
         !route().current('verification.notice'),
 );
 const email = computed(() => user.value?.email || '');

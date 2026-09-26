@@ -6,11 +6,13 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Soft product gate — account stays signed in; only outward-facing / trust actions need a verified email
+ * (e.g. sending a client review request). Everything else in the app stays usable.
+ */
 class EnsureEmailIsVerified
 {
     /**
-     * Soft product gate — user stays logged in, but sensitive actions need a verified email.
-     *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
@@ -22,14 +24,27 @@ class EnsureEmailIsVerified
                 return $next($request);
             }
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Verify your email to unlock this action.',
+                ], 403);
+            }
+
+            $toast = [
+                'type' => 'info',
+                'title' => 'Verify your email',
+                'message' => 'Confirm your email to send review requests and other client-facing actions.',
+                'duration' => 5200,
+            ];
+
+            // Stay in context when possible — banner + toast, not a hard detour.
+            if ($request->headers->get('referer')) {
+                return redirect()->back()->with('toast', $toast);
+            }
+
             return redirect()
-                ->route('verification.notice')
-                ->with('toast', [
-                    'type' => 'info',
-                    'title' => 'Verify your email',
-                    'message' => 'Confirm your email to unlock this action.',
-                    'duration' => 5200,
-                ]);
+                ->route('register')
+                ->with('toast', $toast);
         }
 
         return $next($request);

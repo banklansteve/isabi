@@ -413,4 +413,123 @@ class StaffCaseReferralTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('escalations.0.status', 'Resolved'));
     }
+
+    public function test_ops_cannot_refer_directly_to_super_admin(): void
+    {
+        $super = User::factory()->superAdmin()->create();
+        $referrer = $this->withPermissions(['admin.content.manage'], 'content_block_sa');
+        $review = $this->makeReview($this->logJob($this->artisanUser()));
+
+        $this->actingAs($referrer)
+            ->postJson(route('admin.referrals.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'assignee_id' => $super->id,
+                'note' => 'Please take this as Super Admin.',
+                'queue' => 'moderation',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('assignee_id');
+    }
+
+    public function test_super_admin_can_view_ops_workload_take_over_and_resolve(): void
+    {
+        $super = User::factory()->superAdmin()->create();
+        $referrer = $this->withPermissions(['admin.content.manage'], 'content_referrer');
+        $assignee = $this->withPermissions(['admin.content.manage'], 'content_assignee');
+        $review = $this->makeReview($this->logJob($this->artisanUser()));
+
+        $this->actingAs($referrer)
+            ->postJson(route('admin.referrals.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'assignee_id' => $assignee->id,
+                'note' => 'Looks fake — need a second look.',
+                'queue' => 'moderation',
+            ])
+            ->assertOk();
+
+        $referral = StaffCaseReferral::query()->active()->first();
+        $this->assertNotNull($referral);
+        $this->assertSame($assignee->id, $referral->assignee_user_id);
+
+        $this->actingAs($super)
+            ->get(route('admin.assigned.index', ['staff' => $assignee->id, 'queue' => 'all']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Ops/Assigned')
+                ->where('can_manage', true)
+                ->where('scope', 'staff')
+                ->where('viewing.id', $assignee->id)
+                ->where('items.0.id', $referral->id));
+
+        $this->actingAs($super)
+            ->get(route('admin.assigned.index', ['scope' => 'all', 'queue' => 'all']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Ops/Assigned')
+                ->where('scope', 'all')
+                ->has('items', 1)
+                ->has('growth_duties', 4));
+
+        $this->actingAs($super)
+            ->postJson(route('admin.referrals.take-over', $referral), [
+                'note' => 'Taking this over from ops.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $owned = StaffCaseReferral::query()->active()->where('assignee_user_id', $super->id)->first();
+        $this->assertNotNull($owned);
+        $this->assertSame($review->id, $owned->subject_id);
+        $this->assertSame(StaffCaseReferral::SOURCE_TAKEN_OVER, $owned->source);
+        $this->assertNotNull($owned->acknowledged_at);
+
+        $this->actingAs($super)
+            ->get(route('admin.assigned.index', ['scope' => 'mine', 'queue' => 'all']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('scope', 'mine')
+                ->where('items.0.origin', 'taken_over')
+                ->where('mine_breakdown.taken_over', 1));
+
+        $this->actingAs($super)
+            ->postJson(route('admin.referrals.complete', $owned))
+            ->assertOk();
+
+        $this->assertSame(StaffCaseReferral::STATUS_COMPLETED, $owned->fresh()->status);
+    }
+
+    public function test_super_admin_can_reassign_ops_case_to_another_agent(): void
+    {
+        $super = User::factory()->superAdmin()->create();
+        $agentA = $this->withPermissions(['admin.content.manage'], 'agent_a');
+        $agentB = $this->withPermissions(['admin.content.manage'], 'agent_b');
+        $review = $this->makeReview($this->logJob($this->artisanUser()));
+
+        $this->actingAs($agentA)
+            ->postJson(route('admin.referrals.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'assignee_id' => $agentB->id,
+                'note' => 'Please moderate this review.',
+                'queue' => 'moderation',
+            ])
+            ->assertOk();
+
+        $referral = StaffCaseReferral::query()->active()->first();
+        $this->assertNotNull($referral);
+
+        $this->actingAs($super)
+            ->postJson(route('admin.referrals.reassign', $referral), [
+                'assignee_id' => $agentA->id,
+                'note' => 'Moving this back to the original reviewer.',
+            ])
+            ->assertOk();
+
+        $fresh = StaffCaseReferral::query()->active()->first();
+        $this->assertNotNull($fresh);
+        $this->assertSame($agentA->id, $fresh->assignee_user_id);
+        $this->assertSame($agentA->id, $review->fresh()->assigned_to_user_id);
+    }
 }

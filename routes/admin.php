@@ -98,6 +98,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('my-approvals/{approval}', [ApprovalController::class, 'mineShow'])->name('my-approvals.show');
         Route::get('moderation-desk', [ModerationDeskController::class, 'index'])->name('moderation-desk.index');
         Route::post('referrals', [StaffCaseReferralController::class, 'store'])->name('referrals.store');
+        Route::post('referrals/{referral}/take-over', [StaffCaseReferralController::class, 'takeOver'])->name('referrals.take-over');
+        Route::post('referrals/{referral}/reassign', [StaffCaseReferralController::class, 'reassign'])->name('referrals.reassign');
+        Route::post('referrals/{referral}/complete', [StaffCaseReferralController::class, 'complete'])->name('referrals.complete');
         Route::post('escalations', [StaffCaseReferralController::class, 'escalate'])->name('escalations.store');
         Route::post('escalations/{referral}/acknowledge', [StaffCaseReferralController::class, 'acknowledge'])->name('escalations.acknowledge');
         Route::post('escalations/{referral}/complete', [StaffCaseReferralController::class, 'completeEscalation'])->name('escalations.complete');

@@ -94,9 +94,10 @@
                             icon="ti ti-heading"
                             placeholder="e.g. Kitchen sink leak repair"
                             autocomplete="off"
-                            :hint="`Short title for your work log and public page URL (max ${subjectMax}).`"
-                            :error="form.errors.subject || localErrors.subject"
+                            :hint="subjectHint"
+                            :error="subjectError"
                             autofocus
+                            @update:model-value="onSubjectInput"
                         />
 
                         <FormTextarea
@@ -106,8 +107,8 @@
                             icon="ti ti-tool"
                             :rows="2"
                             placeholder="A bit more detail — materials, rooms, outcome…"
-                            :hint="`Optional detail beyond the subject (max ${descriptionMax}).`"
-                            :error="form.errors.description || localErrors.description"
+                            :hint="`Detail beyond the subject (max ${descriptionMax}). Keep client names for the private Client name field.`"
+                            :error="fieldError('description')"
                         />
 
                         <FormDatePicker
@@ -117,7 +118,21 @@
                             :min-date="minDate"
                             :max-date="today"
                             :hint="`You can log jobs from the last ${maxLookbackDays} days — keeps the record honest.`"
-                            :error="form.errors.worked_on || localErrors.worked_on"
+                            :error="fieldError('worked_on')"
+                        />
+
+                        <FormSelect
+                            id="job_subcategory"
+                            v-model="form.job_subcategory"
+                            label="Trade for this job"
+                            icon="ti ti-tags"
+                            placeholder="Select a trade"
+                            :options="tradeOptions"
+                            searchable
+                            search-placeholder="Search your trades…"
+                            hint="Required — from the trades on your profile. Used on your public page."
+                            :error="fieldError('job_subcategory')"
+                            @change="onTradeChange"
                         />
                     </div>
                 </section>
@@ -153,22 +168,8 @@
                             icon="ti ti-user"
                             placeholder="e.g. Mrs. Adeyemi"
                             autocomplete="off"
-                            hint="Private — only you see this."
-                            :error="form.errors.client_name"
-                        />
-
-                        <FormSelect
-                            id="job_subcategory"
-                            v-model="form.job_subcategory"
-                            label="Trade for this job"
-                            icon="ti ti-tags"
-                            placeholder="Select a trade"
-                            :options="tradeOptions"
-                            searchable
-                            search-placeholder="Search your trades…"
-                            hint="From the trades on your profile — pick which one this job used."
-                            :error="form.errors.job_subcategory"
-                            @change="onTradeChange"
+                            hint="Private — only you see this. Never put this in the subject."
+                            :error="fieldError('client_name')"
                         />
 
                         <div class="rounded-2xl bg-pale/80 p-4 ring-1 ring-ink/[0.04] sm:p-5">
@@ -189,7 +190,7 @@
                                         :options="states"
                                         searchable
                                         search-placeholder="Search states…"
-                                        :error="form.errors.service_state"
+                                        :error="fieldError('service_state')"
                                         @change="onStateChange"
                                     />
                                     <FormSelect
@@ -202,7 +203,7 @@
                                         searchable
                                         search-placeholder="Search LGAs…"
                                         :disabled="!form.service_state"
-                                        :error="form.errors.service_lga"
+                                        :error="fieldError('service_lga')"
                                     />
                                 </div>
                                 <FormTextInput
@@ -212,7 +213,7 @@
                                     icon="ti ti-map-2"
                                     placeholder="e.g. Ikeja, Bodija"
                                     autocomplete="address-level2"
-                                    :error="form.errors.service_city"
+                                    :error="fieldError('service_city')"
                                 />
                             </div>
                         </div>
@@ -238,7 +239,7 @@
                             inputmode="tel"
                             autocomplete="tel"
                             hint="Needed when you want to request a review for this job."
-                            :error="form.errors.client_whatsapp"
+                            :error="fieldError('client_whatsapp')"
                             @blur="normalizeWhatsapp"
                         />
 
@@ -251,7 +252,7 @@
                             placeholder="0"
                             inputmode="decimal"
                             hint="Private — only you see this. Never shown on your public page."
-                            :error="form.errors.amount_charged"
+                            :error="fieldError('amount_charged')"
                             input-class="tabular-nums"
                         />
                     </div>
@@ -444,6 +445,7 @@ import FormStepProgress from '@/Components/Form/FormStepProgress.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { subjectPrivacyViolation } from '@/utils/jobSubjectPrivacy';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -470,6 +472,7 @@ const localErrors = reactive({
     subject: '',
     description: '',
     worked_on: '',
+    job_subcategory: '',
 });
 
 const steps = [
@@ -497,6 +500,49 @@ const form = useForm({
     from_quote_uid: props.fromQuote?.uid || '',
 });
 
+const CLEARABLE_FIELDS = [
+    'subject',
+    'description',
+    'worked_on',
+    'client_name',
+    'job_category',
+    'job_subcategory',
+    'service_state',
+    'service_lga',
+    'service_city',
+    'client_whatsapp',
+    'amount_charged',
+    'media',
+];
+
+const clearFieldError = (field) => {
+    if (form.errors[field]) {
+        form.clearErrors(field);
+    }
+    if (Object.prototype.hasOwnProperty.call(localErrors, field)) {
+        localErrors[field] = '';
+    }
+};
+
+const fieldError = (field) => form.errors[field] || localErrors[field] || '';
+
+const subjectHint = computed(
+    () =>
+        `Public title (max ${subjectMax.value}). Don’t include client names, phone numbers, or home addresses — use the private Client name field instead.`,
+);
+
+const subjectError = computed(() => {
+    const live = subjectPrivacyViolation(form.subject, {
+        clientName: form.client_name,
+        clientWhatsapp: form.client_whatsapp,
+    });
+    return live || fieldError('subject');
+});
+
+const onSubjectInput = () => {
+    clearFieldError('subject');
+};
+
 const states = computed(() => Object.keys(props.locations || {}));
 const tradeOptions = computed(() => props.tradeOptions || []);
 const parentByTrade = computed(() => {
@@ -516,6 +562,8 @@ const lgas = computed(() => {
 
 const onTradeChange = () => {
     form.job_category = parentByTrade.value[form.job_subcategory] || 'Other';
+    clearFieldError('job_subcategory');
+    clearFieldError('job_category');
 };
 
 onMounted(() => {
@@ -525,7 +573,34 @@ onMounted(() => {
     }
 });
 
-const formHasErrors = computed(() => Object.keys(form.errors || {}).length > 0);
+for (const field of CLEARABLE_FIELDS) {
+    watch(
+        () => form[field],
+        () => clearFieldError(field),
+    );
+}
+
+watch(
+    () => [form.client_name, form.client_whatsapp],
+    () => {
+        // Re-check subject when private client fields change.
+        if (form.errors.subject || localErrors.subject) {
+            const live = subjectPrivacyViolation(form.subject, {
+                clientName: form.client_name,
+                clientWhatsapp: form.client_whatsapp,
+            });
+            if (!live) {
+                clearFieldError('subject');
+            }
+        }
+    },
+);
+
+const formHasErrors = computed(() => {
+    if (subjectError.value) return true;
+    if (CLEARABLE_FIELDS.some((field) => fieldError(field))) return true;
+    return Object.keys(form.errors || {}).some((k) => k.startsWith('media.'));
+});
 
 const mediaError = computed(() => {
     if (form.errors.media) return form.errors.media;
@@ -539,7 +614,7 @@ const onMediaPreviews = (items) => {
 
 const headerDescription = computed(() => {
     if (step.value === 0) {
-        return 'Start with a clear subject, what you did, and when.';
+        return 'Start with a clear public title, what you did, when, and which trade.';
     }
     if (step.value === 1) {
         return 'Add context that helps later — photos, client notes, location, and more.';
@@ -586,6 +661,8 @@ const previewRows = computed(() => [
 
 const onStateChange = () => {
     form.service_lga = '';
+    clearFieldError('service_state');
+    clearFieldError('service_lga');
 };
 
 const normalizeWhatsapp = () => {
@@ -598,6 +675,7 @@ const validateStep1 = () => {
     localErrors.subject = '';
     localErrors.description = '';
     localErrors.worked_on = '';
+    localErrors.job_subcategory = '';
 
     const subject = form.subject.trim();
     if (subject.length < 3) {
@@ -606,6 +684,11 @@ const validateStep1 = () => {
             : 'Add a short subject — this is the title clients and search engines see.';
     } else if (subject.length > subjectMax.value) {
         localErrors.subject = `Keep the subject under ${subjectMax.value} characters.`;
+    } else {
+        localErrors.subject = subjectPrivacyViolation(subject, {
+            clientName: form.client_name,
+            clientWhatsapp: form.client_whatsapp,
+        });
     }
 
     const desc = form.description.trim();
@@ -619,12 +702,30 @@ const validateStep1 = () => {
     if (!form.worked_on) {
         localErrors.worked_on = 'Pick the date this job was done.';
     }
+    if (!form.job_subcategory) {
+        localErrors.job_subcategory = 'Pick which trade this job falls under.';
+    }
 
-    return !localErrors.subject && !localErrors.description && !localErrors.worked_on;
+    return (
+        !localErrors.subject &&
+        !localErrors.description &&
+        !localErrors.worked_on &&
+        !localErrors.job_subcategory
+    );
 };
 
 const goNext = () => {
     if (step.value === 0 && !validateStep1()) return;
+    // Drop stale server errors once the user moves forward with valid essentials.
+    if (step.value === 0) {
+        form.clearErrors(
+            'subject',
+            'description',
+            'worked_on',
+            'job_subcategory',
+            'job_category',
+        );
+    }
     step.value = Math.min(step.value + 1, 2);
     maxReachable.value = Math.max(maxReachable.value, step.value);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -636,6 +737,11 @@ const goBack = () => {
 };
 
 const skipToPreview = () => {
+    if (!validateStep1()) {
+        step.value = 0;
+        return;
+    }
+    form.clearErrors();
     step.value = 2;
     maxReachable.value = Math.max(maxReachable.value, 2);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -673,14 +779,13 @@ const submit = () => {
             forceFormData: true,
             preserveScroll: true,
             onError: (errors) => {
-                if (errors.subject || errors.description || errors.worked_on) {
+                if (errors.subject || errors.description || errors.worked_on || errors.job_subcategory) {
                     step.value = 0;
                 } else if (
                     errors.media ||
                     Object.keys(errors).some((k) => k.startsWith('media.')) ||
                     errors.client_whatsapp ||
                     errors.job_category ||
-                    errors.job_subcategory ||
                     errors.service_state ||
                     errors.service_lga
                 ) {
@@ -690,15 +795,6 @@ const submit = () => {
             },
         });
 };
-
-watch(
-    () => [form.errors.description, form.errors.worked_on, form.errors.media, mediaError.value],
-    () => {
-        if (form.errors.description || form.errors.worked_on) {
-            step.value = 0;
-        }
-    },
-);
 </script>
 
 <style scoped>

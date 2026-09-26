@@ -7,6 +7,7 @@ use App\Models\TokenTransaction;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\Tokens\TokenWallet;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -98,7 +99,7 @@ class ReferralService
                 'reward_tokens' => 0,
             ]);
 
-            ActivityLogger::log(
+            AnalyticsEventLogger::log(
                 action: 'referral.signed_up',
                 summary: "{$referred->name} joined via {$referrer->name}'s invite.",
                 user: $referrer,

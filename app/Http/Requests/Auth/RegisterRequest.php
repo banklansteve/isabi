@@ -47,10 +47,10 @@ class RegisterRequest extends FormRequest
             ],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'job_category' => ['nullable', 'string', 'max:160', Rule::in(JobCategories::parents())],
-            'trades' => ['required', 'array', 'min:1', 'max:6'],
+            'trades' => ['required', 'array', 'min:1', 'max:12'],
             'trades.*' => ['required', 'string', 'max:120'],
             'trade' => ['required', 'string', 'max:120'],
-            'skills' => ['nullable', 'array', 'max:8'],
+            'skills' => ['nullable', 'array', 'max:15'],
             'skills.*' => ['required', 'string', 'max:40'],
             'state' => ['required', 'string', Rule::in($states)],
             'lga' => ['required', 'string', Rule::in($lgas)],
@@ -72,8 +72,8 @@ class RegisterRequest extends FormRequest
             'business_name.required' => 'Add a business name — this becomes your public page URL.',
             'trades.required' => 'Pick at least one trade or specialty.',
             'trades.min' => 'Pick at least one trade or specialty.',
-            'trades.max' => 'You can select up to 6 trades.',
-            'skills.max' => 'You can highlight up to 8 skills.',
+            'trades.max' => 'You can select up to 12 trades.',
+            'skills.max' => 'You can highlight up to 15 skills.',
             'skills.*.max' => 'Each skill must be 40 characters or fewer.',
         ];
     }
@@ -86,7 +86,7 @@ class RegisterRequest extends FormRequest
             ->map(fn ($trade) => trim((string) $trade))
             ->filter()
             ->unique(fn ($trade) => mb_strtolower($trade))
-            ->take(6)
+            ->take(12)
             ->values()
             ->all();
 
@@ -99,7 +99,7 @@ class RegisterRequest extends FormRequest
             ->map(fn ($skill) => trim((string) $skill))
             ->filter()
             ->unique(fn ($skill) => mb_strtolower($skill))
-            ->take(8)
+            ->take(15)
             ->values()
             ->all();
 

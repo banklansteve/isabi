@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\Auth\SessionLifetime;
 use App\Support\Patrol\PatrolIp;
 use Illuminate\Http\RedirectResponse;
@@ -51,11 +51,14 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
         PatrolIp::rememberLogin($user, $request->ip());
 
-        ActivityLogger::log(
+        // Product analytics only — not the audit trail (anomaly detection deferred).
+        AnalyticsEventLogger::log(
             action: 'auth.login',
             summary: "{$user->name} signed in to Kraftrack.",
             user: $user,
         );
+
+        $user->forceFill(['last_seen_at' => now()])->saveQuietly();
 
         $home = route($user->homeRouteName(), absolute: false);
 
@@ -69,14 +72,7 @@ class AuthenticatedSessionController extends Controller
     {
         $user = $request->user();
 
-        if ($user) {
-            ActivityLogger::log(
-                action: 'auth.logout',
-                summary: "{$user->name} signed out of Kraftrack.",
-                user: $user,
-            );
-        }
-
+        // Logout is not audited or sent to product analytics going forward.
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

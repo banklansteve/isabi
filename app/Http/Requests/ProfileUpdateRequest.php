@@ -32,7 +32,7 @@ class ProfileUpdateRequest extends FormRequest
         return match ($section) {
             'expertise' => [
                 'section' => $sectionRule,
-                'skills' => ['nullable', 'array', 'max:8'],
+                'skills' => ['nullable', 'array', 'max:15'],
                 'skills.*' => ['required', 'string', 'max:40'],
                 'credentials' => ['nullable', 'array', 'max:'.$maxCredentials],
                 'credentials.*.title' => ['required', 'string', 'max:90'],
@@ -70,7 +70,7 @@ class ProfileUpdateRequest extends FormRequest
         return [
             'whatsapp.regex' => 'Enter a valid Nigerian WhatsApp number (e.g. 0803… or +234803…).',
             'lga.in' => 'Select a local government that matches the state you chose.',
-            'skills.max' => 'You can highlight up to 8 skills on your page.',
+            'skills.max' => 'You can highlight up to 15 skills on your page.',
             'skills.*.max' => 'Each skill must be 40 characters or fewer.',
             'credentials.max' => 'You can list up to :max credentials on your page.',
             'credentials.*.title.required' => 'Give the credential a name.',
@@ -102,7 +102,7 @@ class ProfileUpdateRequest extends FormRequest
                 ->map(fn ($skill) => trim((string) $skill))
                 ->filter()
                 ->unique(fn ($skill) => mb_strtolower($skill))
-                ->take(8)
+                ->take(15)
                 ->values()
                 ->all();
 

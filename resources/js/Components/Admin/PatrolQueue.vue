@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <form class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4" @submit.prevent="applyFilters">
+    <form class="mb-4 rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.05] sm:p-5" @submit.prevent="applyFilters">
         <div class="flex flex-col gap-3">
             <div class="relative min-w-0">
                 <i class="ti ti-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
@@ -25,32 +25,73 @@
                     class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] py-2.5 ps-10 pe-4 text-sm font-medium outline-none focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
                 />
             </div>
-            <div class="no-scrollbar flex flex-wrap gap-1.5">
-                <select v-model="form.status" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base">
-                    <option value="">All statuses</option>
-                    <option v-for="opt in options.statuses" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-                <select v-model="form.severity" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base">
-                    <option value="">All severities</option>
-                    <option v-for="opt in options.severities" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-                <select v-model="form.rule" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base">
-                    <option value="">All rules</option>
-                    <option v-for="opt in ruleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
-                <div class="min-w-[10.5rem]">
-                    <FormDatePicker v-model="form.from" label="From" />
+            <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-2">
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormSelect
+                        id="patrol-status"
+                        v-model="form.status"
+                        size="sm"
+                        placeholder="All statuses"
+                        :options="statusOptions"
+                    />
                 </div>
-                <div class="min-w-[10.5rem]">
-                    <FormDatePicker v-model="form.to" label="To" />
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormSelect
+                        id="patrol-severity"
+                        v-model="form.severity"
+                        size="sm"
+                        placeholder="All severities"
+                        :options="severityOptions"
+                    />
                 </div>
-                <select v-model="form.sort" class="rounded-full border border-ink/10 bg-[#F4F6FA] px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-base">
-                    <option value="severity">Severity first</option>
-                    <option value="flagged">Flagged date</option>
-                </select>
-                <button type="submit" class="tap-target rounded-full bg-base-action px-4 py-2 text-[13px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] hover:bg-base-hover">
-                    Filter
-                </button>
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormSelect
+                        id="patrol-rule"
+                        v-model="form.rule"
+                        size="sm"
+                        placeholder="All rules"
+                        :options="ruleSelectOptions"
+                    />
+                </div>
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormDatePicker
+                        id="patrol-from"
+                        v-model="form.from"
+                        size="sm"
+                        placeholder="From"
+                    />
+                </div>
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormDatePicker
+                        id="patrol-to"
+                        v-model="form.to"
+                        size="sm"
+                        placeholder="To"
+                    />
+                </div>
+                <div class="min-w-0 w-full xl:flex-1">
+                    <FormSelect
+                        id="patrol-sort"
+                        v-model="form.sort"
+                        size="sm"
+                        :options="sortOptions"
+                    />
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                        type="submit"
+                        class="tap-target inline-flex h-[42px] items-center justify-center rounded-xl bg-base-action px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] hover:bg-base-hover"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        type="button"
+                        class="tap-target inline-flex h-[42px] items-center justify-center rounded-xl bg-pale px-4 text-[13px] font-semibold text-ink/60 hover:bg-tint hover:text-deep"
+                        @click="resetFilters"
+                    >
+                        Reset
+                    </button>
+                </div>
             </div>
         </div>
     </form>
@@ -118,6 +159,7 @@
 <script setup>
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
+import FormSelect from '@/Components/Form/FormSelect.vue';
 import PatrolCaseDrawer from '@/Components/Admin/PatrolCaseDrawer.vue';
 import { adminPath, visitAdmin } from '@/utils/adminVisit';
 import { toast } from '@/utils/adminRange';
@@ -140,6 +182,22 @@ const props = defineProps({
 const isReviews = computed(() => props.queue === 'reviews');
 const rows = ref([...props.cases]);
 const ruleOptions = computed(() => (isReviews.value ? (props.options.review_rules || []) : (props.options.rules || [])));
+const statusOptions = computed(() => [
+    { value: '', label: 'All statuses' },
+    ...(props.options.statuses || []),
+]);
+const severityOptions = computed(() => [
+    { value: '', label: 'All severities' },
+    ...(props.options.severities || []),
+]);
+const ruleSelectOptions = computed(() => [
+    { value: '', label: 'All rules' },
+    ...ruleOptions.value,
+]);
+const sortOptions = [
+    { value: 'severity', label: 'Severity first' },
+    { value: 'flagged', label: 'Flagged date' },
+];
 const tabStats = computed(() => props.stats);
 const listRoute = computed(() => (isReviews.value ? 'admin.patrol.reviews' : 'admin.patrol.jobs'));
 const openId = ref(null);
@@ -338,5 +396,16 @@ watch(
 
 const applyFilters = () => {
     visitAdmin(route(listRoute.value, filterQuery()), { preserveState: true, replace: true });
+};
+
+const resetFilters = () => {
+    form.q = '';
+    form.status = '';
+    form.severity = '';
+    form.rule = '';
+    form.from = '';
+    form.to = '';
+    form.sort = 'severity';
+    applyFilters();
 };
 </script>

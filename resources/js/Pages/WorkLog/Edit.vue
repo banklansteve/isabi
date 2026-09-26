@@ -44,8 +44,8 @@
                             placeholder="e.g. Kitchen sink leak repair"
                             autocomplete="off"
                             :disabled="!editFlags.can_edit_description"
-                            hint="Short title for lists and your public job URL."
-                            :error="form.errors.subject"
+                            :hint="subjectHint"
+                            :error="subjectError"
                         />
 
                         <FormTextarea
@@ -57,7 +57,7 @@
                             placeholder="e.g. Fixed kitchen sink leak — replaced trap and resealed joints"
                             :disabled="!editFlags.can_edit_description"
                             :hint="descriptionHint"
-                            :error="form.errors.description"
+                            :error="fieldError('description')"
                         />
 
                         <FormDatePicker
@@ -68,7 +68,7 @@
                             :max-date="today"
                             :disabled="!editFlags.can_edit_date"
                             :hint="dateHint"
-                            :error="form.errors.worked_on"
+                            :error="fieldError('worked_on')"
                         />
                     </div>
                 </section>
@@ -89,8 +89,8 @@
                             icon="ti ti-user"
                             placeholder="e.g. Mrs. Adeyemi"
                             autocomplete="off"
-                            hint="Private — only you see this."
-                            :error="form.errors.client_name"
+                            hint="Private — only you see this. Never put this in the subject."
+                            :error="fieldError('client_name')"
                         />
 
                         <FormSelect
@@ -102,8 +102,8 @@
                             :options="tradeOptions"
                             searchable
                             search-placeholder="Search your trades…"
-                            hint="From the trades on your profile."
-                            :error="form.errors.job_subcategory"
+                            hint="Required — from the trades on your profile."
+                            :error="fieldError('job_subcategory')"
                             @change="onTradeChange"
                         />
 
@@ -117,7 +117,7 @@
                                 :options="states"
                                 searchable
                                 search-placeholder="Search states…"
-                                :error="form.errors.service_state"
+                                :error="fieldError('service_state')"
                                 @change="onStateChange"
                             />
 
@@ -131,7 +131,7 @@
                                 searchable
                                 search-placeholder="Search LGAs…"
                                 :disabled="!form.service_state"
-                                :error="form.errors.service_lga"
+                                :error="fieldError('service_lga')"
                             />
                         </div>
 
@@ -141,7 +141,7 @@
                             label="City or town"
                             icon="ti ti-map-2"
                             placeholder="e.g. Ikeja, Bodija"
-                            :error="form.errors.service_city"
+                            :error="fieldError('service_city')"
                         />
 
                         <div v-if="existingMedia.length" class="space-y-2">
@@ -195,7 +195,7 @@
                             icon="ti ti-brand-whatsapp"
                             placeholder="0803 000 0000"
                             inputmode="tel"
-                            :error="form.errors.client_whatsapp"
+                            :error="fieldError('client_whatsapp')"
                             @blur="normalizeWhatsapp"
                         />
 
@@ -208,7 +208,7 @@
                             placeholder="0"
                             inputmode="decimal"
                             hint="Private — only you see this."
-                            :error="form.errors.amount_charged"
+                            :error="fieldError('amount_charged')"
                             input-class="tabular-nums"
                         />
                     </div>
@@ -239,8 +239,9 @@ import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { subjectPrivacyViolation } from '@/utils/jobSubjectPrivacy';
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     entry: { type: Object, required: true },
@@ -277,6 +278,50 @@ const form = useForm({
     remove_media: [],
 });
 
+const CLEARABLE_FIELDS = [
+    'subject',
+    'description',
+    'worked_on',
+    'client_name',
+    'job_category',
+    'job_subcategory',
+    'service_state',
+    'service_lga',
+    'service_city',
+    'client_whatsapp',
+    'amount_charged',
+    'media',
+];
+
+const clearFieldError = (field) => {
+    if (form.errors[field]) {
+        form.clearErrors(field);
+    }
+};
+
+const fieldError = (field) => form.errors[field] || '';
+
+const subjectHint =
+    'Public title. Don’t include client names, phone numbers, or home addresses — use the private Client name field instead.';
+
+const subjectError = computed(() => {
+    if (!props.editFlags.can_edit_description) {
+        return fieldError('subject');
+    }
+    const live = subjectPrivacyViolation(form.subject, {
+        clientName: form.client_name,
+        clientWhatsapp: form.client_whatsapp,
+    });
+    return live || fieldError('subject');
+});
+
+for (const field of CLEARABLE_FIELDS) {
+    watch(
+        () => form[field],
+        () => clearFieldError(field),
+    );
+}
+
 const states = computed(() => Object.keys(props.locations || {}));
 
 const tradeOptions = computed(() => {
@@ -307,6 +352,8 @@ const lgas = computed(() => {
 
 const onTradeChange = () => {
     form.job_category = parentByTrade.value[form.job_subcategory] || 'Other';
+    clearFieldError('job_subcategory');
+    clearFieldError('job_category');
 };
 
 const mediaError = computed(() => {
@@ -331,7 +378,7 @@ const descriptionHint = computed(() => {
     if (!props.editFlags.can_edit_description) {
         return `Locked after ${props.editFlags.description_edit_days} days — keeps your work log a real record.`;
     }
-    return `Up to 2,000 characters. Editable for ${props.editFlags.description_edit_days} days after logging, or until a review is requested.`;
+    return `Up to 2,000 characters. Editable for ${props.editFlags.description_edit_days} days after logging, or until a review is requested. Keep client names private.`;
 });
 
 const dateHint = computed(() => {
@@ -346,6 +393,8 @@ const dateHint = computed(() => {
 
 const onStateChange = () => {
     form.service_lga = '';
+    clearFieldError('service_state');
+    clearFieldError('service_lga');
 };
 
 const removeExisting = (id) => {
@@ -362,6 +411,12 @@ const normalizeWhatsapp = () => {
 };
 
 const submit = () => {
+    if (props.editFlags.can_edit_description && subjectError.value && !fieldError('subject')) {
+        // Live privacy block — surface as a form error without a round-trip.
+        form.setError('subject', subjectError.value);
+        return;
+    }
+
     normalizeWhatsapp();
 
     const payload = {
@@ -385,11 +440,9 @@ const submit = () => {
         payload.worked_on = form.worked_on;
     }
 
-    form
-        .transform(() => payload)
-        .post(route('work-log.update', props.entry.uid), {
-            forceFormData: true,
-            preserveScroll: true,
-        });
+    form.transform(() => payload).post(route('work-log.update', props.entry.uid), {
+        forceFormData: true,
+        preserveScroll: true,
+    });
 };
 </script>

@@ -2,59 +2,65 @@
     <Head title="Admin & staff" />
 
     <AdminChrome title="Admin & staff" :eyebrow="`${list.total.value.toLocaleString()} people`" />
-        <div class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div class="relative min-w-0 flex-1">
-                    <i class="ti ti-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
-                    <input
-                        v-model="list.q.value"
-                        type="search"
-                        placeholder="Search name or email…"
-                        class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] py-2.5 ps-10 pe-4 text-sm font-medium outline-none transition-[box-shadow,border-color] duration-150 focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
-                    />
-                </div>
-                <button
-                    type="button"
-                    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-colors duration-150 hover:bg-base-hover active:scale-[0.98]"
-                    @click="inviteOpen = true"
-                >
-                    <i class="ti ti-user-plus" aria-hidden="true" />
-                    Invite staff
-                </button>
-            </div>
 
-            <div class="mt-3 no-scrollbar flex flex-wrap items-center gap-1.5 overflow-x-auto border-t border-ink/[0.05] pt-3">
-                <div class="inline-flex flex-wrap items-end gap-2 rounded-full bg-pale px-3 py-1.5">
-                    <span class="self-center text-[12px] font-semibold text-ink/55">Adherence</span>
-                    <div class="w-44">
-                        <FormDatePicker
-                            v-model="adherenceDateDraft"
-                            label="Date"
-                            :max-date="todayIso"
-                        />
-                    </div>
-                    <button
-                        type="button"
-                        class="rounded-md bg-base-action px-2.5 py-0.5 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
-                        :disabled="adherenceApplying || adherenceDateDraft === appliedAdherenceDate"
-                        @click="applyAdherenceDate"
-                    >
-                        {{ adherenceApplying ? 'Loading…' : 'Apply' }}
-                    </button>
-                </div>
-                <select v-model="statusFilter" class="chip-select" :class="statusFilter ? 'chip-select--on' : ''">
-                    <option value="">All statuses</option>
-                    <option value="invited">Invited</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Disabled</option>
-                </select>
-                <select v-model="roleFilter" class="chip-select" :class="roleFilter ? 'chip-select--on' : ''">
-                    <option value="">All roles</option>
-                    <option value="super_admin">Super Admin</option>
-                    <option v-for="role in roles" :key="role.id" :value="String(role.id)">{{ role.name }}</option>
-                </select>
+    <div class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative min-w-0 flex-1">
+                <i class="ti ti-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/30" aria-hidden="true" />
+                <input
+                    v-model="list.q.value"
+                    type="search"
+                    placeholder="Search name or email…"
+                    class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] py-2.5 ps-10 pe-4 text-sm font-medium outline-none transition-[box-shadow,border-color] duration-150 focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
+                />
+            </div>
+            <FormButton
+                variant="primary"
+                label="Invite staff"
+                icon-left="ti ti-user-plus"
+                class="!shrink-0 !rounded-xl !px-4 !py-2.5 !text-sm"
+                @click="inviteOpen = true"
+            />
+        </div>
+
+        <div class="mt-3 flex flex-col gap-3 border-t border-ink/[0.05] pt-3 xl:flex-row xl:items-center xl:gap-2">
+            <div class="min-w-0 w-full xl:max-w-[13rem] xl:flex-1">
+                <FormDatePicker
+                    id="staff-adherence-date"
+                    v-model="adherenceDateDraft"
+                    size="sm"
+                    placeholder="Adherence date"
+                    :max-date="todayIso"
+                />
+            </div>
+            <button
+                type="button"
+                class="tap-target inline-flex h-[42px] shrink-0 items-center justify-center rounded-xl bg-base-action px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-colors hover:bg-base-hover disabled:opacity-50"
+                :disabled="adherenceApplying || adherenceDateDraft === appliedAdherenceDate"
+                @click="applyAdherenceDate"
+            >
+                {{ adherenceApplying ? 'Loading…' : 'Apply date' }}
+            </button>
+            <div class="min-w-0 w-full xl:flex-1">
+                <FormSelect
+                    id="staff-status"
+                    v-model="statusFilter"
+                    size="sm"
+                    placeholder="All statuses"
+                    :options="statusOptions"
+                />
+            </div>
+            <div class="min-w-0 w-full xl:flex-1">
+                <FormSelect
+                    id="staff-duty"
+                    v-model="roleFilter"
+                    size="sm"
+                    placeholder="All duties"
+                    :options="dutyOptions"
+                />
             </div>
         </div>
+    </div>
 
         <div class="overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05]">
             <AdminEmpty
@@ -63,14 +69,13 @@
                 :description="`Invite your first operations teammate. They’ll get one email with a link to set up their account — it expires in ${invite_ttl_hours} hours.`"
                 icon="ti ti-shield-lock"
             >
-                <button
-                    type="button"
-                    class="inline-flex items-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-colors duration-150 hover:bg-base-hover"
+                <FormButton
+                    variant="primary"
+                    label="Invite staff"
+                    icon-left="ti ti-user-plus"
+                    class="!rounded-xl !px-4 !py-2.5 !text-sm"
                     @click="inviteOpen = true"
-                >
-                    <i class="ti ti-user-plus" aria-hidden="true" />
-                    Invite staff
-                </button>
+                />
             </AdminEmpty>
             <AdminEmpty
                 v-else-if="!list.pageItems.value.length"
@@ -222,7 +227,7 @@
                                     </div>
                                     <p class="mt-0.5 truncate text-[13px] font-medium text-ink/45">{{ person.email }}</p>
                                     <p class="mt-1 text-[12px] font-medium text-ink/40">
-                                        {{ person.roles.map((role) => role.name).join(' · ') || 'No roles' }}
+                                        {{ person.roles.map((role) => role.name).join(' · ') || 'No duties' }}
                                     </p>
                                     <p class="mt-1 text-[12px] text-ink/35">
                                         Last login {{ person.last_login || 'never' }} · Total idle {{ formatTotalIdle(person.adherence?.summary) }}
@@ -291,58 +296,54 @@
 
         <AdminDrawer :open="inviteOpen" title="Invite staff" eyebrow="New teammate" @close="closeInvite">
             <form class="space-y-4" @submit.prevent="invite">
-                <label class="block">
-                    <span class="text-[12px] font-semibold text-ink/50">Work email</span>
-                    <input
-                        v-model="inviteForm.email"
-                        type="email"
-                        required
-                        autocomplete="off"
-                        placeholder="you@kraftrack.test"
-                        class="mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm font-medium outline-none focus:ring-4"
-                        :class="inviteErrors.email ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-ink/10 focus:border-base focus:ring-base/15'"
-                    />
-                    <p v-if="inviteErrors.email" class="mt-1.5 text-xs font-semibold text-red-500">{{ inviteErrors.email }}</p>
-                </label>
-                <label class="block">
-                    <span class="text-[12px] font-semibold text-ink/50">Name <span class="font-medium text-ink/35">(optional)</span></span>
-                    <input
-                        v-model="inviteForm.name"
-                        type="text"
-                        placeholder="They can fill this in when they accept"
-                        class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
-                    />
-                </label>
-                <label class="block">
-                    <span class="text-[12px] font-semibold text-ink/50">Suggested role <span class="font-medium text-ink/35">(optional)</span></span>
-                    <select
-                        v-model="inviteForm.suggested_role_id"
-                        class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base"
-                    >
-                        <option value="">None — assign later</option>
-                        <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}</option>
-                    </select>
-                    <p class="mt-1.5 text-[12px] font-medium text-ink/40">
-                        Not applied until they accept. You can assign or change roles anytime after.
-                    </p>
-                </label>
+                <FormTextInput
+                    id="invite-email"
+                    v-model="inviteForm.email"
+                    type="email"
+                    label="Work email"
+                    icon="ti ti-mail"
+                    autocomplete="off"
+                    required
+                    placeholder="you@kraftrack.test"
+                    :error="inviteErrors.email"
+                />
+                <FormTextInput
+                    id="invite-name"
+                    v-model="inviteForm.name"
+                    label="Name (optional)"
+                    icon="ti ti-user"
+                    placeholder="They can fill this in when they accept"
+                />
+                <FormSelect
+                    id="invite-duty"
+                    v-model="inviteForm.suggested_role_id"
+                    label="Suggested duty (optional)"
+                    icon="ti ti-shield"
+                    placeholder="None — assign later"
+                    :options="inviteDutyOptions"
+                    hint="Not applied until they accept. You can assign or change duties anytime after."
+                />
                 <p class="rounded-xl bg-pale px-3 py-2.5 text-[13px] font-medium text-ink/55">
                     They’ll get one email with a personal setup link. Opening it confirms their email. It expires in {{ invite_ttl_hours }} hours.
                 </p>
             </form>
             <template #footer>
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink/50 hover:bg-pale" @click="closeInvite">
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded-xl bg-base-action px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-colors duration-150 hover:bg-base-hover disabled:opacity-50"
-                        :disabled="inviteBusy || !inviteForm.email"
+                    <FormButton
+                        variant="secondary"
+                        label="Cancel"
+                        class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
+                        @click="closeInvite"
+                    />
+                    <FormButton
+                        variant="primary"
+                        label="Send invite"
+                        loading-label="Sending…"
+                        :loading="inviteBusy"
+                        :disabled="!inviteForm.email"
+                        class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
                         @click="invite"
-                    >
-                        {{ inviteBusy ? 'Sending…' : 'Send invite' }}
-                    </button>
+                    />
                 </div>
             </template>
         </AdminDrawer>
@@ -407,10 +408,13 @@ import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import AdminStaffDrawer from '@/Components/Admin/AdminStaffDrawer.vue';
 import AdminStaffKebab from '@/Components/Admin/AdminStaffKebab.vue';
+import AdminChrome from '@/Components/Admin/AdminChrome.vue';
+import FormButton from '@/Components/Form/FormButton.vue';
+import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
+import FormSelect from '@/Components/Form/FormSelect.vue';
+import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import { useClientList } from '@/Composables/useClientList';
 import { toast } from '@/utils/adminRange';
-import AdminChrome from '@/Components/Admin/AdminChrome.vue';
-import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -453,10 +457,32 @@ const bulkBody = ref('Hi {{first_name}}, ');
 const bulkChannels = ref(['in_app', 'email']);
 let panelSeq = 0;
 
+const statusOptions = [
+    { value: '', label: 'All statuses' },
+    { value: 'invited', label: 'Invited' },
+    { value: 'active', label: 'Active' },
+    { value: 'suspended', label: 'Disabled' },
+];
+
+const dutyOptions = computed(() => [
+    { value: '', label: 'All duties' },
+    { value: 'super_admin', label: 'Super Admin' },
+    ...props.roles.map((role) => ({ value: String(role.id), label: role.name })),
+]);
+
+const inviteDutyOptions = computed(() =>
+    props.roles.map((role) => ({ value: String(role.id), label: role.name })),
+);
+
 const list = useClientList(
     () => rows.value.filter((person) => {
         if (statusFilter.value && person.status !== statusFilter.value) return false;
-        if (roleFilter.value && !(person.roles || []).some((role) => String(role.id) === String(roleFilter.value))) return false;
+        if (roleFilter.value === 'super_admin') {
+            return !!person.is_super;
+        }
+        if (roleFilter.value && !(person.roles || []).some((role) => String(role.id) === String(roleFilter.value))) {
+            return false;
+        }
         return true;
     }),
     {
@@ -837,25 +863,6 @@ const statusClass = (status) => {
     return 'bg-pale text-ink/50';
 };
 </script>
-
-<style scoped>
-.chip-select {
-    @apply shrink-0 appearance-none rounded-full bg-white py-1.5 pl-3 pr-8 text-[12px] font-semibold text-ink/50 ring-1 ring-ink/[0.06] outline-none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-position: right 0.65rem center;
-    background-repeat: no-repeat;
-}
-.chip-select--on {
-    @apply bg-tint text-deep ring-transparent;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-</style>
 
 <style>
 .admin-dock-enter-active,

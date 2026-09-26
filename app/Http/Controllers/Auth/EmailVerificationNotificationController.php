@@ -21,6 +21,16 @@ class EmailVerificationNotificationController extends Controller
         $verification->assertCanResend($request->user());
         $verification->issue($request->user(), $request->session()->getId());
 
+        // Prefer returning to the signup screen so verify + resend never feel like a detour.
+        if ($request->header('X-Inertia') && str_contains((string) $request->headers->get('referer'), '/register')) {
+            return redirect()->route('register')->with('status', 'verification-link-sent')->with('toast', [
+                'type' => 'success',
+                'title' => 'Code sent',
+                'message' => 'Check your email for a fresh 6-digit code.',
+                'duration' => 4500,
+            ]);
+        }
+
         return back()->with('status', 'verification-link-sent')->with('toast', [
             'type' => 'success',
             'title' => 'Code sent',

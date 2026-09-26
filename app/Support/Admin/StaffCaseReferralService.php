@@ -27,9 +27,21 @@ class StaffCaseReferralService
     /**
      * @return list<array{id: int, name: string}>
      */
-    public function staffOptions(?User $except = null): array
+    public function staffOptions(?User $except = null, bool $opsOnly = true): array
     {
-        return JobAdminPresenter::staffOptions();
+        return User::query()
+            ->staff()
+            ->where('staff_status', StaffStatus::Active)
+            ->when($opsOnly, fn ($q) => $q->where('role', '!=', UserRole::SuperAdmin))
+            ->when($except, fn ($q) => $q->where('id', '!=', $except->id))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name ?: $user->email,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -129,6 +141,7 @@ class StaffCaseReferralService
                 'referred_by_user_id' => $actor->id,
                 'note' => $note,
                 'queue' => StaffCaseReferral::QUEUE_ESCALATION,
+                'source' => StaffCaseReferral::SOURCE_ESCALATED,
                 'status' => StaffCaseReferral::STATUS_ACTIVE,
                 'referred_at' => now(),
             ]);
@@ -345,7 +358,20 @@ class StaffCaseReferralService
             ]);
         }
 
-        if ((int) $assignee->id === (int) $actor->id) {
+        // First-line work stays with ops. Super Admin receives cases via escalate or takeover.
+        if ($assignee->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'assignee_id' => 'Assign this to an operations staff member first. Use Escalate to Super Admin when you need them.',
+            ]);
+        }
+
+        if (! $actor->isSuperAdmin() && $assignee->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'assignee_id' => 'Pick an operations staff member.',
+            ]);
+        }
+
+        if (! $actor->isSuperAdmin() && (int) $assignee->id === (int) $actor->id) {
             throw ValidationException::withMessages([
                 'assignee_id' => 'Refer this case to another staff member.',
             ]);
@@ -354,6 +380,10 @@ class StaffCaseReferralService
         $queue = $queue && in_array($queue, StaffCaseReferral::QUEUES, true)
             ? $queue
             : $this->defaultQueue($subjectType, $subject);
+
+        if ($queue === StaffCaseReferral::QUEUE_ESCALATION) {
+            $queue = $this->defaultQueue($subjectType, $subject);
+        }
 
         $note = trim($note);
 
@@ -374,6 +404,7 @@ class StaffCaseReferralService
                 'referred_by_user_id' => $actor->id,
                 'note' => $note,
                 'queue' => $queue,
+                'source' => StaffCaseReferral::SOURCE_REFERRED,
                 'status' => StaffCaseReferral::STATUS_ACTIVE,
                 'referred_at' => now(),
             ]);
@@ -401,6 +432,154 @@ class StaffCaseReferralService
             );
 
             return $referral->fresh(['assignee', 'referredBy']) ?? $referral;
+        });
+    }
+
+    /**
+     * Super Admin takes an active ops case (or escalation) onto their own desk.
+     */
+    public function takeOver(User $super, StaffCaseReferral $referral, ?string $note = null): StaffCaseReferral
+    {
+        abort_unless($super->isSuperAdmin(), 403);
+        abort_unless($referral->isActive(), 422, 'This case is no longer active.');
+
+        if ((int) $referral->assignee_user_id === (int) $super->id) {
+            if ($referral->isSuperEscalation() && $referral->acknowledged_at === null) {
+                return $this->acknowledgeSuperEscalation($super, $referral);
+            }
+
+            return $referral->fresh(['assignee', 'referredBy', 'acknowledgedBy']) ?? $referral;
+        }
+
+        $subject = $this->subjectModel($referral);
+        abort_unless($subject !== null, 404);
+
+        $note = trim((string) ($note ?: 'Super Admin took this case over.'));
+
+        return DB::transaction(function () use ($super, $referral, $subject, $note) {
+            $wasEscalation = $referral->isSuperEscalation();
+
+            $referral->forceFill([
+                'status' => StaffCaseReferral::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ])->save();
+
+            $owned = StaffCaseReferral::query()->create([
+                'subject_type' => $referral->subject_type,
+                'subject_id' => $referral->subject_id,
+                'assignee_user_id' => $super->id,
+                'referred_by_user_id' => $referral->referred_by_user_id ?: $super->id,
+                'note' => $note,
+                'queue' => $wasEscalation
+                    ? StaffCaseReferral::QUEUE_ESCALATION
+                    : ($referral->queue ?: $this->defaultQueue($referral->subject_type, $subject)),
+                'source' => StaffCaseReferral::SOURCE_TAKEN_OVER,
+                'status' => StaffCaseReferral::STATUS_ACTIVE,
+                'referred_at' => now(),
+                'acknowledged_at' => now(),
+                'acknowledged_by_user_id' => $super->id,
+            ]);
+
+            $this->syncSubject($referral->subject_type, $subject, $super, $super, $note);
+
+            AdminAudit::record(
+                'cases.taken_over',
+                "{$super->name} took over {$referral->subject_type} #{$referral->subject_id}.",
+                $subject,
+                null,
+                [
+                    'referral_id' => $owned->id,
+                    'from_referral_id' => $referral->id,
+                    'previous_assignee_id' => $referral->assignee_user_id,
+                ],
+                $super,
+            );
+
+            return $owned->fresh(['assignee', 'referredBy', 'acknowledgedBy']) ?? $owned;
+        });
+    }
+
+    /**
+     * Super Admin (or current assignee) moves an active case to another ops staff member or Super Admin.
+     */
+    public function reassign(User $actor, StaffCaseReferral $referral, User $assignee, string $note): StaffCaseReferral
+    {
+        abort_unless($referral->isActive(), 422, 'This case is no longer active.');
+        abort_unless(
+            $actor->isSuperAdmin() || (int) $referral->assignee_user_id === (int) $actor->id,
+            403,
+        );
+
+        if (! $assignee->isStaff() || $assignee->isSuspended()) {
+            throw ValidationException::withMessages([
+                'assignee_id' => 'Pick an active staff member.',
+            ]);
+        }
+
+        // Ops assignees may only hand to other ops — Super Admin path is escalate/takeover.
+        if (! $actor->isSuperAdmin() && $assignee->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'assignee_id' => 'Escalate to Super Admin instead of assigning them directly.',
+            ]);
+        }
+
+        if ((int) $assignee->id === (int) $referral->assignee_user_id) {
+            throw ValidationException::withMessages([
+                'assignee_id' => 'Pick a different person to reassign to.',
+            ]);
+        }
+
+        $subject = $this->subjectModel($referral);
+        abort_unless($subject !== null, 404);
+
+        $queue = $referral->isSuperEscalation() && $assignee->isSuperAdmin()
+            ? StaffCaseReferral::QUEUE_ESCALATION
+            : ($referral->queue === StaffCaseReferral::QUEUE_ESCALATION
+                ? $this->defaultQueue($referral->subject_type, $subject)
+                : $referral->queue);
+
+        $note = trim($note);
+
+        return DB::transaction(function () use ($actor, $referral, $assignee, $subject, $note, $queue) {
+            $referral->forceFill([
+                'status' => StaffCaseReferral::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ])->save();
+
+            $owned = StaffCaseReferral::query()->create([
+                'subject_type' => $referral->subject_type,
+                'subject_id' => $referral->subject_id,
+                'assignee_user_id' => $assignee->id,
+                'referred_by_user_id' => $actor->id,
+                'note' => $note,
+                'queue' => $queue,
+                'source' => StaffCaseReferral::SOURCE_REASSIGNED,
+                'status' => StaffCaseReferral::STATUS_ACTIVE,
+                'referred_at' => now(),
+                'acknowledged_at' => $assignee->isSuperAdmin() ? now() : null,
+                'acknowledged_by_user_id' => $assignee->isSuperAdmin() ? $actor->id : null,
+            ]);
+
+            $this->syncSubject($referral->subject_type, $subject, $assignee, $actor, $note);
+
+            AdminAudit::record(
+                'cases.reassigned',
+                "{$actor->name} reassigned {$referral->subject_type} #{$referral->subject_id} to {$assignee->name}.",
+                $subject,
+                null,
+                [
+                    'referral_id' => $owned->id,
+                    'from_referral_id' => $referral->id,
+                    'assignee_id' => $assignee->id,
+                ],
+                $actor,
+            );
+
+            if (! $assignee->is($actor)) {
+                $this->notifyAssignee($actor, $assignee, $owned->fresh(['assignee', 'referredBy']) ?? $owned, $subject);
+            }
+
+            return $owned->fresh(['assignee', 'referredBy', 'acknowledgedBy']) ?? $owned;
         });
     }
 
@@ -476,7 +655,7 @@ class StaffCaseReferralService
     /**
      * @return list<array<string, mixed>>
      */
-    public function inboxFor(User $assignee, ?string $queue = null): array
+    public function inboxFor(User $assignee, ?string $queue = null, bool $includeEscalations = false): array
     {
         if (! Schema::hasTable('staff_case_referrals')) {
             return [];
@@ -484,10 +663,13 @@ class StaffCaseReferralService
 
         $query = StaffCaseReferral::query()
             ->active()
-            ->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION)
             ->forAssignee($assignee)
-            ->with(['assignee:id,name,email', 'referredBy:id,name,email'])
+            ->with(['assignee:id,name,email', 'referredBy:id,name,email', 'acknowledgedBy:id,name,email'])
             ->latest('referred_at');
+
+        if (! $includeEscalations) {
+            $query->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION);
+        }
 
         if ($queue && $queue !== 'all' && in_array($queue, StaffCaseReferral::QUEUES, true)) {
             $query->where('queue', $queue);
@@ -502,30 +684,201 @@ class StaffCaseReferralService
     }
 
     /**
-     * @return array{counts: array<string, int>, items: list<array<string, mixed>>}
+     * Super Admin: every active case across ops + their own desk.
+     *
+     * @return list<array<string, mixed>>
      */
-    public function assignedPage(User $assignee, ?string $queue = null): array
+    public function inboxForAllStaff(?string $queue = null, bool $includeEscalations = true): array
     {
-        $items = $this->inboxFor($assignee, $queue === 'all' ? null : $queue);
+        if (! Schema::hasTable('staff_case_referrals')) {
+            return [];
+        }
 
-        $active = StaffCaseReferral::query()
+        $query = StaffCaseReferral::query()
             ->active()
-            ->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION)
-            ->forAssignee($assignee);
+            ->with(['assignee:id,name,email', 'referredBy:id,name,email', 'acknowledgedBy:id,name,email'])
+            ->latest('referred_at');
+
+        if (! $includeEscalations) {
+            $query->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION);
+        }
+
+        if ($queue && $queue !== 'all' && in_array($queue, StaffCaseReferral::QUEUES, true)) {
+            $query->where('queue', $queue);
+        }
+
+        return $query->limit(400)
+            ->get()
+            ->map(fn (StaffCaseReferral $referral) => $this->present($referral))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function assignedPage(User $viewer, ?string $queue = null, ?User $viewingStaff = null, string $scope = 'mine'): array
+    {
+        $canManage = $viewer->isSuperAdmin();
+        $scope = $canManage ? strtolower(trim($scope)) : 'mine';
+        if (! in_array($scope, ['mine', 'all', 'staff'], true)) {
+            $scope = 'mine';
+        }
+
+        if ($scope === 'staff' && (! $viewingStaff || ! $viewingStaff->isStaff() || $viewingStaff->isSuspended())) {
+            $scope = 'mine';
+            $viewingStaff = null;
+        }
+
+        $includeEscalations = $canManage;
+        $filterQueue = in_array($queue, ['all', 'jobs'], true) ? null : $queue;
+
+        if ($canManage && $scope === 'all') {
+            $items = $this->inboxForAllStaff($filterQueue, $includeEscalations);
+            $assignee = null;
+        } elseif ($canManage && $scope === 'staff' && $viewingStaff) {
+            $items = $this->inboxFor($viewingStaff, $filterQueue, false);
+            $assignee = $viewingStaff;
+        } else {
+            $items = $this->inboxFor($viewer, $filterQueue, $includeEscalations);
+            $assignee = $viewer;
+            $scope = 'mine';
+        }
+
+        if ($queue === 'jobs') {
+            $items = array_values(array_filter(
+                $items,
+                fn (array $item) => ($item['subject_type'] ?? '') === StaffCaseReferral::SUBJECT_JOB,
+            ));
+        }
+
+        $active = StaffCaseReferral::query()->active();
+        if ($scope === 'mine') {
+            $active->forAssignee($viewer);
+        } elseif ($scope === 'staff' && $viewingStaff) {
+            $active->forAssignee($viewingStaff)->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION);
+        } elseif (! $includeEscalations) {
+            $active->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION);
+        }
+
         $counts = [
-            'all' => (clone $active)->count(),
+            'all' => (clone $active)->when(
+                $scope !== 'all' && ! $includeEscalations,
+                fn ($q) => $q->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION),
+            )->count(),
             'moderation' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_MODERATION)->count(),
             'support' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_SUPPORT)->count(),
             'patrol' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_PATROL)->count(),
             'jobs' => (clone $active)->where('subject_type', StaffCaseReferral::SUBJECT_JOB)->count(),
+            'escalation' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_ESCALATION)->count(),
+            'mine' => StaffCaseReferral::query()->active()->forAssignee($viewer)->count(),
+            'team' => StaffCaseReferral::query()
+                ->active()
+                ->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION)
+                ->whereHas('assignee', fn ($q) => $q->where('role', '!=', UserRole::SuperAdmin))
+                ->count(),
         ];
 
-        return [
-            'queue' => $queue ?: StaffCaseReferral::QUEUE_MODERATION,
-            'counts' => $counts,
-            'items' => $items,
-            'staff' => $this->staffOptions($assignee),
+        $mineBreakdown = [
+            'referred' => 0,
+            'taken_over' => 0,
+            'escalated' => 0,
         ];
+        if ($scope === 'mine' || $canManage) {
+            foreach ($this->inboxFor($viewer, null, true) as $row) {
+                $origin = $row['origin'] ?? 'referred';
+                if (isset($mineBreakdown[$origin])) {
+                    $mineBreakdown[$origin]++;
+                }
+            }
+        }
+
+        return [
+            'queue' => $queue ?: 'all',
+            'scope' => $scope,
+            'counts' => $counts,
+            'mine_breakdown' => $mineBreakdown,
+            'items' => $items,
+            'staff' => $this->staffOptions($viewer),
+            'assignable_staff' => $canManage
+                ? array_values(array_merge(
+                    [[
+                        'id' => $viewer->id,
+                        'name' => ($viewer->name ?: $viewer->email).' (me)',
+                    ]],
+                    $this->opsStaffOptions($viewer),
+                ))
+                : $this->staffOptions($viewer),
+            'ops_staff' => $canManage ? $this->opsStaffOptions($viewer) : [],
+            'viewing' => [
+                'id' => $assignee?->id,
+                'name' => $assignee ? ($assignee->name ?: $assignee->email) : 'Everyone',
+                'is_self' => $assignee !== null && (int) $assignee->id === (int) $viewer->id,
+                'is_super' => $assignee?->isSuperAdmin() ?? false,
+                'scope' => $scope,
+            ],
+            'can_manage' => $canManage,
+            'growth_duties' => [
+                [
+                    'label' => 'Verification Officer',
+                    'href' => route('admin.verification.index'),
+                    'ability' => 'ops.verification.manage',
+                ],
+                [
+                    'label' => 'Referral monitoring',
+                    'href' => route('admin.referrals.index'),
+                    'ability' => 'admin.referrals.view',
+                ],
+                [
+                    'label' => 'Onboarding follow-up',
+                    'href' => route('admin.onboarding.index'),
+                    'ability' => 'ops.onboarding.manage',
+                ],
+                [
+                    'label' => 'Re-engagement outreach',
+                    'href' => route('admin.reengagement.index'),
+                    'ability' => 'ops.reengagement.manage',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Active ops staff for Super Admin workload browsing (excludes Super Admins).
+     *
+     * @return list<array{id: int, name: string, assigned_count: int}>
+     */
+    public function opsStaffOptions(?User $except = null): array
+    {
+        $ids = User::query()
+            ->staff()
+            ->where('staff_status', StaffStatus::Active)
+            ->where('role', '!=', UserRole::SuperAdmin)
+            ->when($except, fn ($q) => $q->where('id', '!=', $except->id))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $counts = StaffCaseReferral::query()
+            ->active()
+            ->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION)
+            ->whereIn('assignee_user_id', $ids->pluck('id'))
+            ->selectRaw('assignee_user_id, COUNT(*) as total')
+            ->groupBy('assignee_user_id')
+            ->pluck('total', 'assignee_user_id');
+
+        return $ids
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name ?: $user->email,
+                'assigned_count' => (int) ($counts[$user->id] ?? 0),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -589,6 +942,7 @@ class StaffCaseReferralService
 
         $meta = $this->subjectMeta($referral->subject_type, $subject);
         $referredAt = $referral->referred_at ?? $referral->created_at;
+        $origin = $this->originFor($referral);
         $title = $referral->isSuperEscalation()
             ? 'Escalated: '.$meta['title']
             : $meta['title'];
@@ -599,11 +953,28 @@ class StaffCaseReferralService
             'subject_uid' => $meta['uid'],
             'queue' => $referral->queue,
             'queue_label' => $this->queueLabel($referral->queue),
+            'source' => $referral->source ?: $origin,
+            'origin' => $origin,
+            'origin_label' => $this->originLabel($origin),
             'status' => $referral->status,
             'requester_status' => $this->requesterStatusLabel($referral),
             'title' => $title,
             'subtitle' => $this->subtitle($referral, $meta),
             'note' => $referral->note,
+            'details' => [
+                'subject_type' => $referral->subject_type,
+                'subject_uid' => $meta['uid'],
+                'artisan' => $meta['artisan'],
+                'queue' => $this->queueLabel($referral->queue),
+                'origin' => $this->originLabel($origin),
+                'status' => $this->requesterStatusLabel($referral),
+                'note' => $referral->note,
+                'referred_at' => $this->stamp($referredAt),
+                'acknowledged_at' => $this->stamp($referral->acknowledged_at),
+                'referrer' => $referral->referredBy?->name ?: $referral->referredBy?->email,
+                'assignee' => $referral->assignee?->name ?: $referral->assignee?->email,
+                'acknowledged_by' => $referral->acknowledgedBy?->name ?: $referral->acknowledgedBy?->email,
+            ],
             'href' => $referral->isSuperEscalation()
                 ? $this->escalationHref($referral, $meta['href'])
                 : $meta['href'],
@@ -616,12 +987,36 @@ class StaffCaseReferralService
             'assignee' => [
                 'id' => $referral->assignee_user_id,
                 'name' => $referral->assignee?->name ?: $referral->assignee?->email,
+                'is_super' => (bool) $referral->assignee?->isSuperAdmin(),
             ],
             'acknowledged_at' => $this->stamp($referral->acknowledged_at),
             'referred_at' => $this->stamp($referredAt),
             'referred_iso' => $referredAt?->toIso8601String(),
             'age' => $referredAt ? $referredAt->diffForHumans() : null,
         ];
+    }
+
+    private function originFor(StaffCaseReferral $referral): string
+    {
+        if ($referral->source) {
+            return $referral->source;
+        }
+
+        if ($referral->isSuperEscalation()) {
+            return StaffCaseReferral::SOURCE_ESCALATED;
+        }
+
+        return StaffCaseReferral::SOURCE_REFERRED;
+    }
+
+    private function originLabel(string $origin): string
+    {
+        return match ($origin) {
+            StaffCaseReferral::SOURCE_TAKEN_OVER => 'Taken over',
+            StaffCaseReferral::SOURCE_ESCALATED => 'Escalated to you',
+            StaffCaseReferral::SOURCE_REASSIGNED => 'Reassigned',
+            default => 'Referred',
+        };
     }
 
     /**

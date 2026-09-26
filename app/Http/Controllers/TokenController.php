@@ -6,6 +6,7 @@ use App\Http\Requests\PurchaseTokenPackRequest;
 use App\Models\TokenPurchase;
 use App\Models\TokenTransaction;
 use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\Tokens\ReviewLinkGate;
 use App\Support\Tokens\TokenCatalog;
 use App\Support\Tokens\TokenWallet;
@@ -21,6 +22,13 @@ class TokenController extends Controller
     public function index(Request $request, ReviewLinkGate $gate): Response
     {
         $user = $request->user();
+
+        AnalyticsEventLogger::log(
+            action: 'page.credits',
+            summary: "{$user->name} opened Credits & plan.",
+            user: $user,
+        );
+
         $status = $gate->status($user);
 
         $transactions = TokenTransaction::query()

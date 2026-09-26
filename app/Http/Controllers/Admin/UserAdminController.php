@@ -9,8 +9,8 @@ use App\Http\Requests\Admin\BulkUsersRequest;
 use App\Http\Requests\Admin\DestroyUserRequest;
 use App\Http\Requests\Admin\UpdateAdminUserPlanRequest;
 use App\Http\Requests\Admin\UpdateAdminUserRequest;
-use App\Models\ActivityLog;
 use App\Models\AdminAuditLog;
+use App\Models\AnalyticsEvent;
 use App\Models\Announcement;
 use App\Models\Review;
 use App\Models\TokenPurchase;
@@ -642,7 +642,7 @@ class UserAdminController extends Controller
             ->limit(2500)
             ->get();
 
-        $lastLogins = ActivityLog::query()
+        $lastLogins = AnalyticsEvent::query()
             ->selectRaw('user_id, MAX(created_at) as last_at')
             ->whereIn('user_id', $users->pluck('id'))
             ->where('action', 'auth.login')
@@ -718,18 +718,18 @@ class UserAdminController extends Controller
                 ];
             });
 
-        $logins = ActivityLog::query()
+        $logins = AnalyticsEvent::query()
             ->where('user_id', $user->id)
-            ->whereIn('action', ['auth.login', 'auth.logout'])
+            ->where('action', 'auth.login')
             ->latest('created_at')
             ->limit(80)
             ->get()
-            ->map(fn (ActivityLog $log) => [
-                'id' => $log->id,
-                'title' => $log->titleFromAction(),
-                'summary' => $log->summary,
-                'ip' => $log->ip_address,
-                'when' => $log->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
+            ->map(fn (AnalyticsEvent $event) => [
+                'id' => $event->id,
+                'title' => 'Signed in',
+                'summary' => $event->summary,
+                'ip' => $event->ip_address,
+                'when' => $event->created_at?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
             ]);
 
         $adminActions = AdminAuditLog::query()

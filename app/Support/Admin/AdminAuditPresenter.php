@@ -21,6 +21,15 @@ class AdminAuditPresenter
             'action' => $log->action,
             'action_label' => self::actionLabel($log->action),
             'summary' => $log->summary,
+            'actor_kind' => $log->actor_kind instanceof \App\Enums\ActorKind
+                ? $log->actor_kind->value
+                : (string) ($log->actor_kind ?? 'staff'),
+            'actor_kind_label' => $log->actor_kind instanceof \App\Enums\ActorKind
+                ? $log->actor_kind->label()
+                : 'Staff',
+            'retention_tier' => $log->retention_tier instanceof \App\Enums\RetentionTier
+                ? $log->retention_tier->value
+                : (string) ($log->retention_tier ?? 'staff'),
             'changes' => self::changes($log->old_values, $log->new_values),
             'actor' => $log->actor ? [
                 'id' => $log->actor->id,

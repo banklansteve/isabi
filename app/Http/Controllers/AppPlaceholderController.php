@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,7 +14,7 @@ class AppPlaceholderController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.my_page',
             summary: "{$user->name} opened My page (public profile).",
             user: $user,
@@ -35,7 +35,7 @@ class AppPlaceholderController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.work_log',
             summary: "{$user->name} opened Work log.",
             user: $user,
@@ -58,7 +58,7 @@ class AppPlaceholderController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.credits',
             summary: "{$user->name} opened Credits & plan.",
             user: $user,

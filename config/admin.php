@@ -20,16 +20,18 @@ return [
     | Default operations duties
     |--------------------------------------------------------------------------
     |
-    | Super admin can create more later. These are seeded as system roles and
-    | cannot be deleted — only deactivated.
+    | Keep assignable duties lean (max ~6). Super-admin-only work is listed
+    | with assignable=false so it never appears on staff assignment screens.
+    | Super admin can still create custom duties later.
     |
     */
     'roles' => [
         [
             'slug' => 'customer_support',
             'name' => 'Customer support',
-            'description' => 'Attend to in-app chats and artisan support queues.',
+            'description' => 'In-app chats and artisan support queues — distributed round-robin across agents.',
             'icon' => 'ti ti-headset',
+            'assignable' => true,
             'permissions' => [
                 'admin.users.view',
                 'admin.support.manage',
@@ -39,8 +41,9 @@ return [
         [
             'slug' => 'moderation',
             'name' => 'Moderation',
-            'description' => 'Review reported content, fake work, and policy violations.',
+            'description' => 'Review reported content, fake work, and policy violations on jobs and reviews.',
             'icon' => 'ti ti-shield',
+            'assignable' => true,
             'permissions' => [
                 'admin.users.view',
                 'admin.users.manage',
@@ -52,8 +55,9 @@ return [
         [
             'slug' => 'patrol',
             'name' => 'Patrol',
-            'description' => 'Investigate flagged artisan job logs. Cannot finalize high-severity dismissals or removals.',
+            'description' => 'Investigate flagged artisan job logs and review cases. Cannot finalize high-severity removals alone.',
             'icon' => 'ti ti-binoculars',
+            'assignable' => true,
             'permissions' => [
                 'admin.users.view',
                 'admin.content.manage',
@@ -62,13 +66,19 @@ return [
             ],
         ],
         [
-            'slug' => 'growth_ops',
-            'name' => 'Growth / referrals',
-            'description' => 'View referral lists and details. No platform revenue or token sales totals.',
-            'icon' => 'ti ti-gift',
+            'slug' => 'verification',
+            'name' => 'Verification Officer',
+            'description' => 'Ops duty: review trade claims and confirm WhatsApp numbers.',
+            'icon' => 'ti ti-rosette-discount-check',
+            'assignable' => true,
+            'includes' => [
+                'Trade claim review',
+                'WhatsApp confirmation',
+            ],
             'permissions' => [
                 'admin.users.view',
-                'admin.referrals.view',
+                'ops.verification.manage',
+                'admin.users.manage',
             ],
         ],
         [
@@ -76,16 +86,50 @@ return [
             'name' => 'Billing issues',
             'description' => 'Resolve payment failures, multi-charges, and chargebacks. Cannot view platform revenue.',
             'icon' => 'ti ti-credit-card',
+            'assignable' => true,
             'permissions' => [
                 'admin.users.view',
                 'admin.billing_issues.manage',
             ],
         ],
         [
+            'slug' => 'growth_lifecycle',
+            'name' => 'Growth & lifecycle',
+            'description' => 'Ops duty covering referral monitoring, onboarding follow-up, and re-engagement outreach.',
+            'icon' => 'ti ti-rocket',
+            'assignable' => true,
+            'includes' => [
+                'Referral monitoring',
+                'Onboarding follow-up',
+                'Re-engagement outreach',
+            ],
+            'permissions' => [
+                'admin.users.view',
+                'admin.referrals.view',
+                'ops.onboarding.manage',
+                'ops.reengagement.manage',
+                'admin.ops_messages.send',
+            ],
+        ],
+
+        // Super Admin only — never assignable to operations staff.
+        [
+            'slug' => 'knowledge_base',
+            'name' => 'Knowledge base upkeep',
+            'description' => 'Super Admin only — FAQ gaps and canned response quality.',
+            'icon' => 'ti ti-books',
+            'assignable' => false,
+            'permissions' => [
+                'ops.knowledge.manage',
+                'admin.support.manage',
+            ],
+        ],
+        [
             'slug' => 'people_hr',
             'name' => 'People / HR',
-            'description' => 'Employment records, leave, and documents for operations staff.',
+            'description' => 'Super Admin only — employment records, leave, and documents.',
             'icon' => 'ti ti-id-badge-2',
+            'assignable' => false,
             'permissions' => [
                 'hr.view',
                 'hr.manage',
@@ -95,64 +139,22 @@ return [
         [
             'slug' => 'people_discipline',
             'name' => 'Disciplinary cases',
-            'description' => 'Prepare, investigate, and record formal employment matters. Does not include general HR access.',
+            'description' => 'Super Admin only — formal employment matters.',
             'icon' => 'ti ti-clipboard-text',
+            'assignable' => false,
             'permissions' => [
                 'hr.discipline.view',
                 'hr.discipline.manage',
             ],
         ],
         [
-            'slug' => 'referral_monitoring',
-            'name' => 'Referral monitoring',
-            'description' => 'Watch referral and vouch chains for suspicious patterns before they cost credits.',
-            'icon' => 'ti ti-affiliate',
+            'slug' => 'content_comms',
+            'name' => 'Content & Communications Manager',
+            'description' => 'Super Admin only — platform announcements and broadcast messaging.',
+            'icon' => 'ti ti-speakerphone',
+            'assignable' => false,
             'permissions' => [
-                'admin.users.view',
-                'admin.referrals.view',
-            ],
-        ],
-        [
-            'slug' => 'onboarding_followup',
-            'name' => 'Onboarding follow-up',
-            'description' => 'Reach out to users stuck mid-funnel — verified but no first job logged yet.',
-            'icon' => 'ti ti-route',
-            'permissions' => [
-                'admin.users.view',
-                'ops.onboarding.manage',
-                'admin.ops_messages.send',
-            ],
-        ],
-        [
-            'slug' => 'reengagement',
-            'name' => 'Re-engagement outreach',
-            'description' => 'Nudge inactive users back via WhatsApp and one-to-one outreach.',
-            'icon' => 'ti ti-flame',
-            'permissions' => [
-                'admin.users.view',
-                'ops.reengagement.manage',
-                'admin.ops_messages.send',
-            ],
-        ],
-        [
-            'slug' => 'knowledge_base',
-            'name' => 'Knowledge base upkeep',
-            'description' => 'Flag FAQ gaps from recurring questions and keep canned responses sharp.',
-            'icon' => 'ti ti-books',
-            'permissions' => [
-                'ops.knowledge.manage',
-                'admin.support.manage',
-            ],
-        ],
-        [
-            'slug' => 'verification',
-            'name' => 'Verification',
-            'description' => 'Review new sign-ups’ trade claims and confirm WhatsApp numbers where manual checks are needed.',
-            'icon' => 'ti ti-rosette-discount-check',
-            'permissions' => [
-                'admin.users.view',
-                'ops.verification.manage',
-                'admin.users.manage',
+                'admin.messaging.manage',
             ],
         ],
     ],
@@ -176,12 +178,13 @@ return [
         'people_discipline' => ['short' => 'Discipline', 'tone' => 'discipline', 'route' => 'admin.hr.discipline.index'],
         'finance_officer' => ['short' => 'Billing issues', 'tone' => 'finance', 'route' => 'admin.billing-issues.index'],
         'growth_ops' => ['short' => 'Growth', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
+        'growth_lifecycle' => ['short' => 'Growth', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
         'content_comms' => ['short' => 'Content', 'tone' => 'content', 'route' => 'admin.messaging.index'],
         'referral_monitoring' => ['short' => 'Referrals', 'tone' => 'growth', 'route' => 'admin.referrals.index'],
         'onboarding_followup' => ['short' => 'Onboarding', 'tone' => 'growth', 'route' => 'admin.onboarding.index'],
         'reengagement' => ['short' => 'Re-engage', 'tone' => 'growth', 'route' => 'admin.reengagement.index'],
         'knowledge_base' => ['short' => 'Knowledge', 'tone' => 'content', 'route' => 'admin.knowledge.index'],
-        'verification' => ['short' => 'Verification', 'tone' => 'verify', 'route' => 'admin.verification.index'],
+        'verification' => ['short' => 'Verification Officer', 'tone' => 'verify', 'route' => 'admin.verification.index'],
     ],
 
     'ops_shortcuts' => [
@@ -495,7 +498,8 @@ return [
             'group' => 'general',
             'type' => 'string',
             'config' => 'app.name',
-            'description' => 'Shown in emails, the browser title, and public pages.',
+            'readonly' => true,
+            'description' => 'Shown in emails, the browser title, and public pages. Managed in environment config — not editable here.',
         ],
         [
             'key' => 'app.display_timezone',

@@ -89,7 +89,51 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 const page = usePage();
 const toasts = ref([]);
 let seq = 0;
-const seenKeys = new Set();
+const SEEN_STORAGE_KEY = 'kraftrack:toast-seen';
+const SEEN_TTL_MS = 60_000;
+
+const readSeen = () => {
+    try {
+        const raw = sessionStorage.getItem(SEEN_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const writeSeen = (map) => {
+    try {
+        sessionStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(map));
+    } catch {
+        // Ignore quota / private-mode failures.
+    }
+};
+
+const hasSeenFlash = (key) => {
+    const map = readSeen();
+    const seenAt = Number(map[key] || 0);
+    if (!seenAt) return false;
+    if (Date.now() - seenAt > SEEN_TTL_MS) {
+        delete map[key];
+        writeSeen(map);
+        return false;
+    }
+    return true;
+};
+
+const markFlashSeen = (key) => {
+    const map = readSeen();
+    map[key] = Date.now();
+    // Drop stale entries.
+    for (const [k, at] of Object.entries(map)) {
+        if (Date.now() - Number(at) > SEEN_TTL_MS) {
+            delete map[k];
+        }
+    }
+    writeSeen(map);
+};
 
 const normalizeType = (type) => {
     if (type === 'error' || type === 'danger') return 'error';
@@ -128,16 +172,24 @@ const dismiss = (id) => {
 const flashKey = (toast) =>
     `${toast?.type || 'success'}:${toast?.title || ''}:${toast?.message || ''}:${toast?.duration || ''}`;
 
+const clearFlashProp = () => {
+    // Prevent browser back/forward from replaying the same flash from history state.
+    if (page.props.flash && typeof page.props.flash === 'object') {
+        page.props.flash.toast = null;
+    }
+};
+
 const consumeFlash = (toast) => {
     if (!toast || typeof toast !== 'object' || !toast.message) {
         return;
     }
     const key = flashKey(toast);
-    if (seenKeys.has(key)) {
+    if (hasSeenFlash(key)) {
+        clearFlashProp();
         return;
     }
-    seenKeys.add(key);
-    window.setTimeout(() => seenKeys.delete(key), 2000);
+    markFlashSeen(key);
+    clearFlashProp();
     push(toast);
 };
 

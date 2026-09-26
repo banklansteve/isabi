@@ -259,40 +259,62 @@ class SupportConversationService
             return;
         }
 
+        $ticket->loadMissing('assignedTo');
+
         $ability = $this->abilityFor($ticket->topic_key);
         $candidates = $this->eligibleStaff($ability);
-        $online = $this->presence->onlineAmong($candidates);
+        $online = $candidates
+            ->filter(fn (User $user) => $this->presence->staffOnline($user))
+            ->values();
 
-        if ($ticket->assigned_to_user_id) {
-            $assignee = $ticket->assignedTo ?? User::query()->find($ticket->assigned_to_user_id);
+        // Prefer live Customer Support agents. Fall back to the full eligible
+        // roster only when nobody with the duty is currently present.
+        $pool = $online->isNotEmpty() ? $online : $candidates;
 
-            if ($assignee && $this->presence->staffOnline($assignee)) {
-                if ($ticket->status === SupportTicket::STATUS_NEW) {
-                    $ticket->forceFill(['status' => SupportTicket::STATUS_OPEN])->save();
-                }
-
-                return;
-            }
-
-            if ($online->isNotEmpty()) {
-                $next = $this->nextRoundRobin($online, $ability);
-                $this->assign($ticket, $next);
-
-                return;
-            }
-
-            if ($ticket->status !== SupportTicket::STATUS_PENDING) {
-                $ticket->forceFill(['status' => SupportTicket::STATUS_NEW])->save();
+        if ($this->shouldKeepAssignee($ticket, $pool)) {
+            if ($ticket->status === SupportTicket::STATUS_NEW) {
+                $ticket->forceFill(['status' => SupportTicket::STATUS_OPEN])->save();
             }
 
             return;
         }
 
-        if ($online->isEmpty()) {
+        if ($pool->isEmpty()) {
+            // Drop invalid sticky owners (e.g. Super Admin / former support staff)
+            // so the chat can sit in Unassigned for the next eligible agent.
+            if ($ticket->assigned_to_user_id) {
+                $this->assign($ticket, null);
+            }
+
             return;
         }
 
-        $this->assign($ticket, $this->nextRoundRobin($online, $ability));
+        $this->assign($ticket, $this->nextRoundRobin($pool, $ability));
+    }
+
+    /**
+     * Sticky hand-off stays with the current owner only while they are still
+     * a sensible recipient — otherwise the customer "next available agent"
+     * copy must actually re-route the chat to an ops agent on duty.
+     */
+    private function shouldKeepAssignee(SupportTicket $ticket, Collection $pool): bool
+    {
+        $assigneeId = $ticket->assigned_to_user_id;
+
+        if (! $assigneeId) {
+            return false;
+        }
+
+        if ($pool->contains(fn (User $user) => (int) $user->id === (int) $assigneeId)) {
+            return true;
+        }
+
+        $assignee = $ticket->assignedTo;
+
+        // Explicit Super Admin takeover: keep while they remain present.
+        return $assignee
+            && $assignee->isSuperAdmin()
+            && $this->presence->staffOnline($assignee);
     }
 
     public function refreshRouting(SupportTicket $ticket): SupportTicket
@@ -314,7 +336,14 @@ class SupportConversationService
             ->get();
 
         return $staff
-            ->filter(fn (User $user) => $user->canDo($ability) || $user->canDo('admin.support.manage'))
+            ->filter(function (User $user) use ($ability) {
+                if ($user->isSuperAdmin()) {
+                    return false;
+                }
+
+                return $user->canDo($ability) || $user->canDo('admin.support.manage');
+            })
+            ->sortBy('id')
             ->values();
     }
 
@@ -330,14 +359,14 @@ class SupportConversationService
             ->values();
     }
 
-    private function nextRoundRobin(Collection $online, string $ability): User
+    private function nextRoundRobin(Collection $candidates, string $ability): User
     {
-        $ids = $online->pluck('id')->values();
+        $ids = $candidates->pluck('id')->values();
         $cursor = (int) Cache::get($this->cursorKey($ability), -1);
         $index = ($cursor + 1) % max(1, $ids->count());
         Cache::put($this->cursorKey($ability), $index, now()->addDay());
 
-        return $online[$index];
+        return $candidates->firstWhere('id', $ids[$index]) ?? $candidates[$index];
     }
 
     private function cursorKey(string $ability): string

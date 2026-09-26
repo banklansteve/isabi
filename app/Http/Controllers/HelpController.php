@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Help\SendChatMessageRequest;
 use App\Http\Requests\Help\SubmitSupportCsatRequest;
 use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\Realtime\Realtime;
 use App\Support\SupportChat\SupportConversationService;
 use App\Support\SupportChat\SupportPresence;
@@ -27,7 +28,7 @@ class HelpController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.help',
             summary: "{$user->name} opened Help & support.",
             user: $user,
@@ -40,7 +41,7 @@ class HelpController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.help_chat',
             summary: "{$user->name} opened support chat.",
             user: $user,

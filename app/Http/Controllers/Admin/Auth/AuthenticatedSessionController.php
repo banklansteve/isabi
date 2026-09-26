@@ -35,7 +35,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
-        $user->forceFill(['last_login_at' => now(), 'last_logout_at' => null])->save();
+        $user->forceFill(['last_login_at' => now(), 'last_logout_at' => null, 'last_seen_at' => now()])->save();
         $request->session()->put('auth.staff_epoch', (int) $user->session_epoch);
         PatrolIp::rememberLogin($user, $request->ip());
 

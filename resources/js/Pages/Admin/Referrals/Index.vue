@@ -1,7 +1,7 @@
 <template>
     <Head title="Referrals" />
 
-    <AdminChrome title="Referrals" eyebrow="Growth program" />
+    <AdminChrome title="Referral monitoring" eyebrow="Ops · Growth &amp; lifecycle" />
         <div class="mb-4">
             <AdminRangePicker :range="range" />
         </div>
@@ -35,7 +35,7 @@
         </div>
 
         <div v-else class="mt-4 grid gap-4 lg:grid-cols-2">
-            <AdminAreaChart class="lg:col-span-2" title="Referral signups" :series="range.series(insights.trend || [])" />
+            <AdminAreaChart class="lg:col-span-2" title="Referral signups" hint="Weekly counts from product analytics summaries" :series="range.series(insights.trend || [])" />
             <AdminBarList title="Top referrers" :items="top.map((row) => ({ label: row.user?.name || 'Unknown', value: row.total }))" />
             <div class="rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05]">
                 <div class="flex flex-wrap items-center justify-between gap-2">

@@ -272,24 +272,145 @@ class SupportChatTest extends TestCase
         ]);
     }
 
+    public function test_new_chats_rotate_across_support_agents_and_stay_sticky(): void
+    {
+        $agentA = $this->supportStaff();
+        $agentB = $this->supportStaff();
+        $agentC = $this->supportStaff();
+        $presence = app(SupportPresence::class);
+        $presence->heartbeat($agentA);
+        $presence->heartbeat($agentB);
+        $presence->heartbeat($agentC);
+
+        $users = User::factory()->regularUser()->count(3)->create();
+
+        $assigned = [];
+        foreach ($users as $user) {
+            $this->actingAs($user)
+                ->postJson(route('help.chat.send'), ['body' => 'Hello from '.$user->id])
+                ->assertOk();
+
+            $assigned[] = (int) \App\Models\SupportTicket::query()
+                ->where('user_id', $user->id)
+                ->value('assigned_to_user_id');
+        }
+
+        $this->assertSame(
+            [$agentA->id, $agentB->id, $agentC->id],
+            $assigned,
+            'New chats should rotate A → B → C across eligible support staff.',
+        );
+
+        // Sticky: further messages keep the original assignee even if others are online.
+        $this->actingAs($users[0])
+            ->postJson(route('help.chat.send'), ['body' => 'Follow-up'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('support_tickets', [
+            'user_id' => $users[0]->id,
+            'assigned_to_user_id' => $agentA->id,
+        ]);
+    }
+
+    public function test_offline_assignee_is_rerouted_to_online_customer_support_ops(): void
+    {
+        $offline = $this->supportStaff();
+        $online = $this->supportStaff();
+        app(SupportPresence::class)->heartbeat($online);
+
+        $artisan = User::factory()->regularUser()->create();
+        $ticket = SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'status' => SupportTicket::STATUS_OPEN,
+            'assigned_to_user_id' => $offline->id,
+            'assigned_at' => now()->subHour(),
+            'subject' => 'Stuck with offline agent',
+            'last_reply_at' => now()->subHour(),
+            'last_customer_message_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($artisan)
+            ->postJson(route('help.chat.send'), ['body' => 'Anyone there?'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('support_tickets', [
+            'id' => $ticket->id,
+            'assigned_to_user_id' => $online->id,
+        ]);
+    }
+
+    public function test_super_admin_sticky_owner_is_rerouted_to_customer_support_ops(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $ops = $this->supportStaff();
+        app(SupportPresence::class)->heartbeat($ops);
+
+        $artisan = User::factory()->regularUser()->create();
+        $ticket = SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'status' => SupportTicket::STATUS_OPEN,
+            'assigned_to_user_id' => $admin->id,
+            'assigned_at' => now()->subHour(),
+            'subject' => 'Stuck with super admin',
+            'last_reply_at' => now()->subHour(),
+            'last_customer_message_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($artisan)
+            ->postJson(route('help.chat.send'), ['body' => 'Need an agent'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('support_tickets', [
+            'id' => $ticket->id,
+            'assigned_to_user_id' => $ops->id,
+        ]);
+    }
+
+    public function test_new_chats_prefer_online_customer_support_over_offline_peers(): void
+    {
+        $offline = $this->supportStaff();
+        $online = $this->supportStaff();
+        app(SupportPresence::class)->heartbeat($online);
+
+        $artisan = User::factory()->regularUser()->create();
+
+        $this->actingAs($artisan)
+            ->postJson(route('help.chat.send'), ['body' => 'Route me to whoever is live'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('support_tickets', [
+            'user_id' => $artisan->id,
+            'assigned_to_user_id' => $online->id,
+        ]);
+        $this->assertDatabaseMissing('support_tickets', [
+            'user_id' => $artisan->id,
+            'assigned_to_user_id' => $offline->id,
+        ]);
+    }
+
     /**
      * @param  list<string>  $permissions
      */
     private function supportStaff(array $permissions = ['admin.support.manage']): User
     {
-        $role = StaffRole::query()->create([
-            'slug' => 'customer_support',
-            'name' => 'Customer support',
-            'permissions' => $permissions,
-            'is_system' => false,
-            'is_active' => true,
-            'sort_order' => 10,
-        ]);
+        $role = StaffRole::query()->updateOrCreate(
+            ['slug' => 'customer_support'],
+            [
+                'name' => 'Customer support',
+                'permissions' => $permissions,
+                'is_system' => true,
+                'is_active' => true,
+                'is_assignable' => true,
+                'sort_order' => 10,
+            ],
+        );
 
         $user = User::factory()->operationsAdmin()->create();
-        $user->staffRoles()->attach($role->id, [
-            'assigned_by_user_id' => $user->id,
-            'assigned_at' => now(),
+        $user->staffRoles()->syncWithoutDetaching([
+            $role->id => [
+                'assigned_by_user_id' => $user->id,
+                'assigned_at' => now(),
+            ],
         ]);
 
         return $user->fresh(['staffRoles']);

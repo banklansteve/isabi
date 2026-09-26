@@ -8,10 +8,12 @@
                     type="button"
                     class="form-control form-select-trigger pe-11"
                     :class="[
-                        icon ? 'ps-11' : 'ps-4',
+                        icon ? (size === 'sm' ? 'ps-9' : 'ps-11') : size === 'sm' ? 'ps-3.5' : 'ps-4',
+                        size === 'sm' ? 'form-select-trigger--sm' : '',
                         {
                             'has-error': !!error,
                             'is-open': open,
+                            'is-placeholder': !model,
                         },
                     ]"
                     :disabled="disabled"
@@ -23,13 +25,16 @@
                     <i
                         v-if="icon"
                         class="form-control-icon"
-                        :class="icon"
+                        :class="[icon, size === 'sm' ? 'left-3 text-base' : '', { 'text-base': open }]"
                         aria-hidden="true"
                     />
-                    <span class="truncate text-ink">{{ displayLabel }}</span>
+                    <span class="truncate" :class="model ? 'text-ink' : 'text-ink/35'">{{ displayLabel }}</span>
                     <i
-                        class="ti ti-calendar absolute right-3.5 top-1/2 -translate-y-1/2 text-lg text-ink/30 transition-colors"
-                        :class="{ 'text-base': open }"
+                        class="ti ti-calendar absolute top-1/2 -translate-y-1/2 text-ink/30 transition-colors"
+                        :class="[
+                            size === 'sm' ? 'right-3 text-sm' : 'right-3.5 text-lg',
+                            { 'text-base': open },
+                        ]"
                         aria-hidden="true"
                     />
                 </button>
@@ -126,6 +131,7 @@ const props = defineProps({
     maxDate: { type: String, default: '' },
     disabled: { type: Boolean, default: false },
     placeholder: { type: String, default: 'Select date' },
+    size: { type: String, default: 'md' },
 });
 
 const emit = defineEmits(['change', 'blur']);

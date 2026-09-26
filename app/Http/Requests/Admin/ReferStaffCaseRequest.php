@@ -62,9 +62,20 @@ class ReferStaffCaseRequest extends FormRequest
             $assignee = User::query()->find($assigneeId);
             if (! $assignee?->isStaff() || $assignee->isSuspended()) {
                 $validator->errors()->add('assignee_id', 'Pick an active operations staff member, not an artisan.');
+
+                return;
             }
 
-            if ($this->user() && (int) $assigneeId === (int) $this->user()->id) {
+            if ($assignee->isSuperAdmin() && ! $this->user()?->isSuperAdmin()) {
+                $validator->errors()->add(
+                    'assignee_id',
+                    'Assign this to an operations staff member first. Use Escalate to Super Admin when you need them.',
+                );
+
+                return;
+            }
+
+            if ($this->user() && ! $this->user()->isSuperAdmin() && (int) $assigneeId === (int) $this->user()->id) {
                 $validator->errors()->add('assignee_id', 'Refer this case to another staff member.');
             }
         });

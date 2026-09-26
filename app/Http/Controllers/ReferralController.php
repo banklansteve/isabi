@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Referral;
-use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\Referrals\ReferralService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,7 +15,7 @@ class ReferralController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.referrals',
             summary: "{$user->name} opened Referrals.",
             user: $user,

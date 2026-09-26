@@ -4,9 +4,11 @@ namespace App\Http\Requests;
 
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
+use App\Support\WorkLog\JobSubjectPrivacy;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 class StoreWorkLogRequest extends FormRequest
 {
     /** How far back a job may be logged (days), inclusive of today. */
@@ -131,5 +133,24 @@ class StoreWorkLogRequest extends FormRequest
         }
 
         return (int) round(((float) $amount) * 100);
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('subject')) {
+                return;
+            }
+
+            $message = JobSubjectPrivacy::violation(
+                $this->input('subject'),
+                $this->input('client_name'),
+                $this->input('client_whatsapp'),
+            );
+
+            if ($message) {
+                $validator->errors()->add('subject', $message);
+            }
+        });
     }
 }

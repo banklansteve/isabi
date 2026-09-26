@@ -65,6 +65,12 @@
                             {{ lifetimeHelp(row.key) }}
                         </p>
                     </div>
+                    <div
+                        v-else-if="row.readonly"
+                        class="mt-3 rounded-xl border border-ink/10 bg-pale px-3.5 py-2.5 text-sm font-medium text-ink/70"
+                    >
+                        {{ form.settings[row.key] || '—' }}
+                    </div>
                     <input
                         v-else-if="row.type === 'integer'"
                         v-model="form.settings[row.key]"
@@ -79,13 +85,16 @@
                         class="mt-3 w-full rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
                     />
                 </label>
+                <p v-if="row.readonly" class="mt-2 text-[12px] font-semibold text-ink/40">
+                    Read-only — change this in environment / deploy config.
+                </p>
                 <p v-if="fieldError(row.key)" class="mt-2 text-[13px] font-semibold text-coral-deep">
                     {{ fieldError(row.key) }}
                 </p>
             </div>
 
             <FormButton
-                v-if="visibleRows.length"
+                v-if="editableVisibleRows.length"
                 type="submit"
                 variant="primary"
                 label="Save settings"
@@ -125,6 +134,8 @@ const visibleRows = computed(() => {
     const groups = tabGroups[tab.value] || [tab.value];
     return groups.flatMap((group) => props.settings[group] || []);
 });
+
+const editableVisibleRows = computed(() => visibleRows.value.filter((row) => !row.readonly));
 
 const serialize = (row) => {
     if (row.type === 'json') {
@@ -228,7 +239,7 @@ const fieldError = (key) => {
 const save = () => {
     const payload = {};
 
-    visibleRows.value.forEach((row) => {
+    editableVisibleRows.value.forEach((row) => {
         let value = form.settings[row.key];
 
         if (isLifetimeRow(row.key)) {

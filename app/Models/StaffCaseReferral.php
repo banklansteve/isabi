@@ -56,6 +56,14 @@ class StaffCaseReferral extends Model
         self::QUEUE_ESCALATION,
     ];
 
+    public const SOURCE_REFERRED = 'referred';
+
+    public const SOURCE_TAKEN_OVER = 'taken_over';
+
+    public const SOURCE_ESCALATED = 'escalated';
+
+    public const SOURCE_REASSIGNED = 'reassigned';
+
     protected $fillable = [
         'subject_type',
         'subject_id',
@@ -63,6 +71,7 @@ class StaffCaseReferral extends Model
         'referred_by_user_id',
         'note',
         'queue',
+        'source',
         'status',
         'referred_at',
         'acknowledged_at',

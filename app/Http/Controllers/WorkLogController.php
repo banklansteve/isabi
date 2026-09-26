@@ -10,6 +10,7 @@ use App\Models\WorkLog;
 use App\Models\WorkLogMedia;
 use App\Services\CloudinaryMediaService;
 use App\Support\ActivityLogger;
+use App\Support\AnalyticsEventLogger;
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\Referrals\ReferralService;
@@ -40,7 +41,7 @@ class WorkLogController extends Controller
     {
         $user = $request->user();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'page.work_log',
             summary: "{$user->name} opened Work log.",
             user: $user,
@@ -105,7 +106,7 @@ class WorkLogController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        ActivityLogger::log(
+        AnalyticsEventLogger::log(
             action: 'work_log.exported',
             summary: "{$user->name} exported their work log as PDF.",
             user: $user,

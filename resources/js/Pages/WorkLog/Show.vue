@@ -105,7 +105,7 @@
                         v-if="!entry.has_review"
                         variant="accent"
                         icon-left="ti ti-brand-whatsapp"
-                        :label="entry.review_requested ? 'Resend review link' : 'Send review link'"
+                        :label="reviewSendLabel"
                         :loading="requestingReview"
                         loading-label="Preparing…"
                         @click="requestReview"
@@ -119,6 +119,15 @@
                         loading-label="Preparing…"
                         @click="sendReminder"
                     />
+                    <p
+                        v-if="!entry.has_review && !emailVerified"
+                        class="w-full text-xs font-medium text-ink/45"
+                    >
+                        Verify your email to unlock review requests.
+                        <Link :href="route('register')" class="font-bold text-base-action hover:text-base-hover">
+                            Enter code
+                        </Link>
+                    </p>
                     <a
                         v-if="entry.public_url"
                         :href="entry.public_url"
@@ -492,6 +501,13 @@ const sharePayload = ref(null);
 const reviewLightboxOpen = ref(false);
 
 const pageUrl = computed(() => page.props.auth?.user?.public_url || '');
+const emailVerified = computed(() => !!page.props.auth?.user?.email_verified_at);
+const reviewSendLabel = computed(() => {
+    if (!emailVerified.value) {
+        return 'Verify email to send';
+    }
+    return props.entry.review_requested ? 'Resend review link' : 'Send review link';
+});
 
 const profileEmbedUrl = computed(() => {
     const slug = page.props.auth?.user?.slug;
@@ -720,7 +736,20 @@ const openPreparedShare = (fallbackMessage) => {
     openShareSheet(share);
 };
 
+const requireVerifiedEmail = () => {
+    if (emailVerified.value) {
+        return true;
+    }
+    toast('Verify your email to send review requests.', 'info', 5200);
+    router.visit(route('register'));
+    return false;
+};
+
 const requestReview = () => {
+    if (!requireVerifiedEmail()) {
+        return;
+    }
+
     const existing = normalizeShare(props.reviewInvite);
     if (existing) {
         openShareSheet(existing);
@@ -744,6 +773,10 @@ const requestReview = () => {
 };
 
 const sendReminder = () => {
+    if (!requireVerifiedEmail()) {
+        return;
+    }
+
     sendingReminder.value = true;
     router.post(
         route('work-log.remind-review', props.entry.uid),

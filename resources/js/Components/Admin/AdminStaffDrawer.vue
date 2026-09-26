@@ -61,11 +61,11 @@
             <div v-if="tab === 'overview'" key="overview" class="space-y-6">
                 <section>
                     <div class="flex items-center justify-between gap-3">
-                        <h3 class="text-[13px] font-bold text-ink">Roles</h3>
+                        <h3 class="text-[13px] font-bold text-ink">Duties</h3>
                         <FormButton
                             variant="primary"
                             class="!rounded-xl !px-3 !py-2 !text-[12px]"
-                            label="Change roles"
+                            label="Change duties"
                             icon-left="ti ti-shield"
                             @click="openRoles"
                         />
@@ -81,8 +81,16 @@
                         </span>
                     </div>
                     <p v-else class="mt-3 rounded-xl bg-pale px-3 py-3 text-[13px] font-medium text-ink/50">
-                        No roles assigned. They can sign in, but the console stays restricted until you give them a role.
+                        No duties assigned. They can sign in, but the console stays restricted until you give them a duty.
                     </p>
+                    <Link
+                        v-if="!shown.is_super"
+                        :href="route('admin.assigned.index', { staff: shown.id })"
+                        class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-base-action hover:text-base-hover"
+                    >
+                        View assigned cases
+                        <i class="ti ti-arrow-right" aria-hidden="true" />
+                    </Link>
                     <p v-if="shown.is_super && !isSelf" class="mt-2 text-[12px] font-medium text-ink/40">
                         Changing Super Admin access is logged as a high-trust action.
                     </p>
@@ -513,25 +521,33 @@
         </template>
     </AdminDrawer>
 
-    <AdminDrawer :open="rolesOpen" title="Change roles" eyebrow="Access" @close="rolesOpen = false">
+    <AdminDrawer :open="rolesOpen" title="Change duties" eyebrow="Access" @close="rolesOpen = false">
         <div class="space-y-3">
-            <p class="text-[13px] font-medium text-ink/50">Select every role this person should have. Changes apply immediately.</p>
-            <label class="flex items-center gap-3 rounded-xl bg-pale px-3 py-2.5">
-                <input
-                    v-model="roleDraft.super"
-                    type="checkbox"
-                    class="rounded border-ink/20 text-base-action"
-                    :disabled="isSelf"
-                />
-                <span class="text-[13px] font-semibold text-ink">Super Admin</span>
-            </label>
+            <p class="text-[13px] font-medium text-ink/50">
+                Pick from the assignable operations duties. Super Admin access is not assigned here.
+            </p>
+            <p
+                v-if="shown?.is_super"
+                class="rounded-xl bg-pale px-3 py-2.5 text-[13px] font-medium text-ink/55"
+            >
+                This person is a Super Admin. Duty checkboxes below are for operations bundles only.
+            </p>
             <label
                 v-for="role in roles"
                 :key="role.id"
-                class="flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 ring-ink/[0.06]"
+                class="flex items-start gap-3 rounded-xl px-3 py-2.5 ring-1 ring-ink/[0.06]"
             >
-                <input v-model="roleDraft.ids" type="checkbox" :value="role.id" class="rounded border-ink/20 text-base-action" />
-                <span class="text-[13px] font-semibold text-ink">{{ role.name }}</span>
+                <input v-model="roleDraft.ids" type="checkbox" :value="role.id" class="mt-0.5 rounded border-ink/20 text-base-action" />
+                <span class="min-w-0">
+                    <span class="block text-[13px] font-semibold text-ink">{{ role.name }}</span>
+                    <span v-if="role.description" class="mt-0.5 block text-[12px] font-medium text-ink/45">{{ role.description }}</span>
+                    <span
+                        v-if="role.includes?.length"
+                        class="mt-1.5 block text-[11px] font-medium leading-relaxed text-ink/40"
+                    >
+                        Includes: {{ role.includes.join(' · ') }}
+                    </span>
+                </span>
             </label>
         </div>
         <template #footer>
@@ -540,7 +556,7 @@
                 <FormButton
                     variant="primary"
                     class="!rounded-xl !px-4 !py-2.5 !text-[13px]"
-                    label="Save roles"
+                    label="Save duties"
                     :loading="busy === 'roles'"
                     loading-label="Saving…"
                     @click="saveRoles"
@@ -686,7 +702,7 @@ const lastPerson = ref(null);
 const rolesOpen = ref(false);
 const messageOpen = ref(false);
 const announceOpen = ref(false);
-const roleDraft = reactive({ ids: [], super: false });
+const roleDraft = reactive({ ids: [] });
 const messageForm = reactive({
     subject: '',
     body: '',
@@ -947,7 +963,6 @@ const openRoles = () => {
     roleDraft.ids = currentRoles.value
         .filter((role) => role.id !== 'super_admin')
         .map((role) => role.id);
-    roleDraft.super = !!shown.value?.is_super;
     rolesOpen.value = true;
 };
 
@@ -1000,7 +1015,8 @@ const saveRoles = async () => {
     try {
         const { data } = await axios.put(route('admin.staff.roles.sync', shown.value.id), {
             role_ids: roleDraft.ids,
-            is_super: roleDraft.super,
+            // Never promote/demote Super Admin from the duties drawer.
+            is_super: !!shown.value.is_super,
         });
         toast(data.toast);
         if (data.staff) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\TokenPurchase;
 use App\Support\Admin\DashboardMetrics;
+use App\Support\Analytics\ProductAnalyticsReports;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,10 +13,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinancialAdminController extends Controller
 {
-    public function index(Request $request, DashboardMetrics $metrics): Response
+    public function index(Request $request, DashboardMetrics $metrics, ProductAnalyticsReports $product): Response
     {
         return Inertia::render('Admin/Financials/Index', [
             ...$metrics->financials(),
+            'credits_conversion' => $product->creditsConversionForFinancials(),
             'filters' => [
                 'tab' => (string) $request->query('tab', 'revenue'),
             ],

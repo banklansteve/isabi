@@ -20,9 +20,13 @@
 
             <div
                 v-if="status"
-                class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+                class="mt-6"
             >
-                {{ status }}
+                <AppInlineAlert
+                    tone="success"
+                    title="You’re set"
+                    :message="status"
+                />
             </div>
 
             <form class="mt-8 space-y-5" @submit.prevent="submit">
@@ -88,6 +92,7 @@
 </template>
 
 <script setup>
+import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormCheckbox from '@/Components/Form/FormCheckbox.vue';
 import FormPasswordInput from '@/Components/Form/FormPasswordInput.vue';

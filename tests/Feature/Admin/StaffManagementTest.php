@@ -190,6 +190,94 @@ class StaffManagementTest extends TestCase
         $this->assertTrue($staff->fresh()->staffRoles->contains('id', $support->id));
     }
 
+    public function test_super_admin_only_duties_are_not_assignable_and_hidden_from_staff_list(): void
+    {
+        $this->seed(StaffRoleSeeder::class);
+        $admin = $this->super();
+        $staff = $this->ops();
+        $hr = StaffRole::query()->where('slug', 'people_hr')->first();
+        $blocked = ['people_hr', 'knowledge_base', 'people_discipline', 'content_comms'];
+        $opsGrouped = ['verification', 'growth_lifecycle'];
+
+        $this->assertNotNull($hr);
+        $this->assertFalse($hr->is_assignable);
+
+        foreach ($opsGrouped as $slug) {
+            $role = StaffRole::query()->where('slug', $slug)->first();
+            $this->assertNotNull($role, "{$slug} should exist");
+            $this->assertTrue($role->is_assignable, "{$slug} must be assignable to ops");
+            $this->assertTrue($role->is_active);
+        }
+
+        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer'] as $legacy) {
+            $this->assertNull(
+                StaffRole::query()->where('slug', $legacy)->first(),
+                "Retired ops duty {$legacy} must not remain in the database.",
+            );
+        }
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.staff.roles.sync', $staff), [
+                'role_ids' => [$hr->id],
+                'is_super' => false,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('role_ids');
+
+        $staffPage = $this->actingAs($admin)
+            ->get(route('admin.staff.index'))
+            ->assertOk();
+
+        $staffPage->assertInertia(fn ($page) => $page->component('Admin/Staff/Index')->has('roles'));
+
+        $staffRoleSlugs = collect($staffPage->original->getData()['page']['props']['roles'] ?? [])
+            ->pluck('slug');
+        foreach ($blocked as $slug) {
+            $this->assertFalse($staffRoleSlugs->contains($slug), "{$slug} must not appear on staff assignment.");
+        }
+        foreach ($opsGrouped as $slug) {
+            $this->assertTrue($staffRoleSlugs->contains($slug), "{$slug} must appear on staff assignment.");
+        }
+
+        $rolesPage = $this->actingAs($admin)
+            ->get(route('admin.roles.index'))
+            ->assertOk();
+
+        $rolesPage->assertInertia(fn ($page) => $page
+            ->component('Admin/Roles/Index')
+            ->has('roles')
+            ->has('super_admin_duties'));
+
+        $props = $rolesPage->original->getData()['page']['props'];
+        $assignableSlugs = collect($props['roles'] ?? [])->pluck('slug');
+        $saSlugs = collect($props['super_admin_duties'] ?? [])->pluck('slug');
+
+        foreach ($blocked as $slug) {
+            $this->assertFalse($assignableSlugs->contains($slug), "{$slug} must not be assignable.");
+            $this->assertTrue($saSlugs->contains($slug), "{$slug} must appear under Super Admin duties.");
+        }
+
+        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer', 'Onboarding follow-up'] as $legacy) {
+            $this->assertFalse($saSlugs->contains($legacy));
+            $this->assertFalse($assignableSlugs->contains($legacy));
+        }
+
+        foreach ($opsGrouped as $slug) {
+            $this->assertTrue($assignableSlugs->contains($slug), "{$slug} must be listed as assignable.");
+            $this->assertFalse($saSlugs->contains($slug), "{$slug} must not appear under Super Admin only.");
+        }
+
+        $builtInAssignable = collect(config('admin.roles'))
+            ->filter(fn ($role) => ($role['assignable'] ?? true) === true)
+            ->pluck('slug');
+
+        $this->assertLessThanOrEqual(6, $builtInAssignable->count());
+        $this->assertTrue(
+            $builtInAssignable->every(fn ($slug) => $assignableSlugs->contains($slug)),
+            'All configured assignable duties should appear on the duties page.',
+        );
+    }
+
     public function test_typed_destroy_is_blocked_without_confirmation(): void
     {
         $admin = $this->super();

@@ -8,12 +8,19 @@ use App\Support\Auth\EmailVerificationService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class EmailVerificationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
 
     public function test_email_verification_screen_can_be_rendered(): void
     {
@@ -42,7 +49,8 @@ class EmailVerificationTest extends TestCase
 
         Event::assertDispatched(Verified::class);
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
-        $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+        $this->assertNull($user->fresh()->email_verification_code_hash);
+        $response->assertRedirect(route('dashboard', absolute: false));
     }
 
     public function test_email_can_be_verified_with_signed_link(): void
@@ -72,6 +80,28 @@ class EmailVerificationTest extends TestCase
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
+    public function test_resend_invalidates_previous_code_and_respects_cooldown(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->unverified()->create();
+        $first = app(EmailVerificationService::class)->issue($user, session()->getId(), sendMail: false);
+
+        $this->actingAs($user)
+            ->post('/email/verification-notification')
+            ->assertSessionHasErrors('email');
+
+        $user->forceFill(['email_verification_sent_at' => now()->subMinutes(2)])->save();
+
+        $this->actingAs($user)
+            ->from('/register')
+            ->post('/email/verification-notification')
+            ->assertRedirect(route('register'));
+
+        $this->assertFalse(Hash::check($first['code'], $user->fresh()->email_verification_code_hash));
+        Mail::assertSent(VerifyEmailMail::class);
+    }
+
     public function test_password_reset_requires_verified_email(): void
     {
         $user = User::factory()->unverified()->create([
@@ -81,6 +111,32 @@ class EmailVerificationTest extends TestCase
         $this->from('/forgot-password')
             ->post('/forgot-password', ['email' => $user->email])
             ->assertSessionHasErrors('email');
+    }
+
+    public function test_unverified_user_can_use_app_but_not_request_review(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertOk();
+
+        $workLog = \App\Models\WorkLog::query()->create([
+            'user_id' => $user->id,
+            'subject' => 'Kitchen sink repair',
+            'description' => 'Fixed a leaking sink for a client.',
+            'job_category' => 'Plumbing',
+            'job_subcategory' => 'Kitchen plumbing',
+            'worked_on' => now()->subDay(),
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('work-log.show', $workLog))
+            ->post(route('work-log.request-review', $workLog))
+            ->assertRedirect(route('work-log.show', $workLog));
+
+        $this->assertNull($workLog->fresh()->review_requested_at);
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
     public function test_email_is_not_verified_with_invalid_hash(): void

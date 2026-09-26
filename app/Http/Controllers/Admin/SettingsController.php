@@ -44,6 +44,24 @@ class SettingsController extends Controller
             }
         }
 
+        $readonlyKeys = collect(config('admin.settings', []))
+            ->filter(fn (array $row) => (bool) ($row['readonly'] ?? false))
+            ->pluck('key')
+            ->all();
+
+        foreach ($readonlyKeys as $key) {
+            unset($incoming[$key]);
+        }
+
+        if ($incoming === []) {
+            return back()->with('toast', [
+                'type' => 'info',
+                'title' => 'Nothing to save',
+                'message' => 'No editable settings were submitted.',
+                'duration' => 4200,
+            ]);
+        }
+
         $settings->updateMany($incoming, $request->user());
 
         $after = collect($settings->allForAdmin())->mapWithKeys(fn (array $row) => [$row['key'] => $row['value']])->all();

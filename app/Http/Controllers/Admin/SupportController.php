@@ -323,15 +323,24 @@ class SupportController extends Controller
     public function destroyCanned(Request $request, SupportCannedReply $reply): RedirectResponse
     {
         abort_unless($request->user()?->canDo('admin.support.manage'), 403);
-        abort_if($reply->is_system, 403);
-        abort_unless($reply->user_id === $request->user()->id || $request->user()->isSuperAdmin(), 403);
+
+        $actor = $request->user();
+        $isTeam = $reply->scope === SupportChatTemplates::SCOPE_TEAM || $reply->is_system;
+
+        if ($isTeam) {
+            abort_unless($actor->isSuperAdmin(), 403);
+        } else {
+            abort_unless($reply->user_id === $actor->id || $actor->isSuperAdmin(), 403);
+        }
 
         $reply->delete();
 
         return back()->with('toast', [
             'type' => 'success',
-            'title' => 'Reply removed',
-            'message' => 'That saved reply is gone.',
+            'title' => 'Template removed',
+            'message' => $isTeam
+                ? 'Ops will no longer see that reply in the composer.'
+                : 'That saved reply is gone.',
         ]);
     }
 

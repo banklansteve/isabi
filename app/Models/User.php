@@ -651,6 +651,7 @@ class User extends Authenticatable implements MustVerifyEmail
         if ($this->isSuperAdmin()) {
             return StaffRole::query()
                 ->where('is_active', true)
+                ->where('is_assignable', true)
                 ->orderBy('sort_order')
                 ->get()
                 ->map(fn (StaffRole $role) => [

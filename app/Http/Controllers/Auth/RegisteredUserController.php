@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Auth\EmailVerificationService;
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
 use App\Support\ProfileSlug;
@@ -22,26 +23,60 @@ use Inertia\Response;
 class RegisteredUserController extends Controller
 {
     /**
-     * Display the registration view.
+     * Display the registration view (or same-screen verify step for unverified users).
      */
-    public function create(Request $request): Response
+    public function create(Request $request, EmailVerificationService $verification): RedirectResponse|Response
     {
+        $user = $request->user();
+
+        if ($user?->hasVerifiedEmail()) {
+            return redirect()->route($user->homeRouteName());
+        }
+
+        if ($user && ! $user->isStaff()) {
+            if (
+                blank($user->email_verification_code_hash)
+                || blank($user->email_verification_code_expires_at)
+                || $user->email_verification_code_expires_at->isPast()
+            ) {
+                try {
+                    $verification->assertCanResend($user);
+                    $verification->issue($user, $request->session()->getId());
+                } catch (\Illuminate\Validation\ValidationException) {
+                    // Cooldown — still show the verify UI with remaining wait.
+                }
+            }
+
+            return $this->registerPage(
+                pendingVerification: [
+                    'email' => $user->email,
+                    'resendCooldown' => $verification->secondsUntilResend($user->fresh()),
+                    'codeTtlMinutes' => EmailVerificationService::CODE_TTL_MINUTES,
+                ],
+                status: session('status'),
+            );
+        }
+
+        if ($user?->isStaff()) {
+            return redirect()->route($user->homeRouteName());
+        }
+
         $ref = trim((string) $request->query('ref', ''));
 
-        return Inertia::render('Auth/Register', [
-            'trades' => JobCategories::tradeLabels(),
-            'jobCategories' => JobCategories::forFrontend(),
-            'skillCatalog' => SkillsCatalog::forFrontend(),
-            'locations' => NigeriaLocations::all(),
-            'referralCode' => $ref !== '' ? $ref : null,
-        ]);
+        return $this->registerPage(
+            referralCode: $ref !== '' ? $ref : null,
+        );
     }
 
     /**
-     * Handle an incoming registration request.
+     * Create the account, sign them in, email a one-time code, and keep them
+     * on the same signup screen to enter it (soft-gate — they may continue later).
      */
-    public function store(RegisterRequest $request, ReferralService $referrals): RedirectResponse
-    {
+    public function store(
+        RegisterRequest $request,
+        ReferralService $referrals,
+        EmailVerificationService $verification,
+    ): Response {
         $data = $request->validated();
         $slug = ProfileSlug::uniqueFrom($data['business_name']);
 
@@ -67,6 +102,9 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+        $request->session()->regenerate();
+
+        $verification->issue($user, $request->session()->getId());
 
         ActivityLogger::log(
             action: 'auth.register',
@@ -82,6 +120,31 @@ class RegisteredUserController extends Controller
             ],
         );
 
-        return redirect(route($user->homeRouteName(), absolute: false));
+        return $this->registerPage(
+            pendingVerification: [
+                'email' => $user->email,
+                'resendCooldown' => EmailVerificationService::RESEND_COOLDOWN_SECONDS,
+                'codeTtlMinutes' => EmailVerificationService::CODE_TTL_MINUTES,
+            ],
+        );
+    }
+
+    /**
+     * @param  array{email: string, resendCooldown: int, codeTtlMinutes: int}|null  $pendingVerification
+     */
+    private function registerPage(
+        ?array $pendingVerification = null,
+        ?string $referralCode = null,
+        mixed $status = null,
+    ): Response {
+        return Inertia::render('Auth/Register', [
+            'trades' => JobCategories::tradeLabels(),
+            'jobCategories' => JobCategories::forFrontend(),
+            'skillCatalog' => SkillsCatalog::forFrontend(),
+            'locations' => NigeriaLocations::all(),
+            'referralCode' => $referralCode,
+            'pendingVerification' => $pendingVerification,
+            'status' => $status,
+        ]);
     }
 }

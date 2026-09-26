@@ -1,14 +1,27 @@
 <template>
     <AuthLayout
-        eyebrow="Verify email"
-        title="Enter your code"
-        :support="`We sent a 6-digit code to ${email}. Type it here — no need to leave this tab.`"
+        headline="Confirm it’s really you."
+        support="We sent a 6-digit code to your inbox. Enter it here — no need to leave this tab."
+        :points="[
+            'Code expires in about 15 minutes',
+            'Resend anytime after a short wait',
+            'You can still explore the app while unverified',
+        ]"
     >
         <Head title="Verify email" />
 
-        <div class="space-y-5">
+        <div class="auth-enter">
+            <h1 class="text-center font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2.1rem]">
+                Enter your code
+            </h1>
+            <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
+                We sent a 6-digit code to
+                <span class="font-bold text-ink">{{ email }}</span>.
+            </p>
+
             <AppInlineAlert
                 v-if="status === 'verification-link-sent'"
+                class="mt-6"
                 tone="success"
                 title="New code sent"
                 message="Check your inbox (and spam) for a fresh 6-digit code."
@@ -16,12 +29,13 @@
 
             <AppInlineAlert
                 v-if="form.errors.code || form.errors.email || form.errors.link"
+                class="mt-6"
                 tone="error"
                 title="Couldn’t verify"
                 :message="form.errors.code || form.errors.email || form.errors.link"
             />
 
-            <form class="space-y-4" @submit.prevent="submitCode">
+            <form class="mt-8 space-y-5" @submit.prevent="submitCode">
                 <FormTextInput
                     id="code"
                     :model-value="form.code"
@@ -38,15 +52,15 @@
                 <FormButton
                     type="submit"
                     variant="primary"
-                    class="w-full"
-                    label="Verify email"
+                    block
+                    label="Verify &amp; continue"
                     :loading="form.processing"
                     loading-label="Verifying…"
                     icon-right="ti ti-check"
                 />
             </form>
 
-            <div class="rounded-2xl bg-pale/80 px-4 py-3.5 ring-1 ring-ink/[0.06]">
+            <div class="mt-6 rounded-2xl bg-pale/80 px-4 py-3.5 ring-1 ring-ink/[0.06]">
                 <p class="text-sm font-medium text-ink/60">
                     Code expires in about {{ codeTtlMinutes }} minutes. Prefer the email button?
                     It works too — if it opens in another window, come back here after it confirms.
@@ -134,3 +148,20 @@ onBeforeUnmount(() => {
     if (timer) window.clearInterval(timer);
 });
 </script>
+
+<style scoped>
+.auth-enter {
+    animation: auth-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-rise {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

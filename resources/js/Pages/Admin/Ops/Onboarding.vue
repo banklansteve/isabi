@@ -1,7 +1,7 @@
 <template>
     <Head title="Onboarding follow-up" />
 
-    <AdminChrome title="Onboarding follow-up" eyebrow="Growth &amp; lifecycle" />
+    <AdminChrome title="Onboarding follow-up" eyebrow="Ops · Growth &amp; lifecycle" />
 
     <div class="space-y-5">
         <header class="flex flex-col gap-1">

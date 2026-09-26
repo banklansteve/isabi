@@ -496,11 +496,11 @@ onUnmounted(() => {
 }
 
 .media-lb-enter-active {
-    transition: opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .media-lb-leave-active {
-    transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .media-lb-enter-from,
@@ -510,23 +510,29 @@ onUnmounted(() => {
 
 .media-lb-enter-active .media-stage,
 .media-lb-leave-active .media-stage {
-    will-change: transform;
+    will-change: transform, opacity;
 }
 
 .media-lb-enter-active .media-stage {
-    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+        transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .media-lb-leave-active .media-stage {
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .media-lb-enter-from .media-stage {
-    transform: scale3d(0.975, 0.975, 1);
+    transform: scale3d(0.96, 0.96, 1);
+    opacity: 0.65;
 }
 
 .media-lb-leave-to .media-stage {
     transform: scale3d(0.985, 0.985, 1);
+    opacity: 0;
 }
 
 .media-lb-enter-active .media-chrome,

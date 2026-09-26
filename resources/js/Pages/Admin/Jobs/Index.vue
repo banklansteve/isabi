@@ -14,19 +14,22 @@
                     class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] py-2.5 ps-10 pe-4 text-sm font-medium outline-none transition-[box-shadow,border-color] duration-150 focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
                 />
             </div>
-            <div class="no-scrollbar flex gap-1.5 overflow-x-auto lg:justify-end">
-                <select v-model="statusFilter" class="chip-select" :class="statusFilter ? 'chip-select--on' : ''">
-                    <option value="">All statuses</option>
-                    <option value="flagged">Flagged</option>
-                    <option value="hidden">Hidden</option>
-                    <option value="removed">Removed</option>
-                    <option value="referred">Referred</option>
-                </select>
-                <select v-model="list.sort.value" class="chip-select">
-                    <option value="date_desc">Newest first</option>
-                    <option value="date_asc">Oldest first</option>
-                    <option value="backdated_desc">Most backdated</option>
-                </select>
+            <div class="no-scrollbar flex min-w-0 flex-wrap gap-2 lg:justify-end">
+                <FormSelect
+                    id="jobs-status"
+                    v-model="statusFilter"
+                    size="sm"
+                    wrapper-class="w-[11.5rem]"
+                    placeholder="All statuses"
+                    :options="statusOptions"
+                />
+                <FormSelect
+                    id="jobs-sort"
+                    v-model="list.sort.value"
+                    size="sm"
+                    wrapper-class="w-[11.5rem]"
+                    :options="sortOptions"
+                />
             </div>
         </div>
         <div class="mt-3 border-t border-ink/[0.05] pt-3">
@@ -100,6 +103,7 @@ import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminClientPager from '@/Components/Admin/AdminClientPager.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
+import FormSelect from '@/Components/Form/FormSelect.vue';
 import JobLogDrawer from '@/Components/Admin/JobLogDrawer.vue';
 import JobStatusBadges from '@/Components/Admin/JobStatusBadges.vue';
 import { useAdminTabs } from '@/Composables/useAdminTabs';
@@ -121,6 +125,18 @@ const { tab } = useAdminTabs({ tab: 'all' });
 const range = useDateRange('all');
 const rows = ref([...props.jobs]);
 const statusFilter = ref(tab.value === 'flagged' ? 'flagged' : tab.value === 'hidden' ? 'hidden' : '');
+const statusOptions = [
+    { value: '', label: 'All statuses' },
+    { value: 'flagged', label: 'Flagged' },
+    { value: 'hidden', label: 'Hidden' },
+    { value: 'removed', label: 'Removed' },
+    { value: 'referred', label: 'Referred' },
+];
+const sortOptions = [
+    { value: 'date_desc', label: 'Newest first' },
+    { value: 'date_asc', label: 'Oldest first' },
+    { value: 'backdated_desc', label: 'Most backdated' },
+];
 
 watch(
     () => props.jobs,
@@ -268,15 +284,3 @@ watch(
     { immediate: true },
 );
 </script>
-
-<style scoped>
-.chip-select {
-    @apply appearance-none rounded-full border border-transparent bg-[#F4F6FA] px-3 py-2 pe-8 text-[12px] font-semibold text-ink/55 outline-none transition-colors duration-150 hover:bg-tint;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
-    background-position: right 0.65rem center;
-    background-repeat: no-repeat;
-}
-.chip-select--on {
-    @apply bg-tint text-deep ring-transparent;
-}
-</style>

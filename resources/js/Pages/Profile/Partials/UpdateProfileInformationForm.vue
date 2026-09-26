@@ -447,11 +447,11 @@
                                 id="skills"
                                 v-model="expertiseForm.skills"
                                 label="Skills"
-                                hint="Search and add skills clients hire you for. Up to 8."
+                                hint="Search and add skills clients hire you for. Up to 15."
                                 icon="ti ti-sparkles"
                                 placeholder="Start typing, e.g. wiring or tiling"
                                 :options="skillSuggestions"
-                                :max="8"
+                                :max="15"
                                 :error="expertiseForm.errors.skills || expertiseForm.errors['skills.0']"
                             />
                         </div>

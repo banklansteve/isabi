@@ -878,8 +878,10 @@ const toggleTag = async (key) => {
 };
 
 const insertCanned = (item) => {
-    const name = ticket.value?.user?.name || 'there';
+    const user = ticket.value?.user;
+    const name = user?.first_name || user?.name || 'there';
     draft.value = String(item.body || '')
+        .replaceAll('{first_name}', name)
         .replaceAll('{name}', name)
         .replaceAll('{agent}', agentName.value);
     cannedOpen.value = false;

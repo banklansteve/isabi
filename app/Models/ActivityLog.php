@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ActorKind;
+use App\Enums\RetentionTier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,7 +13,9 @@ class ActivityLog extends Model
 
     protected $fillable = [
         'user_id',
+        'actor_kind',
         'action',
+        'retention_tier',
         'summary',
         'properties',
         'ip_address',
@@ -25,6 +29,8 @@ class ActivityLog extends Model
     protected function casts(): array
     {
         return [
+            'actor_kind' => ActorKind::class,
+            'retention_tier' => RetentionTier::class,
             'properties' => 'array',
             'created_at' => 'datetime',
         ];

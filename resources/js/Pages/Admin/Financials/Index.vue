@@ -23,8 +23,38 @@
             />
         </div>
 
+        <!-- Credits page conversion (product analytics summaries) -->
+        <div v-if="tab === 'conversion'" class="grid gap-4">
+            <div class="rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05] sm:p-6">
+                <p class="text-[13px] font-semibold text-ink/45">Credits page → purchase</p>
+                <p class="mt-2 text-[2.4rem] font-semibold tracking-tight text-ink tabular-nums sm:text-[2.75rem]">
+                    {{ rangeConversion.rate }}%
+                </p>
+                <p class="mt-2 text-[13px] font-medium text-ink/45">
+                    {{ rangeConversion.purchasers.toLocaleString() }} purchasers of
+                    {{ rangeConversion.viewers.toLocaleString() }} credits-page viewers in this range
+                </p>
+                <p class="mt-1 text-[12px] font-medium text-ink/35">
+                    {{ credits_conversion.hint || 'From nightly analytics summaries — monetization-page effectiveness, not the signup funnel.' }}
+                </p>
+            </div>
+
+            <div class="grid gap-4 lg:grid-cols-2">
+                <AdminFunnelChart
+                    title="Interest → action"
+                    hint="Credits page views vs completed token purchases"
+                    :steps="conversionFunnelSteps"
+                />
+                <AdminAreaChart
+                    title="Conversion rate by week"
+                    hint="Weekly credits-page viewers who purchased (summary rollups)"
+                    :series="range.series(credits_conversion.weekly_rate || [])"
+                />
+            </div>
+        </div>
+
         <AdminStackedAreaChart
-            v-if="tab === 'sources'"
+            v-else-if="tab === 'sources'"
             title="Revenue by source"
             :labels="stacked.labels"
             :layers="stacked.layers"
@@ -67,13 +97,20 @@
             </a>
         </div>
 
-        <AdminBarList v-else-if="tab !== 'gateways' && tab !== 'statements' && tab !== 'sources'" class="mt-4" title="Credit pack sales" :items="by_pack" money />
+        <AdminBarList
+            v-else-if="tab !== 'gateways' && tab !== 'statements' && tab !== 'sources' && tab !== 'conversion'"
+            class="mt-4"
+            title="Credit pack sales"
+            :items="by_pack"
+            money
+        />
 </template>
 
 <script setup>
 import AdminAreaChart from '@/Components/Admin/AdminAreaChart.vue';
 import AdminBarList from '@/Components/Admin/AdminBarList.vue';
 import AdminDonutChart from '@/Components/Admin/AdminDonutChart.vue';
+import AdminFunnelChart from '@/Components/Admin/AdminFunnelChart.vue';
 import AdminKpiCard from '@/Components/Admin/AdminKpiCard.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
 import AdminStackedAreaChart from '@/Components/Admin/AdminStackedAreaChart.vue';
@@ -93,6 +130,7 @@ const props = defineProps({
     totals: { type: Object, default: () => ({}) },
     revenue_by_source: { type: Object, default: () => ({ labels: [], layers: [] }) },
     referral_liability: { type: Array, default: () => [] },
+    credits_conversion: { type: Object, default: () => ({}) },
     filters: { type: Object, default: () => ({}) },
     currency_symbol: { type: String, default: '₦' },
 });
@@ -104,4 +142,39 @@ const stacked = computed(() => sliceStacked(props.revenue_by_source, range.bound
 const rangeRevenueLabel = computed(() =>
     formatNaira(revenueSeries.value.reduce((sum, point) => sum + Number(point.value || 0), 0)),
 );
+
+const rangeConversion = computed(() => {
+    const funnel = props.credits_conversion?.funnel || [];
+    const viewersSeries = props.credits_conversion?.viewers_series || [];
+    const purchasersSeries = props.credits_conversion?.purchasers_series || [];
+
+    if (viewersSeries.length || purchasersSeries.length) {
+        const viewers = range.series(viewersSeries).reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+        const purchasers = range.series(purchasersSeries).reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+        const rate = viewers > 0 ? Math.round((purchasers / viewers) * 100) : 0;
+        return { viewers, purchasers, rate };
+    }
+
+    // Fallback to server snapshot (trailing 30d)
+    return {
+        viewers: Number(props.credits_conversion?.viewers || funnel[0]?.value || 0),
+        purchasers: Number(props.credits_conversion?.purchasers || funnel[1]?.value || 0),
+        rate: Number(props.credits_conversion?.rate || 0),
+    };
+});
+
+const conversionFunnelSteps = computed(() => {
+    const viewers = rangeConversion.value.viewers;
+    const purchasers = rangeConversion.value.purchasers;
+    const base = Math.max(viewers, 1);
+
+    return [
+        { label: 'Viewed credits', value: viewers, percent: viewers > 0 ? 100 : 0 },
+        {
+            label: 'Purchased tokens',
+            value: purchasers,
+            percent: viewers > 0 ? Math.round((purchasers / base) * 100) : 0,
+        },
+    ];
+});
 </script>

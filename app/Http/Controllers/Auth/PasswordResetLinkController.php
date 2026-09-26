@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,44 +19,47 @@ class PasswordResetLinkController extends Controller
     {
         return Inertia::render('Auth/ForgotPassword', [
             'status' => session('status'),
+            'sentTo' => session('sentTo'),
         ]);
     }
 
     /**
      * Handle an incoming password reset link request.
      *
-     * @throws ValidationException
+     * Always return a generic success so we don’t leak whether an email is registered.
+     * Verified-email requirement is the exception — account owners need a clear next step.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(ForgotPasswordRequest $request): RedirectResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-        ]);
-
-        $email = strtolower(trim((string) $request->input('email')));
+        $email = (string) $request->validated('email');
         $user = User::query()->where('email', $email)->first();
 
+        $generic = [
+            'status' => 'reset-link-sent',
+            'sentTo' => $email,
+            'toast' => [
+                'type' => 'success',
+                'title' => 'Check your email',
+                'message' => 'If that address has an account, a reset link is on its way.',
+                'duration' => 5200,
+            ],
+        ];
+
+        // Staff use the admin reset flow — never send a public reset from here.
         if ($user?->isStaff()) {
-            return back()->with('status', __(Password::RESET_LINK_SENT));
+            return back()->with($generic);
         }
 
-        // Password reset targets email as the credential — require verification first.
         if ($user && method_exists($user, 'hasVerifiedEmail') && ! $user->hasVerifiedEmail()) {
-            throw ValidationException::withMessages([
-                'email' => 'Verify your email before resetting your password. Check your inbox for a verification code, or log in and resend it.',
+            return back()->withErrors([
+                'email' => 'Verify your email before resetting your password. Log in and enter the code we sent you, or resend it from your dashboard.',
             ]);
         }
 
-        $status = Password::sendResetLink(
-            ['email' => $email]
-        );
-
-        if ($status == Password::RESET_LINK_SENT) {
-            return back()->with('status', __($status));
+        if ($user) {
+            Password::sendResetLink(['email' => $email]);
         }
 
-        throw ValidationException::withMessages([
-            'email' => [trans($status)],
-        ]);
+        return back()->with($generic);
     }
 }

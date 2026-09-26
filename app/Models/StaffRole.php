@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'permissions',
     'is_system',
     'is_active',
+    'is_assignable',
     'sort_order',
     'created_by_user_id',
 ])]
@@ -29,6 +30,7 @@ class StaffRole extends Model
         return [
             'is_system' => 'boolean',
             'is_active' => 'boolean',
+            'is_assignable' => 'boolean',
             'sort_order' => 'integer',
             'permissions' => 'array',
         ];
@@ -51,8 +53,16 @@ class StaffRole extends Model
             ->withPivot(['assigned_by_user_id', 'assigned_at']);
     }
 
+    public function scopeAssignable($query)
+    {
+        return $query->where('is_active', true)->where('is_assignable', true);
+    }
+
     public function toAdminArray(): array
     {
+        $includes = collect(config('admin.roles', []))
+            ->firstWhere('slug', $this->slug)['includes'] ?? [];
+
         return [
             'id' => $this->id,
             'slug' => $this->slug,
@@ -61,7 +71,9 @@ class StaffRole extends Model
             'icon' => $this->icon,
             'is_system' => $this->is_system,
             'is_active' => $this->is_active,
+            'is_assignable' => (bool) $this->is_assignable,
             'sort_order' => $this->sort_order,
+            'includes' => array_values($includes),
             'permissions' => array_values($this->permissions ?? []),
             'permissions_count' => count($this->permissions ?? []),
             'assigned_count' => $this->assignments_count ?? $this->assignments()->count(),

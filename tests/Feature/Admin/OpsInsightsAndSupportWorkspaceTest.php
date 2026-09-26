@@ -164,11 +164,65 @@ class OpsInsightsAndSupportWorkspaceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.support.templates'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/Support/Templates'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Support/Templates')
+                ->has('templates')
+                ->has('moments', 4));
 
         $this->actingAs($ops)
             ->get(route('admin.support.templates'))
             ->assertForbidden();
+    }
+
+    public function test_super_admin_can_edit_and_delete_built_in_templates(): void
+    {
+        SupportChatTemplates::ensure();
+        $admin = User::factory()->superAdmin()->create();
+        $ops = $this->supportStaff();
+
+        $builtIn = SupportCannedReply::query()
+            ->where('is_system', true)
+            ->where('title', 'Greeting')
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.support.canned.update', $builtIn), [
+                'title' => 'Greeting',
+                'body' => 'Hi {first_name}, {agent} here — how can I help today?',
+                'moment' => 'open',
+                'topic_key' => null,
+                'scope' => 'team',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('support_canned_replies', [
+            'id' => $builtIn->id,
+            'body' => 'Hi {first_name}, {agent} here — how can I help today?',
+        ]);
+
+        // ensure() must not overwrite Super Admin edits.
+        SupportChatTemplates::ensure();
+        $this->assertSame(
+            'Hi {first_name}, {agent} here — how can I help today?',
+            $builtIn->fresh()->body,
+        );
+
+        $this->actingAs($ops)
+            ->delete(route('admin.support.canned.destroy', $builtIn))
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.support.canned.destroy', $builtIn))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('support_canned_replies', ['id' => $builtIn->id]);
+
+        // Deleted built-ins stay gone after ensure().
+        SupportChatTemplates::ensure();
+        $this->assertSoftDeleted('support_canned_replies', ['id' => $builtIn->id]);
+        $this->assertFalse(
+            SupportCannedReply::query()->where('title', 'Greeting')->where('moment', 'open')->exists()
+        );
     }
 
     public function test_super_admin_sees_all_ops_on_insights_and_ops_only_sees_self(): void

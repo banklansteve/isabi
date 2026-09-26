@@ -34,6 +34,7 @@ class StaffRoleController extends Controller
             ...$data,
             'is_system' => false,
             'is_active' => $data['is_active'] ?? true,
+            'is_assignable' => true,
             'sort_order' => $maxSort + 1,
             'created_by_user_id' => $request->user()->id,
         ]);
@@ -88,8 +89,14 @@ class StaffRoleController extends Controller
         $name = $role->name;
         $assigned = (int) $role->assignments()->count();
         $reassign = isset($data['reassign_to'])
-            ? StaffRole::query()->find($data['reassign_to'])
+            ? StaffRole::query()->assignable()->find($data['reassign_to'])
             : null;
+
+        if (! $role->is_assignable) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'reason' => 'Super Admin–only duties cannot be deleted.',
+            ]);
+        }
 
         if ($assigned > 0) {
             $assignments->reassignFrom($role, $reassign, $request->user());
@@ -121,8 +128,17 @@ class StaffRoleController extends Controller
      */
     private function indexProps(): array
     {
+        $saOnlySlugs = collect(config('admin.roles', []))
+            ->filter(fn (array $role) => ($role['assignable'] ?? true) === false)
+            ->pluck('slug')
+            ->filter()
+            ->values()
+            ->all();
+
         $roles = StaffRole::query()
             ->withCount('assignments')
+            ->where('is_active', true)
+            ->orderByDesc('is_assignable')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -132,7 +148,14 @@ class StaffRoleController extends Controller
         $superCount = User::query()->where('role', UserRole::SuperAdmin)->count();
 
         return [
-            'roles' => $roles,
+            'roles' => $roles
+                ->where('is_assignable', true)
+                ->values(),
+            // Only intentional Super Admin–only duties — never retired ops legacy rows.
+            'super_admin_duties' => $roles
+                ->where('is_assignable', false)
+                ->filter(fn (array $role) => in_array($role['slug'] ?? '', $saOnlySlugs, true))
+                ->values(),
             'super_admin' => [
                 'id' => AdminPermissions::SUPER_KEY,
                 'name' => 'Super Admin',

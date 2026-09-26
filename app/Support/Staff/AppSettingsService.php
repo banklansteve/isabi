@@ -32,6 +32,7 @@ class AppSettingsService
                 'type' => $definition['type'],
                 'description' => $definition['description'] ?? null,
                 'config_key' => $definition['config'] ?? null,
+                'readonly' => (bool) ($definition['readonly'] ?? false),
                 'is_custom' => false,
                 'value' => $setting
                     ? $setting->typedValue()
@@ -54,7 +55,13 @@ class AppSettingsService
         $definitions = collect(config('admin.settings', []))->keyBy('key');
 
         foreach ($values as $key => $value) {
-            $this->put((string) $key, $value, $updatedBy, $definitions->get($key));
+            $definition = $definitions->get($key);
+
+            if (is_array($definition) && ($definition['readonly'] ?? false)) {
+                continue;
+            }
+
+            $this->put((string) $key, $value, $updatedBy, $definition);
         }
 
         $this->forgetCache();

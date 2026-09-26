@@ -18,6 +18,14 @@
                 Enter your current password to unlock this step.
             </p>
 
+            <AppInlineAlert
+                v-if="form.errors.password"
+                class="mt-6"
+                tone="error"
+                title="Couldn’t confirm"
+                :message="form.errors.password"
+            />
+
             <form class="mt-8 space-y-5" @submit.prevent="submit">
                 <FormPasswordInput
                     id="password"
@@ -40,15 +48,25 @@
                     label="Confirm and continue"
                 />
             </form>
+
+            <p class="mt-8 text-center text-sm font-medium text-ink/50">
+                <Link
+                    :href="route('password.request')"
+                    class="font-bold text-base transition-colors hover:text-deep"
+                >
+                    Forgot password?
+                </Link>
+            </p>
         </div>
     </AuthLayout>
 </template>
 
 <script setup>
+import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormPasswordInput from '@/Components/Form/FormPasswordInput.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
     password: '',

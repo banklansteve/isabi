@@ -2,7 +2,10 @@
     <div class="overflow-x-auto rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05] sm:p-6">
         <h3 class="text-[15px] font-semibold tracking-tight text-ink">{{ title }}</h3>
         <p v-if="hint" class="mt-1 text-[13px] font-medium text-ink/45">{{ hint }}</p>
-        <table class="mt-4 w-full min-w-[32rem] text-left text-sm">
+        <div v-if="!rows.length" class="mt-8 flex h-[160px] items-center justify-center text-sm font-medium text-ink/35">
+            Cohorts appear after nightly rollups accumulate signup months and login activity.
+        </div>
+        <table v-else class="mt-4 w-full min-w-[32rem] text-left text-sm">
             <thead class="text-[11px] font-semibold uppercase tracking-wide text-ink/35">
                 <tr>
                     <th class="py-2 font-semibold">Cohort</th>
@@ -40,7 +43,7 @@
 <script setup>
 defineProps({
     title: { type: String, default: 'Cohort retention' },
-    hint: { type: String, default: 'Share of a signup month that logged a job within 30 / 60 / 90 days.' },
+    hint: { type: String, default: 'Share of each signup month still logging in within 30 / 60 / 90 days.' },
     rows: { type: Array, default: () => [] },
 });
 

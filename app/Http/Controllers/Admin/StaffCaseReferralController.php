@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EscalateStaffCaseRequest;
 use App\Http\Requests\Admin\ReferStaffCaseRequest;
+use App\Http\Requests\Admin\ReassignStaffCaseRequest;
 use App\Models\StaffCaseReferral;
 use App\Models\User;
 use App\Support\Admin\AdminResponse;
@@ -24,19 +25,34 @@ class StaffCaseReferralController extends Controller
 
     public function index(Request $request): Response
     {
-        $queue = strtolower(trim((string) $request->query('queue', StaffCaseReferral::QUEUE_MODERATION)));
+        $isSuper = (bool) $request->user()?->isSuperAdmin();
+        $defaultQueue = $isSuper ? 'all' : StaffCaseReferral::QUEUE_MODERATION;
+        $queue = strtolower(trim((string) $request->query('queue', $defaultQueue)));
         if ($queue === '') {
-            $queue = StaffCaseReferral::QUEUE_MODERATION;
+            $queue = $defaultQueue;
         }
 
-        if ($queue !== 'all' && $queue !== 'jobs' && ! in_array($queue, StaffCaseReferral::QUEUES, true)) {
-            $queue = StaffCaseReferral::QUEUE_MODERATION;
+        $allowed = array_merge(StaffCaseReferral::QUEUES, ['all', 'jobs']);
+        if (! in_array($queue, $allowed, true)) {
+            $queue = $defaultQueue;
         }
 
-        // "jobs" is a subject filter, not a queue column.
-        $page = $queue === 'jobs'
-            ? $this->jobsFilterPage($request->user())
-            : $this->referrals->assignedPage($request->user(), $queue);
+        $scope = 'mine';
+        $viewingStaff = null;
+        if ($isSuper && $request->filled('staff')) {
+            $viewingStaff = User::query()
+                ->staff()
+                ->whereKey((int) $request->query('staff'))
+                ->first();
+            $scope = 'staff';
+        } elseif ($isSuper) {
+            $scope = strtolower(trim((string) $request->query('scope', 'mine')));
+            if (! in_array($scope, ['mine', 'all'], true)) {
+                $scope = 'mine';
+            }
+        }
+
+        $page = $this->referrals->assignedPage($request->user(), $queue, $viewingStaff, $scope);
 
         return Inertia::render('Admin/Ops/Assigned', $page);
     }
@@ -72,6 +88,47 @@ class StaffCaseReferralController extends Controller
             'title' => 'Referred',
             'message' => 'Assigned to '.$assignee->name.'.',
         ], $payload);
+    }
+
+    public function takeOver(Request $request, StaffCaseReferral $referral): JsonResponse|RedirectResponse
+    {
+        abort_unless($request->user()?->isSuperAdmin(), 403);
+
+        $note = trim((string) $request->input('note', ''));
+        $owned = $this->referrals->takeOver(
+            $request->user(),
+            $referral,
+            $note !== '' ? $note : null,
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Taken over',
+            'message' => 'This case is now on your desk. Finish the work, then mark it resolved.',
+        ], [
+            'referral' => $this->referrals->present($owned),
+        ]);
+    }
+
+    public function reassign(ReassignStaffCaseRequest $request, StaffCaseReferral $referral): JsonResponse|RedirectResponse
+    {
+        $data = $request->validated();
+        $assignee = User::query()->findOrFail((int) $data['assignee_id']);
+
+        $owned = $this->referrals->reassign(
+            $request->user(),
+            $referral,
+            $assignee,
+            $data['note'],
+        );
+
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Reassigned',
+            'message' => 'Now with '.$assignee->name.'.',
+        ], [
+            'referral' => $this->referrals->present($owned),
+        ]);
     }
 
     public function returnCase(Request $request, StaffCaseReferral $referral): JsonResponse|RedirectResponse
@@ -149,18 +206,16 @@ class StaffCaseReferralController extends Controller
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function jobsFilterPage(User $user): array
+    public function complete(Request $request, StaffCaseReferral $referral): JsonResponse|RedirectResponse
     {
-        $page = $this->referrals->assignedPage($user, 'all');
-        $page['queue'] = 'jobs';
-        $page['items'] = array_values(array_filter(
-            $page['items'],
-            fn (array $item) => ($item['subject_type'] ?? '') === StaffCaseReferral::SUBJECT_JOB,
-        ));
+        $referral = $this->referrals->complete($request->user(), $referral);
 
-        return $page;
+        return AdminResponse::mutation($request, [
+            'type' => 'success',
+            'title' => 'Resolved',
+            'message' => 'Case closed.',
+        ], [
+            'referral' => $this->referrals->present($referral),
+        ]);
     }
 }

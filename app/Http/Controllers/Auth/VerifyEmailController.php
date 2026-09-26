@@ -50,7 +50,7 @@ class VerifyEmailController extends Controller
         $authedAsUser = $request->user()?->is($user) ?? false;
 
         if ($authedAsUser) {
-            return redirect()->intended(route($user->homeRouteName(), absolute: false).'?verified=1')
+            return redirect()->intended(route($user->homeRouteName(), absolute: false))
                 ->with('toast', [
                     'type' => 'success',
                     'title' => 'Email verified',

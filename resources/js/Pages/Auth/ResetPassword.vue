@@ -1,11 +1,11 @@
 <template>
     <AuthLayout
         headline="Choose a new password."
-        support="You’re almost back in. Set a strong password and keep building the record that wins your next client."
+        support="You’re almost back in. Set a password of at least 8 characters — then sign in and keep building."
         :points="[
             'Use at least 8 characters',
-            'Your jobs and reviews stay exactly as they are',
-            'You’ll land on your dashboard after saving',
+            'This link works once, then expires',
+            'Other signed-in devices will be signed out',
         ]"
     >
         <Head title="Reset password" />
@@ -16,10 +16,20 @@
             </h1>
             <p class="mt-3 text-center text-sm font-semibold leading-relaxed text-ink/55">
                 Enter a new password for
-                <span class="font-bold text-ink/75">{{ email }}</span>.
+                <span class="font-bold text-ink">{{ email }}</span>.
             </p>
 
+            <AppInlineAlert
+                v-if="form.errors.email || form.errors.token"
+                class="mt-6"
+                tone="error"
+                title="Couldn’t reset"
+                :message="form.errors.email || form.errors.token || 'This reset link is invalid or has expired. Request a new one.'"
+            />
+
             <form class="mt-8 space-y-5" @submit.prevent="submit">
+                <input type="hidden" name="token" :value="form.token" />
+
                 <FormTextInput
                     id="email"
                     v-model="form.email"
@@ -28,6 +38,7 @@
                     icon="ti ti-mail"
                     autocomplete="username"
                     required
+                    readonly
                     :error="form.errors.email"
                 />
 
@@ -39,7 +50,8 @@
                     autocomplete="new-password"
                     required
                     autofocus
-                    :error="form.errors.password"
+                    :error="passwordError"
+                    @blur="touched.password = true"
                 />
 
                 <FormPasswordInput
@@ -49,7 +61,8 @@
                     placeholder="Repeat your new password"
                     autocomplete="new-password"
                     required
-                    :error="form.errors.password_confirmation"
+                    :error="confirmError"
+                    @blur="touched.confirm = true"
                 />
 
                 <FormButton
@@ -64,11 +77,12 @@
             </form>
 
             <p class="mt-8 text-center text-sm font-medium text-ink/50">
+                Link expired?
                 <Link
-                    :href="route('login')"
+                    :href="route('password.request')"
                     class="font-bold text-base transition-colors hover:text-deep"
                 >
-                    Back to log in
+                    Request a new one
                 </Link>
             </p>
         </div>
@@ -76,22 +90,46 @@
 </template>
 
 <script setup>
+import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormPasswordInput from '@/Components/Form/FormPasswordInput.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, reactive } from 'vue';
 
 const props = defineProps({
     email: { type: String, required: true },
     token: { type: String, required: true },
 });
 
+const touched = reactive({ password: false, confirm: false });
+
 const form = useForm({
     token: props.token,
     email: props.email,
     password: '',
     password_confirmation: '',
+});
+
+const passwordError = computed(() => {
+    if (form.errors.password) return form.errors.password;
+    if (touched.password && form.password && form.password.length < 8) {
+        return 'Use at least 8 characters.';
+    }
+    return '';
+});
+
+const confirmError = computed(() => {
+    if (form.errors.password_confirmation) return form.errors.password_confirmation;
+    if (
+        touched.confirm &&
+        form.password_confirmation &&
+        form.password_confirmation !== form.password
+    ) {
+        return 'Those passwords don’t match.';
+    }
+    return '';
 });
 
 const submit = () => {

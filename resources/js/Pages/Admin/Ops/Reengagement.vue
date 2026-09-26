@@ -1,7 +1,7 @@
 <template>
     <Head title="Re-engagement" />
 
-    <AdminChrome title="Re-engagement" eyebrow="Growth &amp; lifecycle" />
+    <AdminChrome title="Re-engagement outreach" eyebrow="Ops · Growth &amp; lifecycle" />
 
     <div class="space-y-5">
         <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

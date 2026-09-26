@@ -196,11 +196,12 @@ class JobAdminPresenter
     /**
      * @return list<array{id: int, name: string}>
      */
-    public static function staffOptions(): array
+    public static function staffOptions(bool $opsOnly = true): array
     {
         return User::query()
             ->staff()
             ->where('staff_status', StaffStatus::Active)
+            ->when($opsOnly, fn ($q) => $q->where('role', '!=', \App\Enums\UserRole::SuperAdmin))
             ->orderBy('name')
             ->get(['id', 'name', 'email'])
             ->map(fn (User $user) => [

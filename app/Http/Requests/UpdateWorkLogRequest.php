@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\WorkLog;
 use App\Support\JobCategories;
 use App\Support\NigeriaLocations;
+use App\Support\WorkLog\JobSubjectPrivacy;
 use App\Support\WorkLogEditPolicy;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
@@ -185,6 +186,17 @@ class UpdateWorkLogRequest extends FormRequest
                         ? 'Date is locked because a review was requested for this job.'
                         : 'Date can only be corrected within '.WorkLogEditPolicy::DATE_EDIT_HOURS.' hours of logging.',
                 );
+            }
+
+            $subject = $this->has('subject') ? $this->input('subject') : $log->subject;
+            $clientName = $this->has('client_name') ? $this->input('client_name') : $log->client_name;
+            $clientWhatsapp = $this->has('client_whatsapp') ? $this->input('client_whatsapp') : $log->client_whatsapp;
+
+            if (! $validator->errors()->has('subject')) {
+                $privacy = JobSubjectPrivacy::violation($subject, $clientName, $clientWhatsapp);
+                if ($privacy) {
+                    $validator->errors()->add('subject', $privacy);
+                }
             }
 
             $existingCount = $log->media()->count();

@@ -11,6 +11,90 @@
         <Head title="Create account" />
 
         <div class="auth-enter">
+            <!-- Same-screen email verification (after account create) -->
+            <div v-if="pendingVerification" class="space-y-6">
+                <div>
+                    <p class="text-center text-xs font-bold uppercase tracking-[0.16em] text-ink/40">
+                        Confirm email
+                    </p>
+                    <h1 class="mt-2.5 text-center font-display text-3xl font-extrabold tracking-tight text-ink sm:text-[2.1rem]">
+                        Enter your code
+                    </h1>
+                    <p class="mt-2.5 text-center text-sm font-semibold leading-relaxed text-ink/55">
+                        We sent a 6-digit code to
+                        <span class="font-bold text-ink">{{ pendingVerification.email }}</span>.
+                        Stay here — no need to open another tab.
+                    </p>
+                </div>
+
+                <AppInlineAlert
+                    v-if="verifyStatus === 'verification-link-sent'"
+                    tone="success"
+                    title="New code sent"
+                    message="Check your inbox (and spam) for a fresh 6-digit code."
+                />
+
+                <AppInlineAlert
+                    v-if="verifyForm.errors.code || verifyForm.errors.email"
+                    tone="error"
+                    title="Couldn’t verify"
+                    :message="verifyForm.errors.code || verifyForm.errors.email"
+                />
+
+                <form class="space-y-4" @submit.prevent="submitVerify">
+                    <FormTextInput
+                        id="code"
+                        :model-value="verifyForm.code"
+                        label="Verification code"
+                        icon="ti ti-password"
+                        inputmode="numeric"
+                        autocomplete="one-time-code"
+                        placeholder="6-digit code"
+                        maxlength="6"
+                        :error="verifyForm.errors.code"
+                        @update:model-value="onCodeInput"
+                    />
+
+                    <FormButton
+                        type="submit"
+                        variant="primary"
+                        block
+                        label="Verify &amp; continue"
+                        :loading="verifyForm.processing"
+                        loading-label="Verifying…"
+                        icon-right="ti ti-check"
+                    />
+                </form>
+
+                <div class="rounded-2xl bg-pale/80 px-4 py-3.5 ring-1 ring-ink/[0.06]">
+                    <p class="text-sm font-medium text-ink/60">
+                        Code expires in about {{ pendingVerification.codeTtlMinutes || 15 }} minutes.
+                        Wrong or expired? Request a new one — the previous code stops working immediately.
+                    </p>
+                    <div class="mt-3 flex flex-wrap items-center gap-3">
+                        <FormButton
+                            type="button"
+                            variant="secondary"
+                            :label="resendLabel"
+                            :disabled="cooldown > 0 || resendForm.processing"
+                            :loading="resendForm.processing"
+                            loading-label="Sending…"
+                            @click="resendCode"
+                        />
+                        <Link
+                            :href="route('dashboard')"
+                            class="text-sm font-bold text-base-action hover:text-base-hover"
+                        >
+                            Continue to dashboard
+                        </Link>
+                    </div>
+                    <p class="mt-2 text-xs font-medium text-ink/40">
+                        You can explore the app now. Sending review requests stays locked until you verify.
+                    </p>
+                </div>
+            </div>
+
+            <template v-else>
             <div class="mb-8">
                 <div class="flex items-center justify-between gap-3">
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base">
@@ -130,7 +214,7 @@
                                     Your trades / specialties
                                 </p>
                                 <p class="mb-2.5 text-xs font-medium text-ink/40">
-                                    Pick one or more — clients can find you under each.
+                                    Pick up to 12 — clients can find you under each.
                                 </p>
                                 <FormTextInput
                                     id="trade_search"
@@ -146,7 +230,7 @@
                                     <FormChoiceGrid
                                         v-model="selectedTrades"
                                         multiple
-                                        :max="6"
+                                        :max="12"
                                         :options="filteredTrades"
                                         :error="displayError('trades') || displayError('trade')"
                                         :icon-resolver="(label) => tradeIcon(label)"
@@ -170,11 +254,11 @@
                                 id="skills"
                                 v-model="form.skills"
                                 label="Skills"
-                                hint="Search and add skills related to your trades. Up to 8."
+                                hint="Skills for your selected category only. Up to 15."
                                 icon="ti ti-sparkles"
-                                placeholder="Search skills, e.g. wiring or tiling"
+                                placeholder="Search skills related to your craft"
                                 :options="skillOptions"
-                                :max="8"
+                                :max="15"
                                 :error="displayError('skills') || displayError('skills.0')"
                                 @change="clearError('skills')"
                             />
@@ -330,11 +414,13 @@
                     Log in
                 </Link>
             </p>
+            </template>
         </div>
     </AuthLayout>
 </template>
 
 <script setup>
+import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormChoiceGrid from '@/Components/Form/FormChoiceGrid.vue';
 import FormMultiSelect from '@/Components/Form/FormMultiSelect.vue';
@@ -345,7 +431,7 @@ import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import { tradeIcon } from '@/utils/tradeIcons';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     trades: {
@@ -368,6 +454,69 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    pendingVerification: {
+        type: Object,
+        default: null,
+    },
+    status: {
+        type: String,
+        default: null,
+    },
+});
+
+const verifyStatus = computed(() => props.status || null);
+
+const verifyForm = useForm({ code: '' });
+const resendForm = useForm({});
+const cooldown = ref(Math.max(0, Number(props.pendingVerification?.resendCooldown) || 0));
+let cooldownTimer = null;
+
+const resendLabel = computed(() =>
+    cooldown.value > 0 ? `Resend in ${cooldown.value}s` : 'Resend code',
+);
+
+watch(
+    () => props.pendingVerification,
+    (value) => {
+        if (value) {
+            cooldown.value = Math.max(0, Number(value.resendCooldown) || 0);
+            verifyForm.reset();
+            verifyForm.clearErrors();
+        }
+    },
+);
+
+const onCodeInput = (value) => {
+    verifyForm.code = String(value || '')
+        .replace(/\D/g, '')
+        .slice(0, 6);
+};
+
+const submitVerify = () => {
+    verifyForm.post(route('verification.code'), {
+        preserveScroll: true,
+    });
+};
+
+const resendCode = () => {
+    if (cooldown.value > 0) return;
+    resendForm.post(route('verification.send'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            cooldown.value = 45;
+            verifyForm.clearErrors();
+        },
+    });
+};
+
+onMounted(() => {
+    cooldownTimer = window.setInterval(() => {
+        if (cooldown.value > 0) cooldown.value -= 1;
+    }, 1000);
+});
+
+onBeforeUnmount(() => {
+    if (cooldownTimer) window.clearInterval(cooldownTimer);
 });
 
 const steps = [
@@ -458,24 +607,30 @@ const filteredTrades = computed(() => {
 });
 
 const skillOptions = computed(() => {
-    const all = props.skillCatalog?.all || [];
     const group = props.skillCatalog?.groups?.[jobCategory.value] || [];
     if (!group.length) {
-        return all;
+        return [];
     }
-    const preferredLower = new Set(group.map((s) => s.toLowerCase()));
-    const preferred = [];
+    const all = props.skillCatalog?.all || [];
     const seen = new Set();
+    const options = [];
     for (const skill of group) {
         const match = all.find((s) => s.toLowerCase() === skill.toLowerCase()) || skill;
         const key = match.toLowerCase();
         if (!seen.has(key)) {
-            preferred.push(match);
+            options.push(match);
             seen.add(key);
         }
     }
-    const rest = all.filter((s) => !preferredLower.has(s.toLowerCase()));
-    return [...preferred, ...rest];
+    return options;
+});
+
+watch(skillOptions, (options) => {
+    if (!form.skills?.length) {
+        return;
+    }
+    const allowed = new Set(options.map((s) => s.toLowerCase()));
+    form.skills = form.skills.filter((s) => allowed.has(String(s).toLowerCase()));
 });
 
 const onCategoryChange = () => {

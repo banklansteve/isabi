@@ -51,18 +51,51 @@ class SupportChatTemplates
     public static function defaults(): array
     {
         return [
+            // Open
             [
                 'title' => 'Greeting',
                 'moment' => self::MOMENT_OPEN,
                 'topic_key' => null,
-                'body' => "Hi {name}, this is {agent} from Kraftrack. I've picked this up — how can I help?",
+                'body' => "Hi {first_name}, this is {agent} from Kraftrack. I've picked this up — how can I help?",
             ],
             [
                 'title' => 'Looking into it',
                 'moment' => self::MOMENT_OPEN,
                 'topic_key' => null,
-                'body' => "Hi {name}, thanks for writing in. I'm looking into this now and I'll come back with a clear next step.",
+                'body' => "Hi {first_name}, thanks for writing in. I'm looking into this now and I'll come back with a clear next step.",
             ],
+            [
+                'title' => 'Sorry for the wait',
+                'moment' => self::MOMENT_OPEN,
+                'topic_key' => null,
+                'body' => "Hi {first_name}, sorry you had to wait — I'm {agent} and I'm on this with you now. What's the main thing you need help with?",
+            ],
+            [
+                'title' => 'Billing — intro',
+                'moment' => self::MOMENT_OPEN,
+                'topic_key' => 'billing',
+                'body' => "Hi {first_name}, I can help with credits and billing. Tell me what you see on your side (a charge, a balance, or a failed payment) and I'll check it.",
+            ],
+            [
+                'title' => 'Public page — intro',
+                'moment' => self::MOMENT_OPEN,
+                'topic_key' => 'page',
+                'body' => "Hi {first_name}, happy to help with your public page. Is this about how it looks, what shows up, or sharing the link with clients?",
+            ],
+            [
+                'title' => 'Work log — intro',
+                'moment' => self::MOMENT_OPEN,
+                'topic_key' => 'work-log',
+                'body' => "Hi {first_name}, I can help with a job you logged. Share the job or a screenshot and what you'd like changed.",
+            ],
+            [
+                'title' => 'Review request — intro',
+                'moment' => self::MOMENT_OPEN,
+                'topic_key' => 'reviews',
+                'body' => "Hi {first_name}, I can walk you through requesting a client review. Do you already have the finished job logged, or do you need help creating it first?",
+            ],
+
+            // Close
             [
                 'title' => 'Resolved',
                 'moment' => self::MOMENT_CLOSE,
@@ -76,6 +109,20 @@ class SupportChatTemplates
                 'body' => 'Glad we got this sorted. Anything else you need before I close the chat?',
             ],
             [
+                'title' => 'Closing for now',
+                'moment' => self::MOMENT_CLOSE,
+                'topic_key' => null,
+                'body' => "I'll close this chat for now. Reply anytime if you need us again — we keep the history here.",
+            ],
+            [
+                'title' => 'Billing sorted',
+                'moment' => self::MOMENT_CLOSE,
+                'topic_key' => 'billing',
+                'body' => "Billing looks sorted on our side. If a receipt or balance still looks off on yours, reply with a screenshot and I'll take another look.",
+            ],
+
+            // Review
+            [
                 'title' => 'Send a review link',
                 'moment' => self::MOMENT_REVIEW,
                 'topic_key' => 'reviews',
@@ -88,6 +135,20 @@ class SupportChatTemplates
                 'body' => "If the work is already done, send your client the review link from that job. Those reviews sit next to the work on your public page, and you can't write them yourself — that's what makes them count.",
             ],
             [
+                'title' => 'Client won’t open the link',
+                'moment' => self::MOMENT_REVIEW,
+                'topic_key' => 'reviews',
+                'body' => "If your client hasn’t opened the link yet, resend the WhatsApp message from the job. Keep it short — they only need stars and a quick comment. No account required.",
+            ],
+            [
+                'title' => 'Why reviews matter',
+                'moment' => self::MOMENT_REVIEW,
+                'topic_key' => 'reviews',
+                'body' => 'Clients trust finished work with real reviews next to it — not claims. One solid review on a logged job is worth more than a long about section.',
+            ],
+
+            // General
+            [
                 'title' => 'Give me a moment',
                 'moment' => self::MOMENT_GENERAL,
                 'topic_key' => null,
@@ -99,31 +160,76 @@ class SupportChatTemplates
                 'topic_key' => null,
                 'body' => 'Thanks. Could you share a screenshot or the job this is about so I can help faster?',
             ],
+            [
+                'title' => 'Confirm I understood',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => null,
+                'body' => "Just to make sure I've got this right: you're saying ___ — is that correct?",
+            ],
+            [
+                'title' => 'Here’s what to do next',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => null,
+                'body' => "Here's the next step on your side:\n1. …\n2. …\nReply here when that's done and I'll confirm.",
+            ],
+            [
+                'title' => 'Outside our control',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => null,
+                'body' => "That's outside what we can change from support, but here's the best path: … If you hit a wall, reply and we'll see what else we can do.",
+            ],
+            [
+                'title' => 'Account / login tip',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => null,
+                'body' => 'Try signing out, then back in with the same email. If it still fails, tell me the exact message you see (or send a screenshot).',
+            ],
+            [
+                'title' => 'Credits explainer',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => 'billing',
+                'body' => 'Credits are used for review requests and related actions on Kraftrack. Your balance is on your account — if a purchase didn’t land, share the time and amount and I’ll check.',
+            ],
+            [
+                'title' => 'Sharing your page',
+                'moment' => self::MOMENT_GENERAL,
+                'topic_key' => 'page',
+                'body' => 'Your public page link is the best thing to send clients. From your dashboard, open your page and copy the URL — that’s what you share on WhatsApp or your bio.',
+            ],
         ];
     }
 
     public static function ensure(): void
     {
-        if (Cache::get('support.templates.ready')) {
-            return;
-        }
-
         foreach (self::defaults() as $row) {
-            SupportCannedReply::query()->firstOrCreate(
-                [
-                    'is_system' => true,
-                    'moment' => $row['moment'],
-                    'title' => $row['title'],
-                ],
-                [
-                    'user_id' => null,
-                    'scope' => self::SCOPE_TEAM,
-                    'body' => $row['body'],
-                    'topic_key' => $row['topic_key'],
-                ],
-            );
+            $existing = SupportCannedReply::withTrashed()
+                ->where('is_system', true)
+                ->where('moment', $row['moment'])
+                ->where('title', $row['title'])
+                ->first();
+
+            // Super Admin soft-deleted this built-in — leave it gone.
+            if ($existing?->trashed()) {
+                continue;
+            }
+
+            if ($existing) {
+                // Do not overwrite SA edits to built-in copy.
+                continue;
+            }
+
+            SupportCannedReply::query()->create([
+                'is_system' => true,
+                'moment' => $row['moment'],
+                'title' => $row['title'],
+                'user_id' => null,
+                'scope' => self::SCOPE_TEAM,
+                'body' => $row['body'],
+                'topic_key' => $row['topic_key'],
+            ]);
         }
 
-        Cache::put('support.templates.ready', true, now()->addDay());
+        Cache::forget('support.templates.ready');
+        Cache::forget('support.templates.ready.v2');
     }
 }

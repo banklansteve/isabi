@@ -1,18 +1,28 @@
 <template>
     <div class="rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05] transition-shadow duration-200 hover:shadow-premium-hover sm:p-6">
         <h3 class="text-[15px] font-bold tracking-tight text-ink">{{ title }}</h3>
+        <p v-if="hint" class="mt-1 text-[12px] font-medium text-ink/40">{{ hint }}</p>
         <div v-if="!items.length" class="mt-8 flex h-[160px] items-center justify-center text-sm font-medium text-ink/35">
             No data yet
         </div>
         <ul v-else class="mt-5 space-y-3">
-            <li v-for="item in items" :key="item.label" class="group">
+            <li v-for="item in items" :key="item.key || item.label" class="group">
                 <div class="mb-1 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
-                    <span class="truncate text-ink/70 group-hover:text-ink">{{ item.label }}</span>
+                    <span class="flex min-w-0 items-center gap-2 truncate text-ink/70 group-hover:text-ink">
+                        <span class="truncate">{{ item.label }}</span>
+                        <span
+                            v-if="isLowest(item)"
+                            class="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/80"
+                        >
+                            Lowest traffic
+                        </span>
+                    </span>
                     <span class="tabular-nums text-ink">{{ format(item.value) }}</span>
                 </div>
                 <div class="h-2 overflow-hidden rounded-full bg-tint">
                     <div
-                        class="h-full rounded-full bg-base-action transition-[width] duration-500 group-hover:bg-base-hover"
+                        class="h-full rounded-full transition-[width] duration-500"
+                        :class="isLowest(item) ? 'bg-amber-500 group-hover:bg-amber-600' : 'bg-base-action group-hover:bg-base-hover'"
                         :style="{ width: `${barWidth(item.value)}%` }"
                     />
                 </div>
@@ -26,12 +36,15 @@ import { computed } from 'vue';
 
 const props = defineProps({
     title: { type: String, required: true },
+    hint: { type: String, default: '' },
     items: { type: Array, default: () => [] },
     money: { type: Boolean, default: false },
+    lowestKey: { type: String, default: null },
 });
 
 const max = computed(() => Math.max(...props.items.map((i) => Number(i.value) || 0), 1));
 const barWidth = (value) => Math.max(2, (Number(value) / max.value) * 100);
+const isLowest = (item) => props.lowestKey && (item.key === props.lowestKey || item.label === props.lowestKey);
 const format = (value) => {
     const n = Number(value) || 0;
     if (props.money) {

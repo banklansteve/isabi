@@ -20,6 +20,12 @@ class StaffAssignmentService
             ]);
         }
 
+        if (! $role->is_assignable) {
+            throw ValidationException::withMessages([
+                'role_id' => 'That duty is reserved for Super Admin and cannot be assigned to operations staff.',
+            ]);
+        }
+
         if ($staff->staffRoles->contains('id', $role->id)) {
             return $staff;
         }
@@ -99,12 +105,12 @@ class StaffAssignmentService
 
         $roles = StaffRole::query()
             ->whereIn('id', $roleIds)
-            ->where('is_active', true)
+            ->assignable()
             ->get();
 
         if ($roles->count() !== $roleIds->count()) {
             throw ValidationException::withMessages([
-                'role_ids' => 'One or more selected roles are invalid or inactive.',
+                'role_ids' => 'One or more selected duties are invalid, inactive, or reserved for Super Admin.',
             ]);
         }
 

@@ -24,7 +24,7 @@
                         <option value="">All statuses</option>
                         <option value="active">Active</option>
                         <option value="suspended">Suspended</option>
-                        <option value="unverified">Unverified</option>
+                        <option value="unverified">Unverified email</option>
                     </select>
                     <select v-model="trade" class="chip-select" :class="trade ? 'chip-select--on' : ''">
                         <option value="">All trades</option>

@@ -26,9 +26,11 @@ export const adminNavGroups = [
                 match: ['admin.analytics.*'],
                 ability: 'admin.analytics.view',
                 tabs: [
-                    { label: 'Growth', route: 'admin.analytics.index', params: { tab: 'growth' } },
+                    { label: 'Live', route: 'admin.analytics.index', params: { tab: 'live' } },
                     { label: 'Engagement', route: 'admin.analytics.index', params: { tab: 'engagement' } },
                     { label: 'Retention', route: 'admin.analytics.index', params: { tab: 'retention' } },
+                    { label: 'Product', route: 'admin.analytics.index', params: { tab: 'product' } },
+                    { label: 'Growth', route: 'admin.analytics.index', params: { tab: 'growth' } },
                     { label: 'Geography', route: 'admin.analytics.index', params: { tab: 'geography' } },
                 ],
             },
@@ -132,8 +134,8 @@ export const adminNavGroups = [
             },
             {
                 key: 'assigned',
-                label: 'Assigned to me',
-                shortLabel: 'Assigned',
+                label: 'Case desk',
+                shortLabel: 'Cases',
                 icon: 'ti ti-user-check',
                 route: 'admin.assigned.index',
                 match: ['admin.assigned.*'],
@@ -164,7 +166,7 @@ export const adminNavGroups = [
         items: [
             {
                 key: 'referrals',
-                label: 'Referrals',
+                label: 'Referral monitoring',
                 icon: 'ti ti-gift',
                 route: 'admin.referrals.index',
                 match: ['admin.referrals.*'],
@@ -176,7 +178,7 @@ export const adminNavGroups = [
             },
             {
                 key: 'verification',
-                label: 'Verification',
+                label: 'Verification Officer',
                 icon: 'ti ti-rosette-discount-check',
                 route: 'admin.verification.index',
                 match: ['admin.verification.*'],
@@ -193,7 +195,8 @@ export const adminNavGroups = [
             },
             {
                 key: 'reengagement',
-                label: 'Re-engagement',
+                label: 'Re-engagement outreach',
+                shortLabel: 'Re-engage',
                 icon: 'ti ti-flame',
                 route: 'admin.reengagement.index',
                 match: ['admin.reengagement.*'],
@@ -246,6 +249,7 @@ export const adminNavGroups = [
                 super: true,
                 tabs: [
                     { label: 'Revenue', route: 'admin.financials.index' },
+                    { label: 'Conversion', route: 'admin.financials.index', params: { tab: 'conversion' } },
                     { label: 'Sources', route: 'admin.financials.index', params: { tab: 'sources' } },
                     { label: 'Gateways', route: 'admin.financials.index', params: { tab: 'gateways' } },
                     { label: 'Statements', route: 'admin.financials.index', params: { tab: 'statements' } },

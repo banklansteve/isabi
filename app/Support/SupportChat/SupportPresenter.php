@@ -59,8 +59,15 @@ class SupportPresenter
             'poll_ms' => (int) config('support.poll_interval_ms', 8000),
             'max_attachment_kb' => (int) config('support.max_attachment_kb', 8192),
             'allowed_mimes' => config('support.allowed_mimes', []),
-            'customer_name' => $customer->first_name ?: str($customer->name)->before(' ')->toString(),
+            'customer_name' => $this->customerFirstName($customer),
         ];
+    }
+
+    private function customerFirstName(User $customer): string
+    {
+        return $customer->first_name
+            ?: str($customer->name)->before(' ')->toString()
+            ?: 'Customer';
     }
 
     /**
@@ -97,7 +104,8 @@ class SupportPresenter
             'user' => $ticket->user ? [
                 'id' => $ticket->user->id,
                 'uid' => $ticket->user->uid,
-                'name' => $ticket->user->displayBusinessName(),
+                'name' => $this->customerFirstName($ticket->user),
+                'first_name' => $this->customerFirstName($ticket->user),
                 'email' => $ticket->user->email,
                 'avatar_url' => $ticket->user->avatar_url,
             ] : null,
@@ -152,7 +160,8 @@ class SupportPresenter
             'user' => $ticket->user ? [
                 'id' => $ticket->user->id,
                 'uid' => $ticket->user->uid,
-                'name' => $ticket->user->displayBusinessName(),
+                'name' => $this->customerFirstName($ticket->user),
+                'first_name' => $this->customerFirstName($ticket->user),
                 'email' => $ticket->user->email,
                 'avatar_url' => $ticket->user->avatar_url,
                 'whatsapp' => $ticket->user->whatsapp,
