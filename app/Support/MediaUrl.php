@@ -5,10 +5,9 @@ namespace App\Support;
 /**
  * Builds sized Cloudinary delivery URLs.
  *
- * Uploads are stored at their original resolution, which is far too heavy to
- * drop straight into a grid — a profile with twenty jobs would pull tens of
- * megabytes. Cloudinary resizes on delivery, so we ask for exactly what each
- * surface renders and keep the untouched original for downloads.
+ * Uploads are compressed on the way in (size/quality caps in CloudinaryMediaService).
+ * Delivery still applies f_auto / q_auto / width limits so grids never pull
+ * full-resolution originals into the browser.
  */
 class MediaUrl
 {

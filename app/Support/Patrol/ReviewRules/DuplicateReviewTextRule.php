@@ -16,7 +16,7 @@ class DuplicateReviewTextRule implements ReviewRule
     public function evaluate(Review $review): ?array
     {
         $config = config('patrol.review_rules.duplicate_or_near_duplicate_text');
-        $minChars = max(20, (int) ($config['min_chars'] ?? 36));
+        $minChars = max(20, (int) ($config['min_chars'] ?? 60));
         $similarity = max(80, (int) ($config['similarity_percent'] ?? 90));
         $sameMin = max(2, (int) ($config['same_artisan_min'] ?? 2));
         $crossMin = max(2, (int) ($config['cross_artisan_min'] ?? 3));

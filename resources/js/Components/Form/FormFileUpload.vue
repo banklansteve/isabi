@@ -78,6 +78,7 @@
 
 <script setup>
 import FormField from '@/Components/Form/FormField.vue';
+import { compressImageFile } from '@/utils/compressImage';
 import { onBeforeUnmount, ref, watch } from 'vue';
 
 const model = defineModel({ type: Array, default: () => [] });
@@ -88,7 +89,7 @@ const props = defineProps({
     hint: { type: String, default: '' },
     error: { type: String, default: '' },
     buttonLabel: { type: String, default: 'Add photos or video' },
-    helpText: { type: String, default: 'Images or videos up to 5MB each' },
+    helpText: { type: String, default: 'Images or videos up to 5MB each — photos are compressed before upload' },
     accept: { type: String, default: 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm' },
     multiple: { type: Boolean, default: true },
     maxFiles: { type: Number, default: 8 },
@@ -108,14 +109,17 @@ const syncModel = () => {
     emit('previews', previews.value);
 };
 
-const onPick = (event) => {
+const onPick = async (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
 
     const room = Math.max(0, props.maxFiles - previews.value.length);
     const next = files.slice(0, room);
 
-    next.forEach((file) => {
+    for (const raw of next) {
+        const file = raw.type?.startsWith('image/')
+            ? await compressImageFile(raw)
+            : raw;
         const url = URL.createObjectURL(file);
         previews.value.push({
             id: ++idSeq,
@@ -125,7 +129,7 @@ const onPick = (event) => {
             kind: file.type.startsWith('video/') ? 'video' : 'image',
             tooLarge: file.size > props.maxBytes,
         });
-    });
+    }
 
     syncModel();
 };

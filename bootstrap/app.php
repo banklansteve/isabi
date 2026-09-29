@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApplySessionLifetime;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureInternalDocsAccess;
+use App\Http\Middleware\EnsureNotInMaintenance;
 use App\Http\Middleware\EnsureStaffAssigned;
 use App\Http\Middleware\EnsureStaffInvitationVerified;
 use App\Http\Middleware\EnsureUserCan;
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             ApplySessionLifetime::class,
+            EnsureNotInMaintenance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

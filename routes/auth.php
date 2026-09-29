@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\CheckRegistrationEmailController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -13,8 +14,6 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::post('register', [RegisteredUserController::class, 'store']);
-
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
@@ -35,9 +34,17 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
-// Signup screen stays reachable while unverified so code entry / resend never navigates away.
+// Signup stays reachable (and POST-able) even if a leftover remember-me session
+// exists — the controller clears prior auth before creating the new account.
 Route::get('register', [RegisteredUserController::class, 'create'])
     ->name('register');
+
+Route::post('register', [RegisteredUserController::class, 'store'])
+    ->middleware('throttle:10,1');
+
+Route::post('register/check-email', CheckRegistrationEmailController::class)
+    ->middleware('throttle:20,1')
+    ->name('register.check-email');
 
 // One-click link may open in an in-app browser without the original session.
 Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)

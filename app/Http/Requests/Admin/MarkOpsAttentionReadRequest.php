@@ -10,7 +10,7 @@ class MarkOpsAttentionReadRequest extends FormRequest
     {
         $user = $this->user();
 
-        return $user?->isOperationsAdmin() && ! $user->isRestrictedStaff();
+        return $user?->isStaff() && ! $user->isRestrictedStaff();
     }
 
     /**

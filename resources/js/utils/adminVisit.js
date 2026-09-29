@@ -4,6 +4,7 @@ export const ADMIN_CACHE_FOR = ['30s', '5m'];
 
 const queued = new Set();
 let timer = null;
+let visitToken = 0;
 
 export function adminPath(href) {
     try {
@@ -40,14 +41,33 @@ export function prefetchAdmin(href) {
 export function prefetchAdminSoon(hrefs, delay = 0) {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
-        hrefs.filter(Boolean).forEach((href) => prefetchAdmin(href));
+        hrefs.filter(Boolean).forEach((href, index) => {
+            window.setTimeout(() => prefetchAdmin(href), index * 120);
+        });
     }, delay);
 }
 
 export function visitAdmin(href, options = {}) {
-    router.visit(href, {
+    const token = ++visitToken;
+
+    return router.visit(href, {
         showProgress: false,
         preserveScroll: false,
         ...options,
+        onFinish: (visit) => {
+            if (token === visitToken) {
+                options.onFinish?.(visit);
+            }
+        },
+        onCancel: (visit) => {
+            if (token === visitToken) {
+                options.onCancel?.(visit);
+            }
+        },
+        onError: (errors) => {
+            if (token === visitToken) {
+                options.onError?.(errors);
+            }
+        },
     });
 }

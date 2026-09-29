@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AnnouncementDelivery;
+use App\Support\Admin\AdminNavigation;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Admin\ApprovalService;
 use App\Support\Admin\OpsAttentionFeed;
@@ -43,9 +44,11 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
-        if ($user?->isStaff()) {
+        if ($user?->isStaff() && AdminNavigation::shouldMutateAttention($request)) {
             $user->loadMissing('staffRoles');
             app(StaffPresence::class)->touch($user);
+        } elseif ($user?->isStaff()) {
+            $user->loadMissing('staffRoles');
         }
 
         return [
@@ -128,7 +131,13 @@ class HandleInertiaRequests extends Middleware
                     ];
                 }
 
-                return app(AnnouncementService::class)->inboxPayloadFor($user);
+                $payload = app(AnnouncementService::class)->inboxPayloadFor($user);
+
+                if ($user->isSuperAdmin()) {
+                    return app(OpsAttentionFeed::class)->mergeSuperAdminNotifications($user, $payload);
+                }
+
+                return $payload;
             },
             'admin_inbox' => function () use ($user) {
                 if (! $user?->isSuperAdmin()) {

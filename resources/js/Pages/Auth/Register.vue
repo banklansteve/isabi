@@ -41,18 +41,13 @@
                     :message="verifyForm.errors.code || verifyForm.errors.email"
                 />
 
-                <form class="space-y-4" @submit.prevent="submitVerify">
-                    <FormTextInput
-                        id="code"
-                        :model-value="verifyForm.code"
+                <form class="space-y-5" @submit.prevent="submitVerify">
+                    <FormOtpInput
+                        v-model="verifyForm.code"
                         label="Verification code"
-                        icon="ti ti-password"
-                        inputmode="numeric"
-                        autocomplete="one-time-code"
-                        placeholder="6-digit code"
-                        maxlength="6"
                         :error="verifyForm.errors.code"
-                        @update:model-value="onCodeInput"
+                        autofocus
+                        @complete="submitVerify"
                     />
 
                     <FormButton
@@ -63,6 +58,7 @@
                         :loading="verifyForm.processing"
                         loading-label="Verifying…"
                         icon-right="ti ti-check"
+                        :disabled="verifyForm.code.length < 6"
                     />
                 </form>
 
@@ -89,7 +85,7 @@
                         </Link>
                     </div>
                     <p class="mt-2 text-xs font-medium text-ink/40">
-                        You can explore the app now. Sending review requests stays locked until you verify.
+                        You can explore the app now. Logging jobs and sending review requests stay locked until you verify.
                     </p>
                 </div>
             </div>
@@ -169,7 +165,7 @@
                             placeholder="you@example.com"
                             autocomplete="email"
                             :error="displayError('email')"
-                            @blur="validateField('email')"
+                            @blur="onEmailBlur"
                         />
                         <FormTextInput
                             id="business_name"
@@ -355,6 +351,40 @@
                             @blur="validateField('password_confirmation')"
                         />
 
+                        <div class="space-y-1.5">
+                            <FormCheckbox
+                                v-model="form.terms_accepted"
+                                name="terms_accepted"
+                                @update:model-value="clearError('terms_accepted')"
+                            >
+                                I agree to the
+                                <Link
+                                    :href="route('terms')"
+                                    target="_blank"
+                                    class="font-semibold text-base-action underline-offset-2 hover:underline"
+                                    @click.stop
+                                >
+                                    Terms of use
+                                </Link>
+                                and
+                                <Link
+                                    :href="route('privacy')"
+                                    target="_blank"
+                                    class="font-semibold text-base-action underline-offset-2 hover:underline"
+                                    @click.stop
+                                >
+                                    Privacy policy
+                                </Link>
+                                <span class="text-red-500">*</span>
+                            </FormCheckbox>
+                            <p
+                                v-if="displayError('terms_accepted')"
+                                class="ps-8 text-sm font-medium text-red-600"
+                            >
+                                {{ displayError('terms_accepted') }}
+                            </p>
+                        </div>
+
                         <div class="rounded-2xl border border-ink/8 bg-gradient-to-br from-tint/80 to-pale px-4 py-3.5">
                             <div class="flex items-start gap-3">
                                 <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-base shadow-sm">
@@ -422,8 +452,10 @@
 <script setup>
 import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormCheckbox from '@/Components/Form/FormCheckbox.vue';
 import FormChoiceGrid from '@/Components/Form/FormChoiceGrid.vue';
 import FormMultiSelect from '@/Components/Form/FormMultiSelect.vue';
+import FormOtpInput from '@/Components/Form/FormOtpInput.vue';
 import FormPasswordInput from '@/Components/Form/FormPasswordInput.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
@@ -486,13 +518,8 @@ watch(
     },
 );
 
-const onCodeInput = (value) => {
-    verifyForm.code = String(value || '')
-        .replace(/\D/g, '')
-        .slice(0, 6);
-};
-
 const submitVerify = () => {
+    if (verifyForm.code.length < 6 || verifyForm.processing) return;
     verifyForm.post(route('verification.code'), {
         preserveScroll: true,
     });
@@ -552,6 +579,9 @@ const tradeOther = ref('');
 const jobCategory = ref('');
 const selectedTrades = ref([]);
 const localErrors = reactive({});
+const emailCheckPending = ref(false);
+const emailLastChecked = ref('');
+let emailCheckAbort = null;
 
 const form = useForm({
     first_name: '',
@@ -568,6 +598,7 @@ const form = useForm({
     whatsapp: '',
     password: '',
     password_confirmation: '',
+    terms_accepted: false,
     ref: props.referralCode || '',
 });
 
@@ -707,7 +738,59 @@ const isWhatsapp = (value) => {
     return /^(?:\+?234|0)[789][01]\d{8}$/.test(cleaned);
 };
 
+const checkEmailAvailability = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!email || !isEmail(email)) {
+        return false;
+    }
+
+    if (emailLastChecked.value === email && !localErrors.email) {
+        return true;
+    }
+
+    if (emailCheckAbort) {
+        emailCheckAbort.abort();
+    }
+    emailCheckAbort = new AbortController();
+    emailCheckPending.value = true;
+
+    try {
+        const { data } = await window.axios.post(
+            route('register.check-email'),
+            { email },
+            { signal: emailCheckAbort.signal },
+        );
+
+        emailLastChecked.value = email;
+
+        if (!data.available) {
+            localErrors.email = data.message || 'An account with this email already exists. Log in instead.';
+            return false;
+        }
+
+        if (localErrors.email?.includes('already exists')) {
+            clearError('email');
+        }
+        return true;
+    } catch (error) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError' || error?.name === 'AbortError') {
+            return false;
+        }
+        return !localErrors.email;
+    } finally {
+        emailCheckPending.value = false;
+    }
+};
+
+const onEmailBlur = async () => {
+    if (!validateField('email')) {
+        return;
+    }
+    await checkEmailAvailability();
+};
+
 const validateField = (field) => {
+    const previousEmailError = field === 'email' ? localErrors.email : null;
     clearError(field);
     if (field === 'trades' || field === 'trade') {
         clearError('trade_other');
@@ -726,6 +809,11 @@ const validateField = (field) => {
             localErrors.email = 'Email is required.';
         } else if (!isEmail(form.email)) {
             localErrors.email = 'Enter a valid email address.';
+        } else if (
+            emailLastChecked.value === form.email.trim().toLowerCase()
+            && previousEmailError?.includes('already exists')
+        ) {
+            localErrors.email = previousEmailError;
         }
     }
     if (field === 'business_name') {
@@ -768,13 +856,22 @@ const validateField = (field) => {
             localErrors.password_confirmation = 'Passwords do not match.';
         }
     }
+    if (field === 'terms_accepted' && !form.terms_accepted) {
+        localErrors.terms_accepted = 'Please agree to the Terms of use and Privacy policy.';
+    }
 
     return !localErrors[field] && !localErrors.trade_other && !localErrors.trades;
 };
 
-const validateStep = (n) => {
+const validateStep = async (n) => {
     if (n === 1) {
-        return ['first_name', 'last_name', 'email', 'business_name'].every((f) => validateField(f));
+        const basicsOk = ['first_name', 'last_name', 'email', 'business_name'].every((f) =>
+            validateField(f),
+        );
+        if (!basicsOk) {
+            return false;
+        }
+        return checkEmailAvailability();
     }
     if (n === 2) {
         if (!jobCategory.value && (props.jobCategories?.parents || []).length) {
@@ -788,7 +885,9 @@ const validateStep = (n) => {
         return ['state', 'lga', 'office_address'].every((f) => validateField(f));
     }
     if (n === 4) {
-        return ['whatsapp', 'password', 'password_confirmation'].every((f) => validateField(f));
+        return ['whatsapp', 'password', 'password_confirmation', 'terms_accepted'].every((f) =>
+            validateField(f),
+        );
     }
     return true;
 };
@@ -814,8 +913,8 @@ const goTo = (n) => {
     }
 };
 
-const next = () => {
-    if (!validateStep(step.value)) {
+const next = async () => {
+    if (!(await validateStep(step.value))) {
         return;
     }
     step.value = Math.min(step.value + 1, steps.length);
@@ -825,8 +924,8 @@ const back = () => {
     step.value = Math.max(step.value - 1, 1);
 };
 
-const submit = () => {
-    if (!validateStep(4)) {
+const submit = async () => {
+    if (!(await validateStep(4))) {
         return;
     }
 
@@ -853,6 +952,16 @@ const passwordRules = computed(() => [
     { key: 'letter', label: 'A letter', ok: /[A-Za-z]/.test(form.password) },
     { key: 'number', label: 'A number', ok: /\d/.test(form.password) },
 ]);
+
+watch(
+    () => form.email,
+    () => {
+        emailLastChecked.value = '';
+        if (localErrors.email?.includes('already exists')) {
+            clearError('email');
+        }
+    },
+);
 
 watch(
     () => form.password,

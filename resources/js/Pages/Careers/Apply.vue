@@ -330,9 +330,9 @@
                             <span class="text-sm font-medium leading-relaxed text-ink/60">
                                 I consent to Kraftrack collecting and processing my personal data
                                 (including education, employment history, and salary expectations) for
-                                recruitment purposes, in line with the Nigeria Data Protection Act
-                                (NDPR). I understand my data will be stored securely and used only for
-                                evaluating this application.
+                                recruitment purposes, in line with the Nigeria Data Protection Act, 2023
+                                (NDPA) and the Nigeria Data Protection Regulation (NDPR). I understand my
+                                data will be stored securely and used only for evaluating this application.
                                 <span class="text-red-500">*</span>
                             </span>
                         </label>

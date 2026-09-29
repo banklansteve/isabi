@@ -106,7 +106,8 @@ return [
             'severity' => 'high',
             'label' => 'Backdating',
             'class' => BackdatingRule::class,
-            'allowed_days' => 2,
+            // Job date more than 5 days before it was logged.
+            'allowed_days' => 5,
             'repeat_min' => 3,
             'repeat_window_days' => 30,
         ],
@@ -203,7 +204,8 @@ return [
             'severity' => 'medium',
             'label' => 'Duplicate or near-duplicate text',
             'class' => DuplicateReviewTextRule::class,
-            'min_chars' => 36,
+            // Long review text (≥60 chars) reused at ≥90% similarity.
+            'min_chars' => 60,
             'similarity_percent' => 90,
             'same_artisan_min' => 2,
             'cross_artisan_min' => 3,

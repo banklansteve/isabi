@@ -10,6 +10,7 @@ use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Chat\MessageReactionService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class SupportPresenter
 {
@@ -73,7 +74,7 @@ class SupportPresenter
     /**
      * @return array<string, mixed>
      */
-    public function inboxItem(SupportTicket $ticket): array
+    public function inboxItem(SupportTicket $ticket, ?User $viewer = null): array
     {
         $ticket->loadMissing(['user:id,uid,name,email,business_name,avatar_url,first_name,last_name', 'assignedTo:id,uid,name']);
         $preview = $ticket->relationLoaded('messages')
@@ -81,6 +82,7 @@ class SupportPresenter
             : $ticket->messages()->where('kind', SupportTicketMessage::KIND_MESSAGE)->latest('id')->first();
 
         $waiting = $this->waitingSeconds($ticket);
+        $referral = $this->referralSummary($ticket, $viewer);
 
         return [
             'id' => $ticket->id,
@@ -90,6 +92,7 @@ class SupportPresenter
                 ? str($preview->body)->limit(90)->toString()
                 : ($preview?->attachment_name ? 'Attachment' : 'New conversation'),
             'status' => $ticket->status,
+            'close_outcome' => $ticket->close_outcome,
             'queue_status' => $this->queueStatus($ticket),
             'unread' => $this->unreadForStaff($ticket),
             'waiting_seconds' => $waiting,
@@ -101,6 +104,8 @@ class SupportPresenter
                 ->diffForHumans(),
             'topic_key' => $ticket->topic_key,
             'tags' => $ticket->tags ?? [],
+            'close_message_sent' => (bool) $ticket->close_message_sent_at,
+            'referral' => $referral,
             'user' => $ticket->user ? [
                 'id' => $ticket->user->id,
                 'uid' => $ticket->user->uid,
@@ -121,7 +126,7 @@ class SupportPresenter
     /**
      * @return array<string, mixed>
      */
-    public function staffThread(SupportTicket $ticket): array
+    public function staffThread(SupportTicket $ticket, ?User $viewer = null): array
     {
         $ticket->load([
             'user:id,uid,name,email,business_name,avatar_url,first_name,last_name,whatsapp',
@@ -141,10 +146,10 @@ class SupportPresenter
         $seen = $lastCustomer && $ticket->customer_last_read_at
             && $ticket->customer_last_read_at->gte($lastCustomer->created_at);
 
-        $viewer = Auth::user();
+        $viewer = $viewer ?: Auth::user();
 
         return [
-            ...$this->inboxItem($ticket),
+            ...$this->inboxItem($ticket, $viewer instanceof User ? $viewer : null),
             'messages' => $public->map(fn (SupportTicketMessage $message) => $this->staffMessage($message, $viewer))->all(),
             'notes' => $notes->map(fn (SupportTicketMessage $message) => [
                 'id' => $message->id,
@@ -247,8 +252,8 @@ class SupportPresenter
 
     private function customerState(?SupportTicket $ticket, bool $available): string
     {
-        if (! $ticket || $ticket->status === SupportTicket::STATUS_RESOLVED) {
-            return $ticket?->status === SupportTicket::STATUS_RESOLVED ? 'resolved' : 'idle';
+        if (! $ticket || $ticket->isClosed()) {
+            return $ticket?->isClosed() ? 'resolved' : 'idle';
         }
 
         if (! $available) {
@@ -291,7 +296,7 @@ class SupportPresenter
 
     private function customerCsat(?SupportTicket $ticket): array
     {
-        if (! $ticket || $ticket->status !== SupportTicket::STATUS_RESOLVED) {
+        if (! $ticket || ! $ticket->isClosed()) {
             return ['prompt' => false, 'score' => null];
         }
 
@@ -303,6 +308,10 @@ class SupportPresenter
 
     private function queueStatus(SupportTicket $ticket): string
     {
+        if ($ticket->status === SupportTicket::STATUS_ABANDONED) {
+            return 'abandoned';
+        }
+
         if ($ticket->status === SupportTicket::STATUS_RESOLVED) {
             return 'resolved';
         }
@@ -318,10 +327,54 @@ class SupportPresenter
         return 'open';
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function referralSummary(SupportTicket $ticket, ?User $viewer): ?array
+    {
+        if (! $viewer || ! Schema::hasTable('staff_case_referrals')) {
+            return null;
+        }
+
+        $referral = StaffCaseReferral::query()
+            ->with(['assignee:id,name,email', 'referredBy:id,name,email'])
+            ->where('subject_type', StaffCaseReferral::SUBJECT_SUPPORT)
+            ->where('subject_id', $ticket->id)
+            ->where(function ($query) use ($viewer) {
+                $query->where('referred_by_user_id', $viewer->id)
+                    ->orWhere('assignee_user_id', $viewer->id);
+            })
+            ->latest('id')
+            ->first();
+
+        if (! $referral) {
+            return null;
+        }
+
+        return [
+            'id' => $referral->id,
+            'status' => $referral->status,
+            'status_label' => $referral->isActive()
+                ? ($referral->isSuperEscalation() ? 'Escalated' : 'Referred')
+                : ($referral->status === StaffCaseReferral::STATUS_COMPLETED ? 'Referral closed' : 'Returned'),
+            'note' => $referral->note,
+            'queue' => $referral->queue,
+            'to' => $referral->assignee?->name ?: $referral->assignee?->email,
+            'from' => $referral->referredBy?->name ?: $referral->referredBy?->email,
+            'when' => $this->when($referral->referred_at ?? $referral->created_at),
+            'active' => $referral->isActive(),
+            'escalation' => $referral->isSuperEscalation(),
+        ];
+    }
+
     private function unreadForStaff(SupportTicket $ticket): bool
     {
+        if ($ticket->isClosed()) {
+            return false;
+        }
+
         if (! $ticket->last_customer_message_at) {
-            return $ticket->status !== SupportTicket::STATUS_RESOLVED;
+            return $ticket->status === SupportTicket::STATUS_NEW;
         }
 
         if (! $ticket->staff_last_read_at) {
@@ -333,7 +386,7 @@ class SupportPresenter
 
     private function waitingSeconds(SupportTicket $ticket): int
     {
-        if (in_array($ticket->status, [SupportTicket::STATUS_RESOLVED, SupportTicket::STATUS_PENDING], true)) {
+        if ($ticket->isClosed() || $ticket->status === SupportTicket::STATUS_PENDING) {
             return 0;
         }
 

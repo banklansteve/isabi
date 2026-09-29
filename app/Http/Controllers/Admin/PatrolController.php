@@ -13,11 +13,15 @@ use App\Http\Requests\Admin\Patrol\RemovePatrolJobRequest;
 use App\Http\Requests\Admin\Patrol\StartPatrolReviewRequest;
 use App\Http\Requests\Admin\Patrol\StorePatrolNoteRequest;
 use App\Models\PatrolCase;
+use App\Models\StaffCaseReferral;
 use App\Models\User;
+use App\Support\Admin\AdminNavigation;
 use App\Support\Admin\AdminResponse;
-use App\Support\Admin\OpsAttentionFeed;
-use App\Support\Patrol\PatrolCaseService;
 use App\Support\Admin\JobAdminPresenter;
+use App\Support\Admin\OpsAttentionFeed;
+use App\Support\Admin\StaffCaseReferralService;
+use App\Support\Patrol\LifecyclePatrolReport;
+use App\Support\Patrol\PatrolCaseService;
 use App\Support\Patrol\PatrolPresenter;
 use App\Support\Patrol\PatrolSeverity;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +38,10 @@ class PatrolController extends Controller
     {
         abort_unless($request->user()?->canDo('patrol.view'), 403);
 
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'patrol_jobs');
+        }
+
         return Inertia::render('Admin/Patrol/Jobs', $this->indexProps($request, 'jobs'));
     }
 
@@ -41,18 +49,79 @@ class PatrolController extends Controller
     {
         abort_unless($request->user()?->canDo('patrol.view'), 403);
 
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'patrol_reviews');
+        }
+
         return Inertia::render('Admin/Patrol/Reviews', $this->indexProps($request, 'reviews'));
+    }
+
+    public function dormant(Request $request, LifecyclePatrolReport $lifecycle): Response
+    {
+        abort_unless($request->user()?->canDo('patrol.view'), 403);
+
+        $payload = $lifecycle->dormant(
+            (string) $request->query('window', '30'),
+            25,
+            (string) $request->query('q', ''),
+        );
+
+        return Inertia::render('Admin/Patrol/Lifecycle', [
+            'queue' => 'dormant',
+            'people' => $payload['people'],
+            'counts' => $payload['counts'],
+            'window' => $payload['window'],
+            'windows' => $payload['windows'],
+            'filters' => [
+                'window' => $payload['window'],
+                'q' => (string) $request->query('q', ''),
+            ],
+        ]);
+    }
+
+    public function singleSession(Request $request, LifecyclePatrolReport $lifecycle): Response
+    {
+        abort_unless($request->user()?->canDo('patrol.view'), 403);
+
+        $payload = $lifecycle->singleSession(25, (string) $request->query('q', ''));
+
+        return Inertia::render('Admin/Patrol/Lifecycle', [
+            'queue' => 'single_session',
+            'people' => $payload['people'],
+            'counts' => [],
+            'window' => null,
+            'windows' => [],
+            'filters' => [
+                'q' => (string) $request->query('q', ''),
+            ],
+        ]);
     }
 
     public function show(Request $request, PatrolCase $patrolCase): Response|JsonResponse
     {
         abort_unless($request->user()?->canDo('patrol.view'), 403);
 
-        if ($request->user()?->isOperationsAdmin()) {
+        if (
+            AdminNavigation::shouldMutateAttention($request)
+            && $request->user()?->isOperationsAdmin()
+        ) {
             $prefix = $patrolCase->isReview() ? 'patrol:review:' : 'patrol:job:';
             app(OpsAttentionFeed::class)->markOpened(
                 $request->user(),
                 $prefix.$patrolCase->id,
+            );
+        }
+
+        if (
+            AdminNavigation::shouldMutateAttention($request)
+            && $request->user()?->isStaff()
+            && ! $request->user()->isRestrictedStaff()
+        ) {
+            app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+                $request->user(),
+                StaffCaseReferral::SUBJECT_PATROL,
+                (int) $patrolCase->id,
+                $request->integer('referral_update') ?: null,
             );
         }
 
@@ -323,6 +392,10 @@ class PatrolController extends Controller
         return [
             'record' => PatrolPresenter::caseDetail($case, $actor),
             'can' => $this->abilities($actor, $case),
+            'escalation' => app(StaffCaseReferralService::class)->escalationBlockFor(
+                StaffCaseReferral::SUBJECT_PATROL,
+                (int) $case->id,
+            ),
         ];
     }
 
@@ -338,7 +411,8 @@ class PatrolController extends Controller
             'view' => $actor->canDo('patrol.view'),
             'investigate' => $investigate,
             'resolve' => $resolve,
-            'refer' => $actor->canDo('patrol.view') || $investigate,
+            'refer' => app(StaffCaseReferralService::class)->canRefer($actor, StaffCaseReferral::SUBJECT_PATROL),
+            'escalate' => app(StaffCaseReferralService::class)->canEscalate($actor, StaffCaseReferral::SUBJECT_PATROL),
             'dismiss_low' => $investigate && $case && PatrolSeverity::isLow($case->severity),
             'dismiss_any' => $resolve,
             'users_view' => $actor->canDo('admin.users.view'),

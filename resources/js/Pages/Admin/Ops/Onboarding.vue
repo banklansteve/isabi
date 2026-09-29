@@ -9,7 +9,7 @@
                 Onboarding follow-up
             </h1>
             <p class="max-w-2xl text-[13px] font-medium leading-relaxed text-ink/50">
-                Reach out to artisans stuck mid-funnel. Each tab is a drop-off point — nudge them to the next step before they go cold.
+                Reach out to artisans stuck mid-funnel. Each tab is a drop-off point — nudge them by email, in-app, or WhatsApp before they go cold.
             </p>
         </header>
 
@@ -19,13 +19,14 @@
                 :key="chip.key"
                 type="button"
                 class="flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-all duration-150 active:scale-[0.97]"
-                :class="segment === chip.key ? 'bg-base-action text-white shadow-sm' : 'bg-white text-ink/55 ring-1 ring-ink/[0.06] hover:text-deep'"
+                :class="activeSegment === chip.key ? 'bg-base-action text-white shadow-sm' : 'bg-white text-ink/55 ring-1 ring-ink/[0.06] hover:text-deep'"
+                :aria-current="activeSegment === chip.key ? 'page' : undefined"
                 @click="select(chip.key)"
             >
                 {{ chip.label }}
                 <span
                     class="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                    :class="segment === chip.key ? 'bg-white/25 text-white' : 'bg-pale text-ink/45'"
+                    :class="activeSegment === chip.key ? 'bg-white/25 text-white' : 'bg-pale text-ink/45'"
                 >
                     {{ chip.count }}
                 </span>
@@ -36,51 +37,65 @@
             <i class="ti ti-bulb mr-1" aria-hidden="true" />{{ hint }}
         </p>
 
-        <div v-if="items.length" class="space-y-2.5">
-            <OpsPersonCard
-                v-for="person in items"
-                :key="person.id"
-                :person="person"
-                :badges="badgesFor(person)"
-                :meta-tail="metaFor(person)"
-            >
-                <template #actions>
-                    <a
-                        v-if="waHref(person)"
-                        :href="waHref(person)"
-                        target="_blank"
-                        rel="noopener"
-                        class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[12px] font-bold text-emerald-700 hover:bg-emerald-100"
-                    >
-                        <i class="ti ti-brand-whatsapp text-sm" aria-hidden="true" /> Nudge
-                    </a>
-                    <Link
-                        :href="route('admin.users.show', person.id)"
-                        class="inline-flex items-center gap-1.5 rounded-xl bg-pale px-3 py-2 text-[12px] font-bold text-ink/60 hover:bg-tint hover:text-deep"
-                    >
-                        <i class="ti ti-user-search text-sm" aria-hidden="true" /> Open
-                    </Link>
-                </template>
-            </OpsPersonCard>
-        </div>
+        <div
+            class="transition-opacity duration-150"
+            :class="pending ? 'pointer-events-none opacity-50' : 'opacity-100'"
+            :aria-busy="pending ? 'true' : undefined"
+        >
+            <div v-if="items.length" class="space-y-2.5">
+                <OpsPersonCard
+                    v-for="person in items"
+                    :key="person.id"
+                    :person="person"
+                    :badges="badgesFor(person)"
+                    :meta-tail="metaFor(person)"
+                >
+                    <template #actions>
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-1.5 rounded-xl bg-base-action px-3 py-2 text-[12px] font-bold text-white shadow-[0_8px_18px_-10px_rgba(26,79,181,0.45)] hover:bg-base-hover"
+                            @click="openOutreach(person)"
+                        >
+                            <i class="ti ti-mail-forward text-sm" aria-hidden="true" /> Reach out
+                        </button>
+                        <Link
+                            :href="route('admin.users.show', person.id)"
+                            class="inline-flex items-center gap-1.5 rounded-xl bg-pale px-3 py-2 text-[12px] font-bold text-ink/60 hover:bg-tint hover:text-deep"
+                        >
+                            <i class="ti ti-user-search text-sm" aria-hidden="true" /> Open
+                        </Link>
+                    </template>
+                </OpsPersonCard>
+            </div>
 
-        <AdminEmpty
-            v-else
-            class="rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05]"
-            title="No one stuck here"
-            description="Nobody is sitting at this drop-off point right now."
-            icon="ti ti-route"
-        />
+            <AdminEmpty
+                v-else
+                class="rounded-2xl bg-white shadow-premium ring-1 ring-ink/[0.05]"
+                title="No one stuck here"
+                description="Nobody is sitting at this drop-off point right now."
+                icon="ti ti-route"
+            />
+        </div>
     </div>
+
+    <OpsOutreachDialog
+        :open="!!outreachUser"
+        :user="outreachUser"
+        category="onboarding"
+        title="Onboarding follow-up"
+        description="Send a templated email and/or in-app message. WhatsApp opens a pre-filled chat."
+        @close="outreachUser = null"
+    />
 </template>
 
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import OpsOutreachDialog from '@/Components/Admin/OpsOutreachDialog.vue';
 import OpsPersonCard from '@/Components/Admin/OpsPersonCard.vue';
-import { waLink } from '@/utils/waLink';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { useOpsQueueVisit } from '@/Composables/useOpsQueueVisit';
+import { Head, Link } from '@inertiajs/vue3';
+import { computed, ref, toRef, watch } from 'vue';
 
 const props = defineProps({
     rows: { type: Array, default: () => [] },
@@ -89,9 +104,23 @@ const props = defineProps({
 });
 
 const items = ref([...props.rows]);
+const outreachUser = ref(null);
 
 watch(() => props.rows, (value) => {
     items.value = [...value];
+});
+
+const {
+    active: activeSegment,
+    pending,
+    visit,
+} = useOpsQueueVisit({
+    routeName: 'admin.onboarding.index',
+    only: ['rows', 'counts', 'segment'],
+    activeKey: toRef(props, 'segment'),
+    paramName: 'segment',
+    prefetchParam: 'segment',
+    prefetchKeys: ['no_job', 'no_review', 'no_profile'],
 });
 
 const chips = computed(() => [
@@ -104,15 +133,11 @@ const hint = computed(() => ({
     no_job: 'Verified but never logged a job — help them log their first piece of work.',
     no_review: 'They log jobs but never ask clients for a review — the growth loop stalls here.',
     no_profile: 'Profile is barely started — a complete profile converts far better.',
-}[props.segment] || ''));
+}[activeSegment.value] || ''));
 
 const select = (key) => {
-    if (key === props.segment) return;
-    router.get(route('admin.onboarding.index', { segment: key }), {}, {
-        preserveScroll: true,
-        preserveState: true,
-        replace: true,
-    });
+    if (key === activeSegment.value || pending.value) return;
+    visit({ segment: key });
 };
 
 const badgesFor = (person) => {
@@ -133,7 +158,13 @@ const metaFor = (person) => {
     return bits.join(' · ');
 };
 
-const waHref = (person) => waLink(person.whatsapp, `Hi ${person.person || ''}, it's the Kraftrack team — need a hand getting your first job logged?`);
+const openOutreach = (person) => {
+    outreachUser.value = {
+        ...person,
+        business_name: person.name,
+        name: person.person || person.name,
+    };
+};
 </script>
 
 <style scoped>

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Admin\AdminNavigation;
+use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Identity\UserUid;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -19,6 +21,16 @@ class OnboardingController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless($request->user()?->canDo('ops.onboarding.manage'), 403);
+
+        if (
+            AdminNavigation::shouldMutateAttention($request)
+            && $request->user()?->isStaff()
+            && ! $request->user()->isRestrictedStaff()
+        ) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'onboarding');
+        }
+
         $segment = (string) $request->query('segment', 'no_job');
         $segment = in_array($segment, self::SEGMENTS, true) ? $segment : 'no_job';
 
@@ -37,7 +49,7 @@ class OnboardingController extends Controller
         $rows = $query
             ->withCount('workLogs')
             ->latest('created_at')
-            ->limit(300)
+            ->limit(100)
             ->get()
             ->map(fn (User $user) => $this->row($user))
             ->values();

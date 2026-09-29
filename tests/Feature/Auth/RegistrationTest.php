@@ -49,10 +49,11 @@ class RegistrationTest extends TestCase
             'whatsapp' => '08031234567',
             'password' => 'password1',
             'password_confirmation' => 'password1',
+            'terms_accepted' => true,
         ]);
 
         $this->assertAuthenticated();
-        Mail::assertSent(VerifyEmailMail::class);
+        Mail::assertSent(VerifyEmailMail::class, 1);
 
         $response->assertInertia(fn ($page) => $page
             ->component('Auth/Register')
@@ -65,5 +66,47 @@ class RegistrationTest extends TestCase
         $this->assertFalse($user->hasVerifiedEmail());
         $this->assertNotNull($user->email_verification_code_hash);
         $this->assertSame('Test Plumbing', $user->business_name);
+        $this->assertNotNull($user->terms_accepted_at);
+    }
+
+    public function test_registration_requires_terms_acceptance(): void
+    {
+        $response = $this->from('/register')->post('/register', [
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'business_name' => 'Test Plumbing',
+            'email' => 'test@example.com',
+            'job_category' => 'Plumbing, Water & Gas',
+            'trade' => 'Plumber',
+            'trades' => ['Plumber'],
+            'skills' => ['Pipe repairs'],
+            'state' => 'Lagos',
+            'lga' => 'Ikeja',
+            'office_address' => '12 Allen Avenue, Ikeja',
+            'whatsapp' => '08031234567',
+            'password' => 'password1',
+            'password_confirmation' => 'password1',
+            'terms_accepted' => false,
+        ]);
+
+        $response->assertSessionHasErrors('terms_accepted');
+        $this->assertGuest();
+    }
+
+    public function test_check_email_endpoint_reports_taken_addresses(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+
+        $this->postJson(route('register.check-email'), ['email' => 'taken@example.com'])
+            ->assertOk()
+            ->assertJson([
+                'available' => false,
+            ]);
+
+        $this->postJson(route('register.check-email'), ['email' => 'free@example.com'])
+            ->assertOk()
+            ->assertJson([
+                'available' => true,
+            ]);
     }
 }

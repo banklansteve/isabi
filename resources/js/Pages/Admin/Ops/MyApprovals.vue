@@ -6,8 +6,9 @@
         :eyebrow="pendingCount ? `${pendingCount} waiting on Super Admin` : 'Track requests you submitted'"
     />
 
-    <div class="mx-auto max-w-4xl space-y-6">
-        <OpsAssignedTabs />
+    <OpsAssignedTabs />
+
+    <div class="space-y-6">
         <section class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.05] sm:p-5">
             <h2 class="text-sm font-bold text-ink">Pending</h2>
             <p class="mt-1 text-[13px] font-medium text-ink/45">

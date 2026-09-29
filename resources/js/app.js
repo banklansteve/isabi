@@ -8,6 +8,7 @@ import SupportFab from './Components/App/SupportFab.vue';
 import ToastHost from './Components/ToastHost.vue';
 import { applySeo } from './utils/applySeo';
 import { rememberCurrentUrl } from './utils/backNavigation';
+import { startPageTimeTracking } from './utils/pageTime';
 import AdminShell from './Layouts/AdminShell.vue';
 import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -40,6 +41,7 @@ createInertiaApp({
     },
     setup({ el, App, props, plugin }) {
         applySeo(props.initialPage?.props?.seo ?? props.page?.props?.seo);
+        startPageTimeTracking();
 
         return createApp({
             render: () =>

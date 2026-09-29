@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'customer_last_read_at',
     'staff_last_read_at',
     'resolved_at',
+    'close_outcome',
+    'close_message_sent_at',
     'csat_score',
     'csat_comment',
     'csat_dismissed_at',
@@ -36,6 +38,14 @@ class SupportTicket extends Model
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_RESOLVED = 'resolved';
+
+    public const STATUS_ABANDONED = 'abandoned';
+
+    public const OUTCOME_COMPLETED = 'completed';
+
+    public const OUTCOME_ABANDONED = 'abandoned';
+
+    public const HISTORY_DAYS = 30;
 
     protected static function booted(): void
     {
@@ -66,6 +76,7 @@ class SupportTicket extends Model
             'customer_last_read_at' => 'datetime',
             'staff_last_read_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'close_message_sent_at' => 'datetime',
             'csat_dismissed_at' => 'datetime',
             'csat_score' => 'integer',
         ];
@@ -89,6 +100,11 @@ class SupportTicket extends Model
     public function isOpen(): bool
     {
         return in_array($this->status, [self::STATUS_NEW, self::STATUS_OPEN, self::STATUS_PENDING], true);
+    }
+
+    public function isClosed(): bool
+    {
+        return in_array($this->status, [self::STATUS_RESOLVED, self::STATUS_ABANDONED], true);
     }
 
     public function adminShowUrl(): string

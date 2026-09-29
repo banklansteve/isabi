@@ -317,12 +317,19 @@
                         >
                             Your email is unverified.
                             <Link
+                                :href="route('verification.notice')"
+                                class="font-bold text-base"
+                            >
+                                Enter code
+                            </Link>
+                            <span class="mx-1 text-ink/30">·</span>
+                            <Link
                                 :href="route('verification.send')"
                                 method="post"
                                 as="button"
                                 class="font-bold text-base"
                             >
-                                Resend verification
+                                Resend code
                             </Link>
                         </div>
 

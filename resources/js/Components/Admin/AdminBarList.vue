@@ -16,6 +16,13 @@
                         >
                             Lowest traffic
                         </span>
+                        <span
+                            v-if="item.delta != null && Number(item.delta) !== 0"
+                            class="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums ring-1"
+                            :class="deltaClass(item)"
+                        >
+                            {{ Number(item.delta) > 0 ? '+' : '' }}{{ item.delta }}
+                        </span>
                     </span>
                     <span class="tabular-nums text-ink">{{ format(item.value) }}</span>
                 </div>
@@ -45,6 +52,15 @@ const props = defineProps({
 const max = computed(() => Math.max(...props.items.map((i) => Number(i.value) || 0), 1));
 const barWidth = (value) => Math.max(2, (Number(value) / max.value) * 100);
 const isLowest = (item) => props.lowestKey && (item.key === props.lowestKey || item.label === props.lowestKey);
+const deltaClass = (item) => {
+    if (item.tone === 'up' || Number(item.delta) > 0) {
+        return 'bg-emerald-50 text-emerald-700 ring-emerald-200/80';
+    }
+    if (item.tone === 'down' || Number(item.delta) < 0) {
+        return 'bg-rose-50 text-rose-700 ring-rose-200/80';
+    }
+    return 'bg-pale text-ink/45 ring-ink/[0.06]';
+};
 const format = (value) => {
     const n = Number(value) || 0;
     if (props.money) {

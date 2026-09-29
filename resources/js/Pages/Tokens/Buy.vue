@@ -37,17 +37,37 @@
                         </p>
                     </div>
                     <div
-                        class="rounded-2xl bg-white/[0.07] px-4 py-3.5 ring-1 ring-white/10 sm:min-w-[11rem]"
+                        class="rounded-2xl bg-white/[0.07] px-4 py-3.5 ring-1 ring-white/10 sm:min-w-[14rem]"
                     >
-                        <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                            Balance
-                        </p>
-                        <p class="mt-1 font-display text-2xl font-extrabold tabular-nums text-white">
-                            {{ status.token_balance }}
-                        </p>
-                        <p class="mt-0.5 text-[11px] font-medium text-white/50">
+                        <div class="flex items-end justify-between gap-4">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                                    Purchased
+                                </p>
+                                <p class="mt-1 font-display text-2xl font-extrabold tabular-nums text-white">
+                                    {{ status.purchased_balance ?? status.token_balance }}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                                    Total left
+                                </p>
+                                <p class="mt-1 font-display text-2xl font-extrabold tabular-nums text-white">
+                                    <template v-if="status.has_annual">∞</template>
+                                    <template v-else>
+                                        {{
+                                            status.total_remaining
+                                                ?? ((status.purchased_balance ?? status.token_balance) + status.free_remaining)
+                                        }}
+                                    </template>
+                                </p>
+                            </div>
+                        </div>
+                        <p class="mt-1.5 text-[11px] font-medium text-white/50">
                             <template v-if="status.has_annual">Unlimited free links</template>
-                            <template v-else>{{ status.free_remaining }} free left</template>
+                            <template v-else>
+                                {{ status.free_remaining }} free + {{ status.purchased_balance ?? status.token_balance }} purchased
+                            </template>
                         </p>
                     </div>
                 </div>

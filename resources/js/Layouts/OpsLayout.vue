@@ -22,8 +22,10 @@
                         :key="hub.key"
                         type="button"
                         class="nav-hit gap-1.5 px-3"
-                        :class="hub.key === activeHubKey ? 'bg-tint text-deep' : ''"
-                        :aria-current="hub.key === activeHubKey ? 'page' : undefined"
+                        :class="hub.key === displayedHubKey ? 'bg-tint text-deep' : ''"
+                        :aria-current="hub.key === displayedHubKey ? 'page' : undefined"
+                        @pointerenter="prefetchHub(hub)"
+                        @focus="prefetchHub(hub)"
                         @click="goHub(hub)"
                     >
                         <i :class="hub.icon" class="text-[1.05rem]" aria-hidden="true" />
@@ -62,7 +64,7 @@
 
         <OpsSectionBar
             :pages="hubPages"
-            :active-page-key="currentItemKey"
+            :active-page-key="displayedPageKey"
             :tabs="subTabs"
             :current-route="currentRoute"
             :tab-query="tabQuery"
@@ -92,8 +94,8 @@
                 :key="hub.key"
                 type="button"
                 class="relative flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold transition-colors"
-                :class="hub.key === activeHubKey ? 'text-base-action' : 'text-ink/45'"
-                :aria-current="hub.key === activeHubKey ? 'page' : undefined"
+                :class="hub.key === displayedHubKey ? 'text-base-action' : 'text-ink/45'"
+                :aria-current="hub.key === displayedHubKey ? 'page' : undefined"
                 @click="goHub(hub)"
             >
                 <i :class="hub.icon" class="text-[1.35rem]" aria-hidden="true" />
@@ -125,14 +127,15 @@ import {
     navItemHref,
     opsHubHref,
     tabHref,
+    tabIsActive,
     visibleOpsHubs,
 } from '@/Data/adminNav';
 import { useOpsAttentionLive } from '@/Composables/useOpsAttentionLive';
 import { formatBadgeCount } from '@/utils/opsStatus';
 import { parseQuery } from '@/utils/adminRange';
-import { prefetchAdmin, visitAdmin } from '@/utils/adminVisit';
+import { prefetchAdmin, prefetchAdminSoon, visitAdmin } from '@/utils/adminVisit';
 import { Link, usePage } from '@inertiajs/vue3';
-import { computed, provide, ref, watch } from 'vue';
+import { computed, onMounted, provide, ref, watch } from 'vue';
 
 defineProps({
     title: { type: String, default: '' },
@@ -148,6 +151,8 @@ const unreadCount = computed(() => Number(inbox.value.unread_count || 0));
 const unreadItems = computed(() => inbox.value.items || []);
 
 const inboxOpen = ref(false);
+const pendingPageKey = ref(null);
+const pendingHubKey = ref(null);
 
 const currentRoute = computed(() => {
     void page.url;
@@ -169,16 +174,20 @@ watch(
     (url) => {
         tabQuery.value = parseQuery(url);
         inboxOpen.value = false;
+        pendingPageKey.value = null;
+        pendingHubKey.value = null;
     },
 );
 
 const hubs = computed(() => visibleOpsHubs(false, abilities.value));
 const activeHub = computed(() => activeOpsHub(currentRoute.value, false, abilities.value));
 const activeHubKey = computed(() => activeHub.value?.key || '');
+const displayedHubKey = computed(() => pendingHubKey.value || activeHubKey.value);
 const hubPages = computed(() => activeHub.value?.pages || []);
 
 const currentItem = computed(() => activeNavItem(currentRoute.value, false, abilities.value));
 const currentItemKey = computed(() => currentItem.value?.key || '');
+const displayedPageKey = computed(() => pendingPageKey.value || currentItemKey.value);
 const subTabs = computed(() =>
     (currentItem.value?.tabs || []).filter((tab) => canSeeNavTab(tab, false, abilities.value)),
 );
@@ -193,37 +202,106 @@ const hubBadge = (hub) => {
     return 0;
 };
 
+const prefetchHub = (hub) => {
+    prefetchAdmin(opsHubHref(hub, false, abilities.value));
+};
+
 const goHub = (hub) => {
-    if (hub.key === activeHubKey.value) {
+    if (hub.key === displayedHubKey.value) {
         return;
     }
-    visitAdmin(opsHubHref(hub, false, abilities.value));
+
+    pendingHubKey.value = hub.key;
+    pendingPageKey.value = null;
+
+    visitAdmin(opsHubHref(hub, false, abilities.value), {
+        preserveScroll: true,
+        onFinish: () => {
+            pendingHubKey.value = null;
+        },
+        onCancel: () => {
+            pendingHubKey.value = null;
+        },
+        onError: () => {
+            pendingHubKey.value = null;
+        },
+    });
 };
 
 const goPage = (item) => {
-    if (item.key === currentItemKey.value) {
+    if (item.key === displayedPageKey.value) {
         return;
     }
-    visitAdmin(navItemHref(item, false, abilities.value));
+
+    pendingPageKey.value = item.key;
+    visitAdmin(navItemHref(item, false, abilities.value), {
+        preserveScroll: true,
+        onFinish: () => {
+            pendingPageKey.value = null;
+        },
+        onCancel: () => {
+            pendingPageKey.value = null;
+        },
+        onError: () => {
+            pendingPageKey.value = null;
+        },
+    });
 };
 
+const SERVER_TAB_KEYS = ['kind', 'window', 'segment', 'filter', 'q'];
+
 const selectTab = (tab) => {
-    if (tab.route === currentRoute.value) {
-        tabQuery.value = { ...tabQuery.value, ...(tab.params || {}) };
+    if (tabIsActive(tab, currentRoute.value, tabQuery.value)) {
+        return;
+    }
+
+    const params = tab.params || {};
+    tabQuery.value = { ...tabQuery.value, ...params };
+
+    const needsServer = tab.route !== currentRoute.value
+        || Object.keys(params).some((key) => SERVER_TAB_KEYS.includes(key));
+
+    // Client-only views (Referrals Performance/Signals, etc.) — update URL, no round-trip.
+    if (!needsServer) {
         window.history.replaceState(window.history.state, '', tabHref(tab));
         return;
     }
 
-    visitAdmin(tabHref(tab));
+    const isReengagement = String(tab.route || '').startsWith('admin.reengagement');
+
+    visitAdmin(tabHref(tab), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        ...(isReengagement
+            ? { only: ['kind', 'rows', 'counts', 'window', 'windows', 'login_counts', 'dormant_counts'] }
+            : {}),
+        onFinish: () => {
+            tabQuery.value = parseQuery(page.url);
+        },
+    });
 };
 
 watch(hubPages, (pages) => {
-    pages.forEach((item) => prefetchAdmin(navItemHref(item, false, abilities.value)));
+    prefetchAdminSoon(
+        pages.map((item) => navItemHref(item, false, abilities.value)),
+        80,
+    );
 }, { immediate: true });
 
 watch(subTabs, (tabs) => {
-    tabs.forEach((tab) => prefetchAdmin(tabHref(tab)));
+    prefetchAdminSoon(
+        tabs.map((tab) => tabHref(tab)),
+        120,
+    );
 }, { immediate: true });
+
+onMounted(() => {
+    prefetchAdminSoon(
+        hubs.value.map((hub) => opsHubHref(hub, false, abilities.value)),
+        200,
+    );
+});
 
 useOpsAttentionLive();
 </script>

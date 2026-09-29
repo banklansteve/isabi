@@ -4,9 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\ActorKind;
 use App\Enums\RetentionTier;
-use App\Jobs\WriteActivityLogJob;
-use App\Jobs\WriteAdminAuditLogJob;
-use App\Jobs\WriteAnalyticsEventJob;
 use App\Models\ActivityLog;
 use App\Models\AdminAuditLog;
 use App\Models\AnalyticsEvent;
@@ -14,18 +11,40 @@ use App\Models\User;
 use App\Support\ActivityLogger;
 use App\Support\Admin\AdminAudit;
 use App\Support\AnalyticsEventLogger;
+use App\Support\CookieConsent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AuditLoggingFoundationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_activity_logger_dispatches_async_job_with_actor_kind_and_retention(): void
+    private function acceptAnalyticsCookies(): void
     {
-        Queue::fake();
+        request()->cookies->set(
+            CookieConsent::COOKIE,
+            json_encode([
+                'status' => CookieConsent::STATUS_ACCEPTED,
+                'v' => CookieConsent::VERSION,
+                'at' => now()->toIso8601String(),
+            ], JSON_THROW_ON_ERROR),
+        );
+    }
 
+    private function rejectAnalyticsCookies(): void
+    {
+        request()->cookies->set(
+            CookieConsent::COOKIE,
+            json_encode([
+                'status' => CookieConsent::STATUS_REJECTED,
+                'v' => CookieConsent::VERSION,
+                'at' => now()->toIso8601String(),
+            ], JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function test_activity_logger_persists_immediately_with_actor_kind_and_retention(): void
+    {
         $user = User::factory()->regularUser()->create();
 
         $this->actingAs($user);
@@ -36,18 +55,16 @@ class AuditLoggingFoundationTest extends TestCase
             user: $user,
         );
 
-        Queue::assertPushed(WriteActivityLogJob::class, function (WriteActivityLogJob $job) use ($user) {
-            return $job->payload['user_id'] === $user->id
-                && $job->payload['actor_kind'] === ActorKind::Customer->value
-                && $job->payload['action'] === 'profile.updated'
-                && $job->payload['retention_tier'] === RetentionTier::StandardPublic->value;
-        });
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $user->id,
+            'actor_kind' => ActorKind::Customer->value,
+            'action' => 'profile.updated',
+            'retention_tier' => RetentionTier::StandardPublic->value,
+        ]);
     }
 
     public function test_financial_activity_uses_financial_retention_tier(): void
     {
-        Queue::fake();
-
         $user = User::factory()->regularUser()->create();
 
         ActivityLogger::log(
@@ -56,16 +73,14 @@ class AuditLoggingFoundationTest extends TestCase
             user: $user,
         );
 
-        Queue::assertPushed(WriteActivityLogJob::class, function (WriteActivityLogJob $job) {
-            return $job->payload['action'] === 'tokens.purchased'
-                && $job->payload['retention_tier'] === RetentionTier::Financial->value;
-        });
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'tokens.purchased',
+            'retention_tier' => RetentionTier::Financial->value,
+        ]);
     }
 
-    public function test_admin_audit_dispatches_async_job_as_staff(): void
+    public function test_admin_audit_persists_immediately_as_staff(): void
     {
-        Queue::fake();
-
         $admin = User::factory()->superAdmin()->create();
 
         $this->actingAs($admin);
@@ -75,17 +90,17 @@ class AuditLoggingFoundationTest extends TestCase
             "{$admin->name} updated settings.",
         );
 
-        Queue::assertPushed(WriteAdminAuditLogJob::class, function (WriteAdminAuditLogJob $job) use ($admin) {
-            return $job->payload['actor_id'] === $admin->id
-                && $job->payload['actor_kind'] === ActorKind::Staff->value
-                && $job->payload['retention_tier'] === RetentionTier::Staff->value
-                && $job->payload['action'] === 'settings.updated';
-        });
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'actor_id' => $admin->id,
+            'actor_kind' => ActorKind::Staff->value,
+            'retention_tier' => RetentionTier::Staff->value,
+            'action' => 'settings.updated',
+        ]);
     }
 
-    public function test_analytics_logger_writes_to_separate_table_via_job(): void
+    public function test_analytics_logger_writes_after_response(): void
     {
-        Queue::fake();
+        $this->acceptAnalyticsCookies();
 
         $user = User::factory()->regularUser()->create();
 
@@ -95,24 +110,42 @@ class AuditLoggingFoundationTest extends TestCase
             user: $user,
         );
 
-        Queue::assertPushed(WriteAnalyticsEventJob::class, function (WriteAnalyticsEventJob $job) use ($user) {
-            return $job->payload['action'] === 'auth.login'
-                && $job->payload['user_id'] === $user->id
-                && $job->payload['actor_kind'] === ActorKind::Customer->value;
-        });
+        app()->terminate();
 
-        Queue::assertNotPushed(WriteActivityLogJob::class);
-        Queue::assertNotPushed(WriteAdminAuditLogJob::class);
+        $this->assertDatabaseHas('analytics_events', [
+            'action' => 'auth.login',
+            'user_id' => $user->id,
+            'actor_kind' => ActorKind::Customer->value,
+        ]);
     }
 
-    public function test_sync_queue_persists_activity_and_analytics_rows(): void
+    public function test_analytics_logger_skips_when_cookies_rejected_for_guests(): void
     {
+        $this->rejectAnalyticsCookies();
+
+        AnalyticsEventLogger::log(
+            action: 'page.help',
+            summary: 'Opened help',
+            user: null,
+        );
+
+        app()->terminate();
+
+        $this->assertSame(0, AnalyticsEvent::query()->count());
+    }
+
+    public function test_sync_writes_persist_activity_admin_and_analytics_rows(): void
+    {
+        $this->acceptAnalyticsCookies();
         $user = User::factory()->regularUser()->create();
         $admin = User::factory()->superAdmin()->create();
 
         ActivityLogger::log('profile.slug_changed', 'Slug changed', $user);
-        AnalyticsEventLogger::log('page.help', 'Opened help', $user);
         AdminAudit::record('staff.disabled', 'Disabled staff', actor: $admin);
+
+        // Analytics uses afterResponse — run terminating callbacks so the write lands in tests.
+        AnalyticsEventLogger::log('page.help', 'Opened help', $user);
+        app()->terminate();
 
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'profile.slug_changed',

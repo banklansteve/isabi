@@ -64,14 +64,14 @@
                 }"
             >
                 <p class="text-[11px] font-medium text-white/60">{{ series[hover].label }}</p>
-                <p class="text-[13px] font-bold tabular-nums">{{ formatCompact(series[hover].value) }}</p>
+                <p class="text-[13px] font-bold tabular-nums">{{ formatValue(series[hover].value) }}</p>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { formatCompact, showAxisLabel } from '@/utils/adminRange';
+import { formatCompact, formatNaira, showAxisLabel } from '@/utils/adminRange';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -79,11 +79,13 @@ const props = defineProps({
     hint: { type: String, default: '' },
     series: { type: Array, default: () => [] },
     color: { type: String, default: '#2F6FED' },
+    money: { type: Boolean, default: false },
 });
 
 const hover = ref(null);
 const hasData = computed(() => props.series.some((p) => Number(p.value) > 0));
 const gridYs = [20, 70, 120, 170];
+const formatValue = (value) => (props.money ? formatNaira(value) : formatCompact(value));
 
 const columns = computed(() => {
     const values = props.series.map((p) => Number(p.value) || 0);

@@ -3,18 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProfileViewMonth;
+use App\Support\CookieConsent;
 use App\Support\JobCategories;
+use App\Support\MediaUrl;
 use App\Support\PublicArtisan;
 use App\Support\SearchReferrer;
 use App\Support\Seo;
 use App\Support\SeoSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PublicProfileController extends Controller
 {
+    /** Initial timeline payload size — enough for first paint without a huge Inertia JSON. */
+    private const TIMELINE_LIMIT = 36;
+
+    /** Photos per job card on the public timeline. */
+    private const MEDIA_PER_JOB = 4;
+
     public function show(Request $request, string $slug): Response|RedirectResponse
     {
         $user = PublicArtisan::locate($slug);
@@ -31,12 +40,28 @@ class PublicProfileController extends Controller
 
         $viewerIsOwner = $viewer !== null && (int) $viewer->id === (int) $user->id;
 
-        $workLogs = $user->workLogs()
+        $workLogsQuery = $user->workLogs()->publiclyVisible();
+
+        $jobsCount = (clone $workLogsQuery)->count();
+        $verifiedWorks = (clone $workLogsQuery)
+            ->whereHas('review', fn ($query) => $query->publiclyVisible())
+            ->count();
+
+        $reviewStats = $user->reviews()
             ->publiclyVisible()
+            ->selectRaw('count(*) as review_count, avg(rating) as avg_rating')
+            ->first();
+
+        $reviewCount = (int) ($reviewStats->review_count ?? 0);
+        $avgRating = $reviewCount > 0
+            ? round((float) $reviewStats->avg_rating, 1)
+            : null;
+
+        $workLogs = (clone $workLogsQuery)
             ->with(['media', 'review'])
             ->orderByDesc('worked_on')
             ->orderByDesc('id')
-            ->limit(120)
+            ->limit(self::TIMELINE_LIMIT)
             ->get()
             ->map(fn ($log) => [
                 'uid' => $log->uid,
@@ -47,7 +72,7 @@ class PublicProfileController extends Controller
                     ? route('work-log.show', $log->uid)
                     : $log->publicUrl(),
                 'subject' => $log->displayTitle(),
-                'description' => $log->description,
+                'description' => Str::limit((string) $log->description, 220, '…'),
                 'job_category' => $log->job_category,
                 'job_subcategory' => $log->job_subcategory,
                 'category_label' => JobCategories::displayLabel($log->job_category, $log->job_subcategory),
@@ -58,22 +83,22 @@ class PublicProfileController extends Controller
                     $log->service_lga,
                     $log->service_state,
                 ])->filter()->implode(', ') ?: null,
-                'media' => $log->media->take(8)->map(fn ($m) => [
+                'media' => $log->media->take(self::MEDIA_PER_JOB)->map(fn ($m) => [
                     'id' => $m->id,
                     'url' => $m->url(),
-                    'thumb_url' => $m->thumbUrl(1000),
-                    'preview_url' => $m->previewUrl(1600),
-                    'poster_url' => $m->posterUrl(800),
+                    'thumb_url' => $m->thumbUrl(720),
+                    'preview_url' => $m->previewUrl(1400),
+                    'poster_url' => $m->posterUrl(720),
                     'kind' => $m->kind,
                     'original_name' => $m->original_name,
                 ])->values(),
                 'review' => ($log->review && $log->review->isPubliclyVisible()) ? [
                     'rating' => (float) $log->review->rating,
                     'would_recommend' => $log->review->would_recommend,
-                    'comment' => $log->review->comment,
+                    'comment' => Str::limit((string) ($log->review->comment ?? ''), 280, '…'),
                     'client_display_name' => $log->review->client_display_name,
                     'photo_url' => $log->review->photoUrl(),
-                    'photo_thumb_url' => $log->review->photoThumbUrl(700),
+                    'photo_thumb_url' => $log->review->photoThumbUrl(560),
                     'photo_preview_url' => $log->review->photoPreviewUrl(),
                     'submitted_at_label' => $log->review->submitted_at
                         ?->timezone(config('app.display_timezone'))
@@ -82,39 +107,37 @@ class PublicProfileController extends Controller
             ])
             ->values();
 
-        $reviewCount = $user->reviews()->publiclyVisible()->count();
-        $avgRating = $reviewCount > 0
-            ? round((float) $user->reviews()->publiclyVisible()->avg('rating'), 1)
-            : null;
-        $verifiedWorks = $user->workLogs()->publiclyVisible()->whereHas('review', fn ($query) => $query->publiclyVisible())->count();
-        $jobsCount = $user->workLogs()->publiclyVisible()->count();
-
         // How long clients take to respond once a job is logged. A short,
         // consistent turnaround reads as unprompted rather than chased.
-        $responseHours = $user->workLogs()
-            ->whereHas('review', fn ($query) => $query->publiclyVisible())
-            ->with('review:id,work_log_id,submitted_at')
-            ->get(['id', 'created_at'])
-            ->map(function ($log) {
-                $submitted = $log->review?->submitted_at;
+        $avgResponseHours = null;
+        if ($verifiedWorks > 0) {
+            $responseHours = $user->workLogs()
+                ->publiclyVisible()
+                ->whereHas('review', fn ($query) => $query->publiclyVisible())
+                ->with('review:id,work_log_id,submitted_at')
+                ->limit(40)
+                ->get(['id', 'created_at'])
+                ->map(function ($log) {
+                    $submitted = $log->review?->submitted_at;
 
-                return $submitted && $submitted->greaterThanOrEqualTo($log->created_at)
-                    ? $log->created_at->diffInHours($submitted)
-                    : null;
-            })
-            ->filter(fn ($hours) => $hours !== null);
+                    return $submitted && $submitted->greaterThanOrEqualTo($log->created_at)
+                        ? $log->created_at->diffInHours($submitted)
+                        : null;
+                })
+                ->filter(fn ($hours) => $hours !== null);
 
-        $avgResponseHours = $responseHours->isNotEmpty()
-            ? (int) round($responseHours->avg())
-            : null;
+            $avgResponseHours = $responseHours->isNotEmpty()
+                ? (int) round($responseHours->avg())
+                : null;
+        }
 
         $wa = preg_replace('/\D+/', '', (string) $user->whatsapp) ?? '';
         if (str_starts_with($wa, '0') && strlen($wa) === 11) {
             $wa = '234'.substr($wa, 1);
         }
 
-        // Count unique public visits per browser session — skip the owner previewing their page.
-        if (! $viewerIsOwner) {
+        // Unique public visits — skip owner preview and visitors who rejected analytics cookies.
+        if (! $viewerIsOwner && CookieConsent::state($request)['allows_analytics']) {
             $sessionKey = 'profile_viewed:'.$user->id;
             if (! $request->session()->has($sessionKey)) {
                 $user->increment('public_page_views');
@@ -141,7 +164,7 @@ class PublicProfileController extends Controller
             ->whereHas('review', fn ($query) => $query->publiclyVisible())
             ->with('review')
             ->orderByDesc('id')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         app(Seo::class)
@@ -168,8 +191,8 @@ class PublicProfileController extends Controller
                 'state' => $user->state,
                 'lga' => $user->lga,
                 'bio' => $user->bio,
-                'avatar_url' => $user->avatar_url,
-                'logo_url' => $user->logo_url,
+                'avatar_url' => MediaUrl::image($user->avatar_url, 480) ?: $user->avatar_url,
+                'logo_url' => MediaUrl::image($user->logo_url, 320) ?: $user->logo_url,
                 'embed_url' => $user->slug ? route('embed.profile', $user->slug) : null,
                 'area_label' => collect([$user->lga, $user->state])->filter()->implode(', ') ?: null,
                 'whatsapp_url' => $wa !== '' ? "https://wa.me/{$wa}" : null,

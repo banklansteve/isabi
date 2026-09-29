@@ -4,7 +4,9 @@ export const queueStatusLabel = (status) => {
         open: 'Open',
         awaiting_customer: 'Waiting on customer',
         pending: 'Waiting on customer',
-        resolved: 'Resolved',
+        resolved: 'Closed',
+        abandoned: 'Abandoned',
+        referred: 'Referred',
     };
 
     return map[status] || 'Open';
@@ -17,6 +19,8 @@ export const queueStatusClass = (status) => {
         awaiting_customer: 'bg-tint text-deep',
         pending: 'bg-tint text-deep',
         resolved: 'bg-pale text-ink/40',
+        abandoned: 'bg-ink/5 text-ink/45',
+        referred: 'bg-violet-50 text-violet-800',
     };
 
     return map[status] || map.open;

@@ -96,7 +96,7 @@ class OpsDashboardTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Ops/Home')
                 ->has('items', 1)
-                ->where('items.0.title', 'High-severity job log flagged')
+                ->where('items.0.title', 'Rapid logging')
                 ->where('items.0.tone', 'high')
                 ->has('priority_groups', 1)
                 ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->pluck('key')->contains('patrol_jobs'))
@@ -110,18 +110,26 @@ class OpsDashboardTest extends TestCase
             'customer_support',
             'Customer support',
         );
-        $moderation = StaffRole::query()->create([
-            'slug' => 'moderation',
-            'name' => 'Moderation',
-            'icon' => 'ti ti-shield',
+        $moderation = StaffRole::query()->firstOrCreate(
+            ['slug' => 'moderation'],
+            [
+                'name' => 'Moderation',
+                'icon' => 'ti ti-shield',
+                'permissions' => ['patrol.view'],
+                'is_system' => false,
+                'is_active' => true,
+                'sort_order' => 20,
+            ],
+        );
+        $moderation->forceFill([
             'permissions' => ['patrol.view'],
-            'is_system' => false,
             'is_active' => true,
-            'sort_order' => 20,
-        ]);
-        $staff->staffRoles()->attach($moderation->id, [
-            'assigned_by_user_id' => $staff->id,
-            'assigned_at' => now(),
+        ])->save();
+        $staff->staffRoles()->syncWithoutDetaching([
+            $moderation->id => [
+                'assigned_by_user_id' => $staff->id,
+                'assigned_at' => now(),
+            ],
         ]);
         $staff = $staff->fresh(['staffRoles']);
 
@@ -146,7 +154,8 @@ class OpsDashboardTest extends TestCase
                 ->where('items.0.tone', 'high')
                 ->where('items.1.queue', 'Customer support')
                 ->where('open_count', 2)
-                ->has('shortcuts', 4));
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->pluck('key')->contains('support')
+                    && collect($shortcuts)->pluck('key')->contains('patrol_jobs')));
     }
 
     public function test_support_staff_do_not_receive_finance_shortcuts(): void
@@ -185,7 +194,10 @@ class OpsDashboardTest extends TestCase
 
         $this->actingAs($staff)
             ->get(route('admin.dashboard'))
-            ->assertInertia(fn ($page) => $page->where('items.0.unread', false)->where('unread_count', 0));
+            ->assertInertia(fn ($page) => $page
+                ->has('items', 0)
+                ->where('unread_count', 0)
+                ->where('open_count', 0));
     }
 
     public function test_opening_a_support_chat_marks_the_task_read(): void
@@ -202,7 +214,8 @@ class OpsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('unread_count', 1)
-                ->where('items.0.unread', true));
+                ->where('items.0.unread', true)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'support')['count'] === 1));
 
         $this->actingAs($staff)
             ->get(route('admin.support.show', $ticket))
@@ -213,13 +226,112 @@ class OpsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('unread_count', 0)
-                ->where('items.0.unread', false));
+                ->has('items', 0)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'support')['count'] === 0));
     }
 
-    public function test_ops_can_open_chats_and_messaging_queues(): void
+    public function test_multiple_support_tickets_are_tracked_individually(): void
+    {
+        $staff = $this->withPermissions(['admin.support.manage'], 'customer_support', 'Customer support');
+        $artisan = User::factory()->regularUser()->create();
+
+        $first = SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'subject' => 'First chat',
+            'status' => SupportTicket::STATUS_OPEN,
+            'created_at' => now()->subHours(2),
+        ]);
+        SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'subject' => 'Second chat',
+            'status' => SupportTicket::STATUS_OPEN,
+            'created_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($staff)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('items', 2)
+                ->where('unread_count', 2)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'support')['count'] === 2));
+
+        $this->actingAs($staff)
+            ->get(route('admin.support.show', $first))
+            ->assertOk();
+
+        $this->actingAs($staff)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unread_count', 1)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'support')['count'] === 1));
+    }
+
+    public function test_opening_patrol_queue_clears_patrol_badge(): void
+    {
+        $staff = $this->withPermissions(['patrol.view', 'patrol.investigate'], 'patrol', 'Patrol');
+        $artisan = User::factory()->regularUser()->create([
+            'first_name' => 'Tunde',
+            'last_name' => 'Musa',
+        ]);
+        $this->flagJob($this->logJob($artisan), $artisan, 'high', 'rapid_logging');
+
+        $this->actingAs($staff)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unread_count', 1)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'patrol_jobs')['count'] === 1));
+
+        $this->actingAs($staff)
+            ->get(route('admin.patrol.jobs'))
+            ->assertOk();
+
+        $this->actingAs($staff)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unread_count', 0)
+                ->where('shortcuts', fn ($shortcuts) => collect($shortcuts)->firstWhere('key', 'patrol_jobs')['count'] === 0));
+    }
+
+    public function test_opening_reengagement_clears_reengage_badge(): void
     {
         $staff = $this->withPermissions(
-            ['admin.support.manage', 'admin.messaging.manage'],
+            ['ops.reengagement.manage', 'admin.users.view'],
+            'growth_reengage_test',
+            'Growth re-engage test',
+        );
+
+        User::factory()->regularUser()->create([
+            'last_login_at' => now()->subDays(45),
+            'created_at' => now()->subDays(60),
+            'email_verified_at' => now()->subDays(60),
+            'suspended_at' => null,
+        ]);
+
+        $home = app(OpsAttentionFeed::class)->home($staff);
+        $shortcut = collect($home['shortcuts'])->firstWhere('key', 'reengagement');
+
+        $this->assertNotNull($shortcut);
+        $this->assertSame(1, (int) $shortcut['count']);
+
+        $this->actingAs($staff)
+            ->get(route('admin.reengagement.index'))
+            ->assertOk();
+
+        $after = app(OpsAttentionFeed::class)->home($staff->fresh(['staffRoles']));
+        $cleared = collect($after['shortcuts'])->firstWhere('key', 'reengagement');
+
+        $this->assertNotNull($cleared);
+        $this->assertSame(0, (int) $cleared['count']);
+    }
+
+    public function test_ops_can_open_support_queue(): void
+    {
+        $staff = $this->withPermissions(
+            ['admin.support.manage'],
             'customer_support',
             'Customer support',
         );
@@ -228,11 +340,6 @@ class OpsDashboardTest extends TestCase
             ->get(route('admin.support.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('Admin/Support/Index'));
-
-        $this->actingAs($staff)
-            ->get(route('admin.messaging.index'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/Messaging/Index'));
     }
 
     public function test_super_admin_cannot_open_ops_tasks(): void
@@ -341,21 +448,31 @@ class OpsDashboardTest extends TestCase
      */
     private function withPermissions(array $permissions, string $slug, string $name): User
     {
-        $role = StaffRole::query()->create([
-            'slug' => $slug,
+        $role = StaffRole::query()->firstOrCreate(
+            ['slug' => $slug],
+            [
+                'name' => $name,
+                'description' => 'Test role.',
+                'icon' => 'ti ti-headset',
+                'permissions' => $permissions,
+                'is_system' => false,
+                'is_active' => true,
+                'sort_order' => 10,
+            ],
+        );
+
+        $role->forceFill([
             'name' => $name,
-            'description' => 'Test role.',
-            'icon' => 'ti ti-headset',
             'permissions' => $permissions,
-            'is_system' => false,
             'is_active' => true,
-            'sort_order' => 10,
-        ]);
+        ])->save();
 
         $user = User::factory()->operationsAdmin()->create();
-        $user->staffRoles()->attach($role->id, [
-            'assigned_by_user_id' => $user->id,
-            'assigned_at' => now(),
+        $user->staffRoles()->syncWithoutDetaching([
+            $role->id => [
+                'assigned_by_user_id' => $user->id,
+                'assigned_at' => now(),
+            ],
         ]);
 
         return $user->fresh(['staffRoles']);

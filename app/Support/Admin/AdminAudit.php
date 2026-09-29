@@ -31,7 +31,8 @@ class AdminAudit
             ? ActorKind::fromUser($actor)
             : ActorKind::System;
 
-        WriteAdminAuditLogJob::dispatch([
+        // Persist immediately — staff audit must not depend on a queue worker.
+        WriteAdminAuditLogJob::dispatchSync([
             'actor_id' => $actor?->id,
             'actor_kind' => $actorKind->value,
             'action' => $action,

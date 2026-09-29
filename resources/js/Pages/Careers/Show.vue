@@ -127,7 +127,7 @@
                         </h2>
                         <p class="mt-3 max-w-xl text-sm font-medium leading-relaxed text-white/65">
                             Tell us about your background, experience, and why this role fits. You’ll need a CV
-                            (PDF or Word) and NDPR consent on the final step.
+                            (PDF or Word) and NDPA / NDPR consent on the final step.
                         </p>
                         <Link
                             :href="applyHref"

@@ -81,6 +81,18 @@
                                 <span class="mt-0.5 block truncate text-[12px] font-medium text-ink/40 sm:text-[13px]">
                                     {{ item.subtitle }}
                                 </span>
+                                <span
+                                    v-if="item.meta?.rules?.length"
+                                    class="mt-2 flex flex-wrap gap-1.5"
+                                >
+                                    <span
+                                        v-for="rule in item.meta.rules.slice(0, 3)"
+                                        :key="rule"
+                                        class="rounded-full bg-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/50"
+                                    >
+                                        {{ rule }}
+                                    </span>
+                                </span>
                             </span>
                             <span
                                 class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
@@ -158,6 +170,9 @@ const open = async (item) => {
             await axios.post(route('admin.escalations.acknowledge', item.referral_id));
         } catch {
             // Navigation still proceeds; state reconciles on reload.
+        }
+        if (item.key && item.signature) {
+            await markRead({ ...item, unread: true });
         }
     } else {
         await markRead(item);

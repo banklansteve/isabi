@@ -1,6 +1,17 @@
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 
+const SHORTCUT_BY_GROUP = {
+    support: 'support',
+    patrol_jobs: 'patrol_jobs',
+    patrol_reviews: 'patrol_reviews',
+    onboarding: 'onboarding',
+    reengagement: 'reengagement',
+    dormant: 'dormant',
+    flagged_jobs: 'jobs',
+    flagged_reviews: 'reviews',
+};
+
 const dropInboxItem = (inbox, key) => {
     if (!inbox || !key) {
         return;
@@ -61,6 +72,31 @@ const markPageItems = (page, key) => {
     }
 };
 
+const decrementShortcut = (inbox, item) => {
+    if (!inbox || !item?.unread) {
+        return;
+    }
+
+    const shortcutKey = SHORTCUT_BY_GROUP[item.group];
+
+    if (!shortcutKey || !Array.isArray(inbox.shortcuts)) {
+        return;
+    }
+
+    const delta = Math.max(1, Number(item.count || 1));
+
+    inbox.shortcuts = inbox.shortcuts.map((shortcut) => {
+        if (shortcut.key !== shortcutKey) {
+            return shortcut;
+        }
+
+        return {
+            ...shortcut,
+            count: Math.max(0, Number(shortcut.count || 0) - delta),
+        };
+    });
+};
+
 export function useOpsAttention() {
     const page = usePage();
 
@@ -69,6 +105,7 @@ export function useOpsAttention() {
             return;
         }
 
+        decrementShortcut(page.props.ops_inbox, item);
         dropInboxItem(page.props.ops_inbox, item.key);
 
         if (page.props.ops_inbox) {
@@ -101,6 +138,15 @@ export function useOpsAttention() {
         if (inbox) {
             inbox.items = [];
             inbox.unread_count = 0;
+
+            if (Array.isArray(inbox.shortcuts)) {
+                inbox.shortcuts = inbox.shortcuts.map((shortcut) => ({
+                    ...shortcut,
+                    count: Object.values(SHORTCUT_BY_GROUP).includes(shortcut.key)
+                        ? 0
+                        : shortcut.count,
+                }));
+            }
         }
 
         try {

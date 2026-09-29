@@ -3,10 +3,16 @@
 
     <AdminChrome :title="pageTitle" :eyebrow="pageEyebrow" />
 
-    <OpsAssignedTabs v-if="!isSuper" />
+    <OpsAssignedTabs />
 
     <p
-        v-if="can_manage"
+        v-if="desk === 'referred'"
+        class="mb-4 text-[13px] font-medium leading-relaxed text-ink/50"
+    >
+        Cases you handed to a colleague or escalated upstairs — status and link back to the subject.
+    </p>
+    <p
+        v-else-if="can_manage"
         class="mb-4 text-[13px] font-medium leading-relaxed text-ink/50"
     >
         Your referred and taken-over cases, plus every ops staff queue — assign, reassign, take over, or resolve.
@@ -19,7 +25,7 @@
     </p>
 
     <section
-        v-if="can_manage && growth_duties.length"
+        v-if="can_manage && desk === 'assigned' && growth_duties.length"
         class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4"
     >
         <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/30">Quick queues</p>
@@ -40,7 +46,7 @@
     </section>
 
     <div
-        v-if="can_manage"
+        v-if="can_manage && desk === 'assigned'"
         class="mb-4 rounded-2xl bg-white p-3 shadow-premium ring-1 ring-ink/[0.05] sm:p-4"
     >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -98,24 +104,31 @@
         class="mb-4 flex gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-premium ring-1 ring-ink/[0.05]"
         aria-label="Assigned queues"
     >
-        <Link
+        <button
             v-for="tab in tabs"
             :key="tab.key"
-            :href="tabHref(tab.key)"
+            type="button"
             class="shrink-0 rounded-xl px-3.5 py-2.5 text-center text-[13px] font-semibold transition-colors"
-            :class="queue === tab.key ? 'bg-base-action text-white shadow-sm' : 'text-ink/45 hover:bg-pale hover:text-ink'"
+            :class="activeQueue === tab.key ? 'bg-base-action text-white shadow-sm' : 'text-ink/45 hover:bg-pale hover:text-ink'"
+            :aria-current="activeQueue === tab.key ? 'page' : undefined"
+            @click="selectQueue(tab.key)"
         >
             {{ tab.label }}
             <span
                 v-if="counts[tab.countKey] > 0"
                 class="ms-1"
-                :class="queue === tab.key ? 'text-white/80' : 'text-coral-deep'"
+                :class="activeQueue === tab.key ? 'text-white/80' : 'text-coral-deep'"
             >
                 {{ counts[tab.countKey] }}
             </span>
-        </Link>
+        </button>
     </nav>
 
+    <div
+        class="transition-opacity duration-150"
+        :class="queuePending ? 'pointer-events-none opacity-50' : 'opacity-100'"
+        :aria-busy="queuePending ? 'true' : undefined"
+    >
     <div v-if="items.length" class="space-y-2">
         <article
             v-for="item in items"
@@ -141,12 +154,19 @@
                         >
                             {{ item.origin_label }}
                         </span>
+                        <span
+                            v-if="desk === 'referred' && item.viewer_status"
+                            class="rounded-full bg-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/55"
+                        >
+                            {{ item.viewer_status }}
+                        </span>
                     </div>
                     <p class="mt-1 text-[13px] font-medium leading-relaxed text-ink/55">{{ item.subtitle }}</p>
                     <p class="mt-2 text-[12px] font-semibold text-ink/35">
                         {{ item.age || item.referred_at }}
-                        <span v-if="item.referrer?.name"> · From {{ item.referrer.name }}</span>
-                        <span v-if="item.assignee?.name"> · With {{ item.assignee.name }}</span>
+                        <span v-if="desk === 'referred' && item.assignee?.name"> · With {{ item.assignee.name }}</span>
+                        <span v-else-if="item.referrer?.name"> · From {{ item.referrer.name }}</span>
+                        <span v-if="desk !== 'referred' && item.assignee?.name"> · With {{ item.assignee.name }}</span>
                     </p>
 
                     <button
@@ -201,7 +221,7 @@
                         </Link>
 
                         <button
-                            v-if="can_manage && Number(item.assignee?.id) !== Number(selfId)"
+                            v-if="desk === 'assigned' && can_manage && Number(item.assignee?.id) !== Number(selfId)"
                             type="button"
                             class="rounded-xl bg-pale px-3 py-2 text-[12px] font-bold text-ink/70 transition-colors hover:bg-tint disabled:opacity-50"
                             :disabled="busyId === item.id"
@@ -211,7 +231,7 @@
                         </button>
 
                         <button
-                            v-if="can_manage || Number(item.assignee?.id) === Number(selfId)"
+                            v-if="desk === 'assigned' && (can_manage || Number(item.assignee?.id) === Number(selfId))"
                             type="button"
                             class="rounded-xl bg-pale px-3 py-2 text-[12px] font-bold text-ink/70 transition-colors hover:bg-tint"
                             @click="openReassign(item)"
@@ -220,7 +240,7 @@
                         </button>
 
                         <button
-                            v-if="can_manage || Number(item.assignee?.id) === Number(selfId)"
+                            v-if="desk === 'assigned' && (can_manage || Number(item.assignee?.id) === Number(selfId))"
                             type="button"
                             class="rounded-xl bg-emerald-50 px-3 py-2 text-[12px] font-bold text-emerald-800 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                             :disabled="busyId === item.id"
@@ -240,6 +260,7 @@
             :description="emptyDescription"
             icon="ti ti-inbox"
         />
+    </div>
     </div>
 
     <AdminDrawer :open="!!reassigning" title="Assign or reassign" eyebrow="Hand-off" @close="reassigning = null">
@@ -297,14 +318,14 @@ import OpsAssignedTabs from '@/Components/Admin/OpsAssignedTabs.vue';
 import { toast } from '@/utils/adminRange';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 const page = usePage();
-const isSuper = computed(() => !!page.props.auth?.user?.is_super_admin);
 const selfId = computed(() => Number(page.props.auth?.user?.id || 0));
 
 const props = defineProps({
     queue: { type: String, default: 'all' },
+    desk: { type: String, default: 'assigned' },
     scope: { type: String, default: 'mine' },
     counts: {
         type: Object,
@@ -316,6 +337,7 @@ const props = defineProps({
             jobs: 0,
             escalation: 0,
             mine: 0,
+            referred: 0,
             team: 0,
         }),
     },
@@ -337,8 +359,22 @@ const busyId = ref(null);
 const openDetails = ref(null);
 const reassigning = ref(null);
 const reassignForm = reactive({ assignee_id: '', note: '' });
+const queuePending = ref(false);
+const activeQueue = ref(props.queue || 'all');
+
+watch(
+    () => props.queue,
+    (value) => {
+        if (!queuePending.value) {
+            activeQueue.value = value || 'all';
+        }
+    },
+);
 
 const pageTitle = computed(() => {
+    if (props.desk === 'referred') {
+        return 'Referred by me';
+    }
     if (!props.can_manage) {
         return 'Assigned to me';
     }
@@ -352,6 +388,10 @@ const pageTitle = computed(() => {
 });
 
 const pageEyebrow = computed(() => {
+    if (props.desk === 'referred') {
+        const total = Number(props.counts?.referred || props.counts?.all || 0);
+        return total ? `${total.toLocaleString()} outbound` : 'Outbound referrals';
+    }
     if (!props.can_manage) {
         return 'Referrals';
     }
@@ -367,16 +407,20 @@ const pageEyebrow = computed(() => {
 });
 
 const emptyTitle = computed(() => {
+    if (props.desk === 'referred') return 'No outbound referrals yet';
     if (props.scope === 'all') return 'No active cases across ops';
     if (props.scope === 'staff') return 'No active cases for this person';
     return 'Nothing on your desk right now';
 });
 
-const emptyDescription = computed(() =>
-    props.can_manage
+const emptyDescription = computed(() => {
+    if (props.desk === 'referred') {
+        return 'When you refer a case to a colleague or escalate to Super Admin, it shows up here with status.';
+    }
+    return props.can_manage
         ? 'Escalations, takeovers, and referrals land on My desk. All ops staff shows everyone else’s active cases.'
-        : 'When a colleague refers a case to you, it shows up here.',
-);
+        : 'When a colleague refers a case to you, it shows up here.';
+});
 
 const tabs = computed(() => {
     const base = [
@@ -387,7 +431,11 @@ const tabs = computed(() => {
         { key: 'jobs', label: 'Jobs', countKey: 'jobs' },
     ];
 
-    if (props.can_manage && props.scope === 'mine') {
+    if (props.desk === 'assigned' && props.can_manage && props.scope === 'mine') {
+        base.splice(1, 0, { key: 'escalation', label: 'Escalations', countKey: 'escalation' });
+    }
+
+    if (props.desk === 'referred') {
         base.splice(1, 0, { key: 'escalation', label: 'Escalations', countKey: 'escalation' });
     }
 
@@ -418,7 +466,15 @@ const assignChoicesOptions = computed(() =>
 );
 
 const scopeParams = () => {
-    const params = { queue: props.queue || 'all', scope: props.scope || 'mine' };
+    const params = {
+        queue: props.queue || 'all',
+        desk: props.desk || 'assigned',
+        scope: props.scope || 'mine',
+    };
+    if (props.desk === 'referred') {
+        delete params.scope;
+        return params;
+    }
     if (props.scope === 'staff' && props.viewing?.id) {
         params.staff = props.viewing.id;
         delete params.scope;
@@ -432,12 +488,39 @@ const tabHref = (key) => {
     return route('admin.assigned.index', params);
 };
 
+const selectQueue = (key) => {
+    if (key === activeQueue.value || queuePending.value) {
+        return;
+    }
+
+    activeQueue.value = key;
+    queuePending.value = true;
+
+    router.get(tabHref(key), {}, {
+        only: ['queue', 'desk', 'scope', 'counts', 'mine_breakdown', 'items', 'viewing', 'ops_staff', 'assignable_staff', 'staff', 'growth_duties', 'can_manage'],
+        preserveScroll: true,
+        preserveState: true,
+        replace: true,
+        showProgress: false,
+        onFinish: () => {
+            queuePending.value = false;
+            activeQueue.value = props.queue || 'all';
+        },
+    });
+};
+
 const setScope = (next) => {
     staffFilter.value = '';
     router.get(
-        route('admin.assigned.index', { queue: props.queue || 'all', scope: next }),
+        route('admin.assigned.index', { queue: activeQueue.value || 'all', desk: 'assigned', scope: next }),
         {},
-        { preserveState: false, replace: true },
+        {
+            only: ['queue', 'desk', 'scope', 'counts', 'mine_breakdown', 'items', 'viewing', 'ops_staff', 'assignable_staff', 'staff', 'growth_duties', 'can_manage'],
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            showProgress: false,
+        },
     );
 };
 
@@ -447,9 +530,15 @@ const applyStaffFilter = () => {
         return;
     }
     router.get(
-        route('admin.assigned.index', { queue: props.queue || 'all', staff: staffFilter.value }),
+        route('admin.assigned.index', { queue: activeQueue.value || 'all', desk: 'assigned', staff: staffFilter.value }),
         {},
-        { preserveState: false, replace: true },
+        {
+            only: ['queue', 'desk', 'scope', 'counts', 'mine_breakdown', 'items', 'viewing', 'ops_staff', 'assignable_staff', 'staff', 'growth_duties', 'can_manage'],
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            showProgress: false,
+        },
     );
 };
 

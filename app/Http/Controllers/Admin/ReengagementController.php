@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Admin\AdminNavigation;
+use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Identity\UserUid;
+use App\Support\Patrol\LifecyclePatrolReport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,32 +22,83 @@ class ReengagementController extends Controller
         '90' => 90,
     ];
 
-    public function index(Request $request): Response
+    public function index(Request $request, LifecyclePatrolReport $lifecycle): Response
     {
+        abort_unless($request->user()?->canDo('ops.reengagement.manage'), 403);
+
+        $kind = (string) $request->query('kind', 'login');
+        $kind = in_array($kind, ['login', 'dormant'], true) ? $kind : 'login';
+
+        if (
+            AdminNavigation::shouldMutateAttention($request)
+            && $request->user()?->isStaff()
+            && ! $request->user()->isRestrictedStaff()
+        ) {
+            app(OpsAttentionFeed::class)->markGroupOpened(
+                $request->user(),
+                $kind === 'dormant' ? 'dormant' : 'reengagement',
+            );
+        }
+
         $window = (string) $request->query('window', '30');
         $window = array_key_exists($window, self::WINDOWS) ? $window : '30';
 
-        $counts = [];
-        foreach (self::WINDOWS as $key => $days) {
-            $counts[$key] = $this->windowQuery($days)->count();
+        if ($kind === 'dormant') {
+            $payload = $lifecycle->dormant($window, 100, null);
+            $rows = collect($payload['people']->items())
+                ->map(fn (array $person) => $this->dormantRow($person))
+                ->values()
+                ->all();
+
+            return Inertia::render('Admin/Ops/Reengagement', [
+                'kind' => 'dormant',
+                'rows' => $rows,
+                'counts' => $payload['counts'],
+                'window' => $payload['window'],
+                'windows' => $payload['windows'],
+                'login_counts' => $this->loginCounts(),
+                'dormant_counts' => $payload['counts'],
+            ]);
         }
 
+        $counts = $this->loginCounts();
         $days = self::WINDOWS[$window];
 
         $rows = $this->windowQuery($days)
             ->withCount('workLogs')
             ->orderByRaw('COALESCE(last_login_at, created_at) asc')
-            ->limit(300)
+            ->limit(100)
             ->get()
             ->map(fn (User $user) => $this->row($user))
             ->values();
 
+        $dormantCounts = [];
+        foreach (self::WINDOWS as $key => $quietDays) {
+            $dormantCounts[$key] = $lifecycle->dormantQueryPublic($quietDays)->count();
+        }
+
         return Inertia::render('Admin/Ops/Reengagement', [
+            'kind' => 'login',
             'rows' => $rows,
             'counts' => $counts,
             'window' => $window,
             'windows' => array_keys(self::WINDOWS),
+            'login_counts' => $counts,
+            'dormant_counts' => $dormantCounts,
         ]);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function loginCounts(): array
+    {
+        $counts = [];
+        foreach (self::WINDOWS as $key => $days) {
+            $counts[$key] = $this->windowQuery($days)->count();
+        }
+
+        return $counts;
     }
 
     /**
@@ -64,6 +118,32 @@ class ReengagementController extends Controller
                         ->whereNull('last_login_at')
                         ->where('created_at', '<', $cutoff));
             });
+    }
+
+    /**
+     * @param  array<string, mixed>  $person
+     * @return array<string, mixed>
+     */
+    private function dormantRow(array $person): array
+    {
+        return [
+            'id' => $person['id'],
+            'uid' => null,
+            'name' => $person['business_name'] ?: $person['name'],
+            'person' => $person['name'],
+            'email' => $person['email'] ?? null,
+            'trade' => $person['trade'] ?? null,
+            'whatsapp' => $person['whatsapp'] ?? null,
+            'state' => $person['state'] ?? null,
+            'avatar_url' => null,
+            'jobs' => $person['jobs'] ?? 0,
+            'reviews' => $person['reviews'] ?? 0,
+            'never_returned' => ($person['risk']['label'] ?? '') === 'Never returned',
+            'risk' => $person['risk'] ?? null,
+            'last_seen' => $person['last_login_label'] ?? null,
+            'days_inactive' => $person['days_inactive'] ?? null,
+            'detail' => $person['risk']['detail'] ?? null,
+        ];
     }
 
     /**

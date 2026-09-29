@@ -395,7 +395,14 @@ class ApprovalService
      */
     public function present(AdminApproval $approval): array
     {
-        $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name', 'subject']);
+        try {
+            $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name', 'subject']);
+        } catch (\Throwable) {
+            // Broken morph / deleted subject classes must not 500 the approvals queue.
+            $approval->unsetRelation('subject');
+            $approval->loadMissing(['requester:id,name,email', 'reviewer:id,name']);
+        }
+
         $timezone = (string) config('app.display_timezone', config('app.timezone'));
 
         return [
@@ -435,7 +442,13 @@ class ApprovalService
 
     public function subjectSummary(AdminApproval $approval): ?string
     {
-        $subject = $approval->subject;
+        try {
+            $subject = $approval->relationLoaded('subject')
+                ? $approval->getRelation('subject')
+                : $approval->subject;
+        } catch (\Throwable) {
+            $subject = null;
+        }
 
         if ($subject instanceof User) {
             return $subject->displayBusinessName() ?: $subject->email;

@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'history_days' => 30,
+    'abandon_after_days' => 7,
+
     'hours' => [
         'timezone' => env('SUPPORT_TIMEZONE', env('APP_DISPLAY_TIMEZONE', 'Africa/Lagos')),
         'days' => [1, 2, 3, 4, 5, 6],

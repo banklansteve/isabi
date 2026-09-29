@@ -14,9 +14,10 @@ use App\Models\SupportCannedReply;
 use App\Models\SupportTicket;
 use App\Models\StaffCaseReferral;
 use App\Models\User;
-use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Admin\AdminAudit;
+use App\Support\Admin\AdminNavigation;
 use App\Support\Admin\OpsAttentionFeed;
+use App\Support\Admin\StaffCaseReferralService;
 use App\Support\Realtime\Realtime;
 use App\Support\Staff\StaffPresence;
 use App\Support\SupportChat\SupportChatTemplates;
@@ -27,6 +28,7 @@ use App\Support\SupportChat\SupportReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,8 +46,12 @@ class SupportController extends Controller
     {
         abort_unless($request->user()?->canDo('admin.support.manage'), 403);
 
-        $this->presence->heartbeat($request->user());
-        $this->staffPresence->touch($request->user());
+        $mutate = AdminNavigation::shouldMutateAttention($request);
+
+        if ($mutate) {
+            $this->presence->heartbeat($request->user());
+            $this->staffPresence->touch($request->user());
+        }
 
         $selected = $this->selectedTicket($request);
 
@@ -53,12 +59,21 @@ class SupportController extends Controller
             $selected = null;
         }
 
-        if ($selected) {
+        if ($selected && $mutate) {
             $this->conversations->refreshRouting($selected);
             $this->conversations->markStaffRead($selected);
 
             if ($request->user()?->isOperationsAdmin()) {
                 app(OpsAttentionFeed::class)->markOpened($request->user(), 'support:'.$selected->id);
+            }
+
+            if ($request->user()?->isStaff() && ! $request->user()->isRestrictedStaff()) {
+                app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+                    $request->user(),
+                    StaffCaseReferral::SUBJECT_SUPPORT,
+                    (int) $selected->id,
+                    $request->integer('referral_update') ?: null,
+                );
             }
         }
 
@@ -78,6 +93,15 @@ class SupportController extends Controller
             app(OpsAttentionFeed::class)->markOpened($request->user(), 'support:'.$ticket->id);
         }
 
+        if ($request->user()?->isStaff() && ! $request->user()->isRestrictedStaff()) {
+            app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+                $request->user(),
+                StaffCaseReferral::SUBJECT_SUPPORT,
+                (int) $ticket->id,
+                $request->integer('referral_update') ?: null,
+            );
+        }
+
         return Inertia::render('Admin/Support/Index', $this->workspace($request, $ticket));
     }
 
@@ -95,6 +119,10 @@ class SupportController extends Controller
         if ($selected) {
             $this->conversations->refreshRouting($selected);
             $this->conversations->markStaffRead($selected);
+
+            if ($request->user()?->isOperationsAdmin()) {
+                app(OpsAttentionFeed::class)->markOpened($request->user(), 'support:'.$selected->id);
+            }
         }
 
         return response()->json($this->workspace($request, $selected, json: true));
@@ -194,16 +222,35 @@ class SupportController extends Controller
     public function resolve(ResolveSupportTicketRequest $request, SupportTicket $ticket): JsonResponse|RedirectResponse
     {
         $this->assertTicketVisible($request->user(), $ticket);
+        abort_unless($ticket->isOpen(), 422, 'This chat is already closed.');
+
+        $data = $request->validated();
+        $outcome = (string) ($data['outcome'] ?? SupportTicket::OUTCOME_COMPLETED);
+        $body = trim((string) ($data['body'] ?? ''));
         $old = ['status' => $ticket->status];
-        $this->conversations->resolve($ticket);
+
+        if ($body !== '') {
+            $agent = $ticket->assignedTo ?? $request->user();
+            $this->conversations->staffReply($agent, $ticket, [
+                'body' => $body,
+                'is_close_message' => true,
+            ]);
+            $ticket = $ticket->fresh() ?? $ticket;
+        }
+
+        $this->conversations->resolve($ticket, $outcome);
 
         AdminAudit::record(
             'support.resolved',
-            "{$request->user()->name} closed support chat #{$ticket->id}.",
+            "{$request->user()->name} closed support chat #{$ticket->id} ({$outcome}).",
             $ticket,
             $old,
-            ['status' => 'resolved'],
+            ['status' => $ticket->fresh()?->status, 'close_outcome' => $outcome],
         );
+
+        if ($request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markOpened($request->user(), 'support:'.$ticket->id);
+        }
 
         return $this->respond($request, $ticket->fresh());
     }
@@ -352,7 +399,7 @@ class SupportController extends Controller
         SupportChatTemplates::ensure();
 
         $filters = [
-            'status' => (string) $request->query('status', 'open'),
+            'status' => (string) $request->query('status', 'active'),
             'assigned' => (string) $request->query(
                 'assigned',
                 $request->user()?->isSuperAdmin() ? 'all' : 'me',
@@ -361,23 +408,35 @@ class SupportController extends Controller
             'q' => trim((string) $request->query('q', '')),
         ];
 
+        if ($filters['status'] === 'open') {
+            $filters['status'] = 'active';
+        }
+
         $tickets = $this->filteredTickets($request, $filters)
-            ->map(fn (SupportTicket $ticket) => $this->presenter->inboxItem($ticket))
+            ->map(fn (SupportTicket $ticket) => $this->presenter->inboxItem($ticket, $request->user()))
             ->values();
 
+        $historySince = now()->subDays((int) config('support.history_days', SupportTicket::HISTORY_DAYS));
         $openQuery = SupportTicket::query()->whereIn('status', [
             SupportTicket::STATUS_NEW,
             SupportTicket::STATUS_OPEN,
             SupportTicket::STATUS_PENDING,
         ]);
-
         $visibleOpen = $this->scopeVisibleTickets(clone $openQuery, $request->user());
-        $resolvedQuery = SupportTicket::query()->where('status', SupportTicket::STATUS_RESOLVED);
-        $visibleResolved = $this->scopeVisibleTickets(clone $resolvedQuery, $request->user());
+        $activeMine = (clone $openQuery)->where('assigned_to_user_id', $request->user()->id);
+
+        $resolvedQuery = SupportTicket::query()
+            ->where('status', SupportTicket::STATUS_RESOLVED)
+            ->where('resolved_at', '>=', $historySince);
+        $abandonedQuery = SupportTicket::query()
+            ->where('status', SupportTicket::STATUS_ABANDONED)
+            ->where('resolved_at', '>=', $historySince);
+
+        $referredIds = $this->referredTicketIds($request->user(), $historySince);
 
         return [
             'tickets' => $tickets,
-            'ticket' => $selected ? $this->presenter->staffThread($selected) : null,
+            'ticket' => $selected ? $this->presenter->staffThread($selected, $request->user()) : null,
             'filters' => $filters,
             'agents' => $request->user()?->isSuperAdmin()
                 ? $this->conversations->assignableAgents()
@@ -390,15 +449,18 @@ class SupportController extends Controller
             'canned' => $this->cannedPayload($request->user()),
             'moments' => SupportChatTemplates::momentOptions(),
             'counts' => [
-                'active' => $visibleOpen->count(),
-                'resolved' => $visibleResolved->count(),
+                'active' => (clone $activeMine)->count(),
+                'referred' => count($referredIds),
+                'abandoned' => $this->scopeVisibleTickets(clone $abandonedQuery, $request->user())->count(),
+                'resolved' => $this->scopeVisibleTickets(clone $resolvedQuery, $request->user())->count(),
                 'unassigned' => (clone $openQuery)->whereNull('assigned_to_user_id')->count(),
-                'mine' => (clone $openQuery)->where('assigned_to_user_id', $request->user()->id)->count(),
+                'mine' => (clone $activeMine)->count(),
                 'open' => $visibleOpen->count(),
             ],
             'is_super' => (bool) $request->user()?->isSuperAdmin(),
             'poll_ms' => (int) config('support.poll_interval_ms', 8000),
             'staff_available' => $this->presence->anyStaffOnline(),
+            'history_days' => (int) config('support.history_days', SupportTicket::HISTORY_DAYS),
         ];
     }
 
@@ -438,17 +500,35 @@ class SupportController extends Controller
      */
     private function filteredTickets(Request $request, array $filters)
     {
+        $historySince = now()->subDays((int) config('support.history_days', SupportTicket::HISTORY_DAYS));
+        $status = $filters['status'];
+
         $query = SupportTicket::query()
             ->with(['user:id,uid,name,email,business_name,avatar_url,first_name,last_name', 'assignedTo:id,uid,name'])
             ->with(['messages' => fn ($messages) => $messages->where('kind', 'message')->latest('id')->limit(1)]);
 
-        if ($filters['status'] === 'resolved') {
-            $query->where('status', SupportTicket::STATUS_RESOLVED);
-        } elseif ($filters['status'] === 'pending') {
+        if ($status === 'referred') {
+            $referredIds = $this->referredTicketIds($request->user(), $historySince);
+
+            if ($referredIds === []) {
+                return collect();
+            }
+
+            $query->whereIn('id', $referredIds);
+        } elseif ($status === 'abandoned') {
+            $query->where('status', SupportTicket::STATUS_ABANDONED)
+                ->where('resolved_at', '>=', $historySince);
+            $this->scopeVisibleTickets($query, $request->user());
+        } elseif ($status === 'resolved') {
+            $query->where('status', SupportTicket::STATUS_RESOLVED)
+                ->where('resolved_at', '>=', $historySince);
+            $this->scopeVisibleTickets($query, $request->user());
+        } elseif ($status === 'pending') {
             $query->where('status', SupportTicket::STATUS_PENDING);
-        } elseif ($filters['status'] === 'new') {
+        } elseif ($status === 'new') {
             $query->where('status', SupportTicket::STATUS_NEW);
-        } elseif ($filters['status'] !== 'all') {
+        } else {
+            // Active desk: live sessions only.
             $query->whereIn('status', [
                 SupportTicket::STATUS_NEW,
                 SupportTicket::STATUS_OPEN,
@@ -456,18 +536,29 @@ class SupportController extends Controller
             ]);
         }
 
-        if ($filters['assigned'] === 'me') {
-            $query->where('assigned_to_user_id', $request->user()->id);
-        } elseif ($filters['assigned'] === 'unassigned') {
-            // Ops may browse the unclaimed desk, but never another agent's chats.
-            $query->whereNull('assigned_to_user_id');
-        } elseif ($request->user()?->isSuperAdmin() && is_numeric($filters['assigned'])) {
-            $query->where('assigned_to_user_id', (int) $filters['assigned']);
-        } elseif ($request->user()?->isSuperAdmin()) {
-            // Super Admin "all" — every conversation.
-        } else {
-            // Ops "all" means their own chats only.
-            $query->where('assigned_to_user_id', $request->user()->id);
+        if ($status !== 'referred') {
+            if ($status === 'active' || $status === 'open') {
+                // Active = currently attending (mine), unless browsing unassigned / super all.
+                if ($filters['assigned'] === 'unassigned') {
+                    $query->whereNull('assigned_to_user_id');
+                } elseif ($request->user()?->isSuperAdmin() && $filters['assigned'] === 'all') {
+                    // every open chat
+                } elseif ($request->user()?->isSuperAdmin() && is_numeric($filters['assigned'])) {
+                    $query->where('assigned_to_user_id', (int) $filters['assigned']);
+                } else {
+                    $query->where('assigned_to_user_id', $request->user()->id);
+                }
+            } elseif (! in_array($status, ['resolved', 'abandoned'], true)) {
+                if ($filters['assigned'] === 'me') {
+                    $query->where('assigned_to_user_id', $request->user()->id);
+                } elseif ($filters['assigned'] === 'unassigned') {
+                    $query->whereNull('assigned_to_user_id');
+                } elseif ($request->user()?->isSuperAdmin() && is_numeric($filters['assigned'])) {
+                    $query->where('assigned_to_user_id', (int) $filters['assigned']);
+                } elseif (! $request->user()?->isSuperAdmin()) {
+                    $query->where('assigned_to_user_id', $request->user()->id);
+                }
+            }
         }
 
         if ($filters['q'] !== '') {
@@ -481,7 +572,9 @@ class SupportController extends Controller
             });
         }
 
-        if ($filters['sort'] === 'recent') {
+        if (in_array($status, ['resolved', 'abandoned', 'referred'], true)) {
+            $query->latest('resolved_at')->latest('updated_at');
+        } elseif ($filters['sort'] === 'recent') {
             $query->latest('last_reply_at');
         } else {
             $query->orderByRaw("CASE WHEN status IN ('new', 'open') THEN 0 ELSE 1 END")
@@ -489,6 +582,31 @@ class SupportController extends Controller
         }
 
         return $query->limit(200)->get();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function referredTicketIds(?User $user, $since): array
+    {
+        if (! $user || ! Schema::hasTable('staff_case_referrals')) {
+            return [];
+        }
+
+        return StaffCaseReferral::query()
+            ->where('subject_type', StaffCaseReferral::SUBJECT_SUPPORT)
+            ->where('referred_by_user_id', $user->id)
+            ->where(function ($query) use ($since) {
+                $query->where('referred_at', '>=', $since)
+                    ->orWhere('created_at', '>=', $since);
+            })
+            ->orderByDesc('id')
+            ->limit(200)
+            ->pluck('subject_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function selectedTicket(Request $request): ?SupportTicket
@@ -511,7 +629,7 @@ class SupportController extends Controller
     private function respond(Request $request, SupportTicket $ticket): JsonResponse|RedirectResponse
     {
         if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
-            return response()->json($this->presenter->staffThread($ticket));
+            return response()->json($this->presenter->staffThread($ticket, $request->user()));
         }
 
         return back();
@@ -544,8 +662,20 @@ class SupportController extends Controller
 
         $assignee = $ticket->assigned_to_user_id;
 
-        // Own chats, or unclaimed chats they can pick up — never another agent's.
-        return $assignee === null || (int) $assignee === (int) $user->id;
+        if ($assignee === null || (int) $assignee === (int) $user->id) {
+            return true;
+        }
+
+        // Referrers can still open chats they handed off (history / review).
+        if (! Schema::hasTable('staff_case_referrals')) {
+            return false;
+        }
+
+        return StaffCaseReferral::query()
+            ->where('subject_type', StaffCaseReferral::SUBJECT_SUPPORT)
+            ->where('subject_id', $ticket->id)
+            ->where('referred_by_user_id', $user->id)
+            ->exists();
     }
 
     private function assertTicketVisible(?User $user, SupportTicket $ticket): void

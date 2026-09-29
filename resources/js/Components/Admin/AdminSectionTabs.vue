@@ -51,16 +51,32 @@ const query = computed(() => tabQuery?.value || {});
 
 const isActive = (tab) => tabIsActive(tab, currentRoute.value, query.value);
 
+const SERVER_TAB_KEYS = ['kind', 'window', 'segment', 'filter', 'q'];
+
 const select = (tab) => {
-    if (tab.route === currentRoute.value) {
-        if (tabQuery) {
-            tabQuery.value = { ...(tab.params || {}) };
-        }
+    if (isActive(tab)) {
+        return;
+    }
+
+    const params = tab.params || {};
+
+    if (tabQuery) {
+        tabQuery.value = { ...params };
+    }
+
+    const needsServer = tab.route !== currentRoute.value
+        || Object.keys(params).some((key) => SERVER_TAB_KEYS.includes(key));
+
+    if (!needsServer) {
         window.history.replaceState(window.history.state, '', tabHref(tab));
         return;
     }
 
-    visitAdmin(tabHref(tab));
+    visitAdmin(tabHref(tab), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
 };
 </script>
 

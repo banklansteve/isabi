@@ -77,7 +77,7 @@ class StoreCareerApplicationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'ndpr_consent.accepted' => 'You must consent to data processing under the Nigeria Data Protection Act (NDPR) to submit this application.',
+            'ndpr_consent.accepted' => 'You must consent to data processing under the Nigeria Data Protection Act, 2023 (NDPA) and the Nigeria Data Protection Regulation (NDPR) to submit this application.',
             'cv.required' => 'Please upload your CV or resume (PDF or Word).',
             'education.required' => 'Add at least one academic qualification.',
         ];

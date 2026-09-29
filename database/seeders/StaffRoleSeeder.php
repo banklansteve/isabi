@@ -17,6 +17,7 @@ class StaffRoleSeeder extends Seeder
         'onboarding_followup',
         'reengagement',
         'verification_officer',
+        'verification',
     ];
 
     public function run(): void
@@ -99,7 +100,8 @@ class StaffRoleSeeder extends Seeder
 
         $this->foldLegacyInto([
             'trust_safety' => 'moderation',
-            'verification_officer' => 'verification',
+            'verification_officer' => 'moderation',
+            'verification' => 'moderation',
         ]);
     }
 
@@ -114,6 +116,7 @@ class StaffRoleSeeder extends Seeder
             'onboarding_followup',
             'reengagement',
             'verification_officer',
+            'verification',
             'trust_safety',
             'support_agent',
         ];

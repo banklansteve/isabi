@@ -1,6 +1,19 @@
 <template>
     <section class="rounded-2xl bg-white px-5 py-5 shadow-premium ring-1 ring-ink/[0.05] sm:px-6">
-        <h2 class="text-[15px] font-bold tracking-tight text-ink">Referred to admin</h2>
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <h2 class="text-[15px] font-bold tracking-tight text-ink">Cases you referred</h2>
+                <p class="mt-1 text-[12px] font-medium leading-relaxed text-ink/40">
+                    Recent escalations and outbound referrals. Open a case from its detail to refer or escalate.
+                </p>
+            </div>
+            <Link
+                :href="deskHref"
+                class="shrink-0 text-[12px] font-bold text-base-action hover:text-base-hover"
+            >
+                View all
+            </Link>
+        </div>
 
         <p v-if="!items.length" class="mt-4 text-[13px] font-medium leading-relaxed text-ink/40">
             Nothing waiting upstairs yet.
@@ -28,8 +41,17 @@
 <script setup>
 import { escalationStatusClass } from '@/utils/opsStatus';
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 defineProps({
     items: { type: Array, default: () => [] },
+});
+
+const deskHref = computed(() => {
+    try {
+        return route('admin.assigned.index', { desk: 'referred', queue: 'all' });
+    } catch {
+        return '/admin/assigned?desk=referred';
+    }
 });
 </script>

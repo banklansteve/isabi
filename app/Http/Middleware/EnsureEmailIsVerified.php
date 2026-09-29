@@ -7,8 +7,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Soft product gate — account stays signed in; only outward-facing / trust actions need a verified email
- * (e.g. sending a client review request). Everything else in the app stays usable.
+ * Soft product gate — account stays signed in; trust actions need a verified email
+ * (logging jobs, sending client review requests). Browse / profile stay usable.
  */
 class EnsureEmailIsVerified
 {
@@ -33,17 +33,12 @@ class EnsureEmailIsVerified
             $toast = [
                 'type' => 'info',
                 'title' => 'Verify your email',
-                'message' => 'Confirm your email to send review requests and other client-facing actions.',
+                'message' => 'Confirm your email to log jobs and send review requests.',
                 'duration' => 5200,
             ];
 
-            // Stay in context when possible — banner + toast, not a hard detour.
-            if ($request->headers->get('referer')) {
-                return redirect()->back()->with('toast', $toast);
-            }
-
             return redirect()
-                ->route('register')
+                ->route('verification.notice')
                 ->with('toast', $toast);
         }
 

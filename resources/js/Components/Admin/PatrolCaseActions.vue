@@ -105,6 +105,13 @@
                 label="Refer to colleague"
                 @click="$emit('refer')"
             />
+            <FormButton
+                v-if="can.escalate && !hasEscalation"
+                variant="secondary"
+                class="w-full"
+                label="Escalate to Super Admin"
+                @click="$emit('escalate')"
+            />
         </div>
     </div>
 </template>
@@ -118,11 +125,16 @@ const props = defineProps({
     can: { type: Object, default: () => ({}) },
     busy: { type: String, default: '' },
     approveLabel: { type: String, default: 'Approve recommendation' },
+    hasEscalation: { type: Boolean, default: false },
 });
 
-defineEmits(['review', 'recommend', 'dismiss', 'hide', 'remove', 'handoff', 'approve', 'reject', 'refer']);
+defineEmits(['review', 'recommend', 'dismiss', 'hide', 'remove', 'handoff', 'approve', 'reject', 'refer', 'escalate']);
 
 const isReview = computed(() => props.record?.kind === 'review');
 const isOpen = computed(() => ['new', 'in_review', 'pending_approval'].includes(props.record?.status));
-const show = computed(() => Boolean(props.record && isOpen.value && (props.can.investigate || props.can.resolve || props.can.refer)));
+const show = computed(() => Boolean(
+    props.record
+    && isOpen.value
+    && (props.can.investigate || props.can.resolve || props.can.refer || (props.can.escalate && !props.hasEscalation)),
+));
 </script>

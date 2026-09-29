@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateSettingsRequest;
 use App\Support\Admin\AdminAudit;
+use App\Support\MaintenanceMode;
 use App\Support\Staff\AppSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,19 +14,22 @@ use Inertia\Response;
 
 class SettingsController extends Controller
 {
-    public function index(Request $request, AppSettingsService $settings): Response
+    public function index(Request $request, AppSettingsService $settings, MaintenanceMode $maintenance): Response
     {
-        $rows = collect($settings->allForAdmin())->map(function (array $row) {
-            if (str_contains($row['key'], 'secret') && filled($row['value'])) {
-                $row['value'] = str($row['value'])->mask('*', 0, max(0, strlen((string) $row['value']) - 4))->toString();
-                $row['masked'] = true;
-            }
+        $rows = collect($settings->allForAdmin())
+            ->reject(fn (array $row) => str_starts_with($row['key'], 'maintenance.'))
+            ->map(function (array $row) {
+                if (str_contains($row['key'], 'secret') && filled($row['value'])) {
+                    $row['value'] = str($row['value'])->mask('*', 0, max(0, strlen((string) $row['value']) - 4))->toString();
+                    $row['masked'] = true;
+                }
 
-            return $row;
-        });
+                return $row;
+            });
 
         return Inertia::render('Admin/Settings/Index', [
             'settings' => $rows->groupBy('group')->map(fn ($group) => $group->values()->all())->all(),
+            'maintenance' => $maintenance->statusForAdmin($request->user()),
             'filters' => [
                 'tab' => (string) $request->query('tab', 'general'),
             ],

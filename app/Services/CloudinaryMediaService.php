@@ -123,6 +123,37 @@ class CloudinaryMediaService
             throw new RuntimeException('Could not read the uploaded file. Please try again.');
         }
 
+        $resourceType = (string) ($options['resource_type'] ?? 'auto');
+        $mime = (string) ($file->getMimeType() ?: '');
+
+        // Incoming transforms shrink camera originals before they are stored —
+        // delivery URLs still apply f_auto/q_auto sizing on the fly.
+        if ($resourceType === 'image' || str_starts_with($mime, 'image/')) {
+            $options = array_merge([
+                'resource_type' => 'image',
+                'transformation' => [
+                    [
+                        'width' => 2400,
+                        'height' => 2400,
+                        'crop' => 'limit',
+                        'quality' => 'auto:good',
+                        'fetch_format' => 'auto',
+                    ],
+                ],
+            ], $options);
+        } elseif ($resourceType === 'video' || str_starts_with($mime, 'video/')) {
+            $options = array_merge([
+                'resource_type' => 'video',
+                'transformation' => [
+                    [
+                        'width' => 1920,
+                        'crop' => 'limit',
+                        'quality' => 'auto:good',
+                    ],
+                ],
+            ], $options);
+        }
+
         try {
             $result = $this->client()->uploadApi()->upload($path, array_merge([
                 'folder' => $folder,

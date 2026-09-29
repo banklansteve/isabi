@@ -177,6 +177,7 @@
                 :can="can"
                 :busy="busy"
                 :approve-label="approveLabel"
+                :has-escalation="!!escalation"
                 @review="reviewOpen = true"
                 @recommend="askRecommend"
                 @dismiss="askDismiss"
@@ -186,6 +187,7 @@
                 @approve="approveOpen = true"
                 @reject="rejectOpen = true"
                 @refer="referOpen = true"
+                @escalate="escalateOpen = true"
             />
         </template>
     </AdminDrawer>
@@ -299,12 +301,22 @@
         @close="referOpen = false"
         @confirm="submitRefer"
     />
+
+    <EscalateToSuperDialog
+        :open="escalateOpen"
+        title="Escalate this patrol case to Super Admin?"
+        description="Include what you tried and why you need a decision upstairs."
+        :processing="busy === 'escalate'"
+        @close="escalateOpen = false"
+        @confirm="submitEscalate"
+    />
 </template>
 
 <script setup>
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
 import PatrolCaseActions from '@/Components/Admin/PatrolCaseActions.vue';
 import ReferToStaffDialog from '@/Components/Admin/ReferToStaffDialog.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
@@ -326,10 +338,12 @@ const emit = defineEmits(['close', 'refresh', 'updated']);
 
 const record = computed(() => props.panel?.record || null);
 const actionRecord = computed(() => props.panel?.record || props.row || null);
+const escalation = computed(() => props.panel?.escalation || null);
 const can = computed(() => ({
     investigate: false,
     resolve: false,
     dismiss_low: false,
+    escalate: false,
     ...(props.fallbackCan || {}),
     ...(props.panel?.can || {}),
 }));
@@ -358,6 +372,7 @@ const approveOpen = ref(false);
 const rejectOpen = ref(false);
 const handoffOpen = ref(false);
 const referOpen = ref(false);
+const escalateOpen = ref(false);
 const pendingOutcome = ref('');
 const busy = ref('');
 
@@ -418,6 +433,7 @@ const resetOverlays = () => {
     rejectOpen.value = false;
     handoffOpen.value = false;
     referOpen.value = false;
+    escalateOpen.value = false;
     pendingOutcome.value = '';
 };
 
@@ -509,6 +525,35 @@ const submitRefer = async ({ assignee_id, note }) => {
             type: 'error',
             title: 'Couldn’t refer',
             message: error?.response?.data?.errors?.assignee_id?.[0]
+                || error?.response?.data?.message
+                || 'Try that again in a moment.',
+        });
+    } finally {
+        busy.value = '';
+    }
+};
+
+const submitEscalate = async ({ note }) => {
+    const caseId = record.value?.id || props.row?.id;
+    if (!caseId) {
+        return;
+    }
+    busy.value = 'escalate';
+    try {
+        const { data } = await axios.post(route('admin.escalations.store'), {
+            subject_type: 'patrol',
+            subject_uid: String(caseId),
+            note,
+        });
+        escalateOpen.value = false;
+        toast(data.toast || { type: 'success', title: 'Escalated', message: 'Super Admin has been notified.' });
+        emit('updated', data);
+        emit('refresh');
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t escalate',
+            message: error?.response?.data?.errors?.note?.[0]
                 || error?.response?.data?.message
                 || 'Try that again in a moment.',
         });

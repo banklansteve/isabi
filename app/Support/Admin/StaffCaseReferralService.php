@@ -168,14 +168,23 @@ class StaffCaseReferralService
         abort_unless($super->isSuperAdmin(), 403);
         abort_unless($referral->isActive() && $referral->isSuperEscalation(), 422);
 
-        if ($referral->acknowledged_at === null) {
+        $wasNew = $referral->acknowledged_at === null;
+
+        if ($wasNew) {
             $referral->forceFill([
                 'acknowledged_at' => now(),
                 'acknowledged_by_user_id' => $super->id,
             ])->save();
         }
 
-        return $referral->fresh(['referredBy', 'acknowledgedBy']) ?? $referral;
+        $fresh = $referral->fresh(['referredBy', 'acknowledgedBy']) ?? $referral;
+
+        if ($wasNew) {
+            $this->clearEscalationNotifications($super, $fresh);
+            $this->notifyReferrerOfAction($super, $fresh, 'in_review');
+        }
+
+        return $fresh;
     }
 
     public function completeSuperEscalation(User $super, StaffCaseReferral $referral): StaffCaseReferral
@@ -204,7 +213,11 @@ class StaffCaseReferralService
             $super,
         );
 
-        return $referral->fresh(['referredBy', 'acknowledgedBy']) ?? $referral;
+        $fresh = $referral->fresh(['referredBy', 'acknowledgedBy']) ?? $referral;
+        $this->clearEscalationNotifications($super, $fresh);
+        $this->notifyReferrerOfAction($super, $fresh, 'resolved');
+
+        return $fresh;
     }
 
     /**
@@ -247,8 +260,13 @@ class StaffCaseReferralService
                     'priority' => 'high',
                     'count' => 1,
                     'unread' => $unread,
+                    'acknowledged' => $referral->acknowledged_at !== null,
                     'note' => $referral->note,
                     'referrer' => $row['referrer'],
+                    'meta' => [
+                        'subject_type' => $referral->subject_type,
+                        'subject_id' => $referral->subject_id,
+                    ],
                 ];
             })
             ->filter()
@@ -495,6 +513,9 @@ class StaffCaseReferralService
                 $super,
             );
 
+            $closed = $referral->fresh(['referredBy', 'assignee']) ?? $referral;
+            $this->notifyReferrerOfAction($super, $closed, 'taken_over');
+
             return $owned->fresh(['assignee', 'referredBy', 'acknowledgedBy']) ?? $owned;
         });
     }
@@ -579,6 +600,9 @@ class StaffCaseReferralService
                 $this->notifyAssignee($actor, $assignee, $owned->fresh(['assignee', 'referredBy']) ?? $owned, $subject);
             }
 
+            $closed = $referral->fresh(['referredBy', 'assignee']) ?? $referral;
+            $this->notifyReferrerOfAction($actor, $closed, 'reassigned');
+
             return $owned->fresh(['assignee', 'referredBy', 'acknowledgedBy']) ?? $owned;
         });
     }
@@ -649,7 +673,10 @@ class StaffCaseReferralService
             $actor,
         );
 
-        return $referral->fresh(['assignee', 'referredBy']) ?? $referral;
+        $fresh = $referral->fresh(['assignee', 'referredBy']) ?? $referral;
+        $this->notifyReferrerOfAction($actor, $fresh, 'resolved');
+
+        return $fresh;
     }
 
     /**
@@ -716,14 +743,78 @@ class StaffCaseReferralService
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function inboxForReferrer(User $referrer, ?string $queue = null): array
+    {
+        if (! Schema::hasTable('staff_case_referrals')) {
+            return [];
+        }
+
+        $since = now()->subDays(14);
+
+        $query = StaffCaseReferral::query()
+            ->where('referred_by_user_id', $referrer->id)
+            ->where(function ($builder) use ($since) {
+                $builder->where('status', StaffCaseReferral::STATUS_ACTIVE)
+                    ->orWhere(function ($inner) use ($since) {
+                        $inner->where('status', StaffCaseReferral::STATUS_COMPLETED)
+                            ->where('completed_at', '>=', $since);
+                    })
+                    ->orWhere(function ($inner) use ($since) {
+                        $inner->where('status', StaffCaseReferral::STATUS_RETURNED)
+                            ->where('returned_at', '>=', $since);
+                    });
+            })
+            ->with(['assignee:id,name,email', 'referredBy:id,name,email', 'acknowledgedBy:id,name,email'])
+            ->latest('referred_at');
+
+        if ($queue && $queue !== 'all' && in_array($queue, StaffCaseReferral::QUEUES, true)) {
+            $query->where('queue', $queue);
+        }
+
+        return $query->limit(200)
+            ->get()
+            ->map(function (StaffCaseReferral $referral) {
+                $row = $this->present($referral);
+                if ($row === null) {
+                    return null;
+                }
+
+                $row['origin_label'] = match ($row['origin'] ?? '') {
+                    StaffCaseReferral::SOURCE_ESCALATED => 'Escalated upstairs',
+                    StaffCaseReferral::SOURCE_TAKEN_OVER => 'Taken over',
+                    StaffCaseReferral::SOURCE_REASSIGNED => 'Reassigned',
+                    default => 'You referred',
+                };
+                $row['viewer_status'] = $row['requester_status'] ?? null;
+
+                return $row;
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    public function assignedPage(User $viewer, ?string $queue = null, ?User $viewingStaff = null, string $scope = 'mine'): array
+    public function assignedPage(User $viewer, ?string $queue = null, ?User $viewingStaff = null, string $scope = 'mine', string $desk = 'assigned'): array
     {
         $canManage = $viewer->isSuperAdmin();
+        $desk = strtolower(trim($desk));
+        if (! in_array($desk, ['assigned', 'referred'], true)) {
+            $desk = 'assigned';
+        }
+
         $scope = $canManage ? strtolower(trim($scope)) : 'mine';
         if (! in_array($scope, ['mine', 'all', 'staff'], true)) {
             $scope = 'mine';
+        }
+
+        if ($desk === 'referred') {
+            $scope = 'mine';
+            $viewingStaff = null;
         }
 
         if ($scope === 'staff' && (! $viewingStaff || ! $viewingStaff->isStaff() || $viewingStaff->isSuspended())) {
@@ -734,7 +825,11 @@ class StaffCaseReferralService
         $includeEscalations = $canManage;
         $filterQueue = in_array($queue, ['all', 'jobs'], true) ? null : $queue;
 
-        if ($canManage && $scope === 'all') {
+        if ($desk === 'referred') {
+            $items = $this->inboxForReferrer($viewer, $filterQueue);
+            $assignee = $viewer;
+            $scope = 'mine';
+        } elseif ($canManage && $scope === 'all') {
             $items = $this->inboxForAllStaff($filterQueue, $includeEscalations);
             $assignee = null;
         } elseif ($canManage && $scope === 'staff' && $viewingStaff) {
@@ -754,7 +849,9 @@ class StaffCaseReferralService
         }
 
         $active = StaffCaseReferral::query()->active();
-        if ($scope === 'mine') {
+        if ($desk === 'referred') {
+            $active->where('referred_by_user_id', $viewer->id);
+        } elseif ($scope === 'mine') {
             $active->forAssignee($viewer);
         } elseif ($scope === 'staff' && $viewingStaff) {
             $active->forAssignee($viewingStaff)->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION);
@@ -764,7 +861,7 @@ class StaffCaseReferralService
 
         $counts = [
             'all' => (clone $active)->when(
-                $scope !== 'all' && ! $includeEscalations,
+                $desk !== 'referred' && $scope !== 'all' && ! $includeEscalations,
                 fn ($q) => $q->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION),
             )->count(),
             'moderation' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_MODERATION)->count(),
@@ -773,6 +870,20 @@ class StaffCaseReferralService
             'jobs' => (clone $active)->where('subject_type', StaffCaseReferral::SUBJECT_JOB)->count(),
             'escalation' => (clone $active)->where('queue', StaffCaseReferral::QUEUE_ESCALATION)->count(),
             'mine' => StaffCaseReferral::query()->active()->forAssignee($viewer)->count(),
+            'referred' => StaffCaseReferral::query()
+                ->where('referred_by_user_id', $viewer->id)
+                ->where(function ($builder) {
+                    $builder->where('status', StaffCaseReferral::STATUS_ACTIVE)
+                        ->orWhere(function ($inner) {
+                            $inner->where('status', StaffCaseReferral::STATUS_COMPLETED)
+                                ->where('completed_at', '>=', now()->subDays(14));
+                        })
+                        ->orWhere(function ($inner) {
+                            $inner->where('status', StaffCaseReferral::STATUS_RETURNED)
+                                ->where('returned_at', '>=', now()->subDays(14));
+                        });
+                })
+                ->count(),
             'team' => StaffCaseReferral::query()
                 ->active()
                 ->where('queue', '!=', StaffCaseReferral::QUEUE_ESCALATION)
@@ -785,7 +896,7 @@ class StaffCaseReferralService
             'taken_over' => 0,
             'escalated' => 0,
         ];
-        if ($scope === 'mine' || $canManage) {
+        if ($desk === 'assigned' && ($scope === 'mine' || $canManage)) {
             foreach ($this->inboxFor($viewer, null, true) as $row) {
                 $origin = $row['origin'] ?? 'referred';
                 if (isset($mineBreakdown[$origin])) {
@@ -796,6 +907,7 @@ class StaffCaseReferralService
 
         return [
             'queue' => $queue ?: 'all',
+            'desk' => $desk,
             'scope' => $scope,
             'counts' => $counts,
             'mine_breakdown' => $mineBreakdown,
@@ -821,9 +933,14 @@ class StaffCaseReferralService
             'can_manage' => $canManage,
             'growth_duties' => [
                 [
-                    'label' => 'Verification Officer',
-                    'href' => route('admin.verification.index'),
-                    'ability' => 'ops.verification.manage',
+                    'label' => 'Job logs patrol',
+                    'href' => route('admin.patrol.jobs'),
+                    'ability' => 'patrol.view',
+                ],
+                [
+                    'label' => 'Reviews patrol',
+                    'href' => route('admin.patrol.reviews'),
+                    'ability' => 'patrol.view',
                 ],
                 [
                     'label' => 'Referral monitoring',
@@ -931,16 +1048,216 @@ class StaffCaseReferralService
     }
 
     /**
+     * Notify the original referrer when someone acts on their referred case.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function referrerUpdateItems(User $referrer): array
+    {
+        if (! Schema::hasTable('staff_case_referrals')) {
+            return [];
+        }
+
+        $since = now()->subDays(14);
+
+        return StaffCaseReferral::query()
+            ->where('referred_by_user_id', $referrer->id)
+            ->where(function ($query) use ($since) {
+                $query->where(function ($inner) use ($since) {
+                    $inner->where('status', StaffCaseReferral::STATUS_COMPLETED)
+                        ->where('completed_at', '>=', $since);
+                })->orWhere(function ($inner) use ($since) {
+                    $inner->where('status', StaffCaseReferral::STATUS_RETURNED)
+                        ->where('returned_at', '>=', $since);
+                })->orWhere(function ($inner) use ($since) {
+                    $inner->whereNotNull('acknowledged_at')
+                        ->where('acknowledged_at', '>=', $since)
+                        ->whereNull('completed_at')
+                        ->where('status', StaffCaseReferral::STATUS_ACTIVE);
+                });
+            })
+            ->with([
+                'assignee:id,name,email',
+                'referredBy:id,name,email',
+                'acknowledgedBy:id,name,email',
+            ])
+            ->orderByDesc('updated_at')
+            ->limit(40)
+            ->get()
+            ->map(function (StaffCaseReferral $referral) {
+                $row = $this->present($referral);
+                if ($row === null) {
+                    return null;
+                }
+
+                $actedAt = $referral->completed_at
+                    ?? $referral->returned_at
+                    ?? $referral->acknowledged_at
+                    ?? $referral->updated_at;
+                $status = $this->referrerUpdateStatus($referral);
+                $actor = $this->referrerUpdateActor($referral);
+
+                $href = $row['href'];
+                $separator = str_contains($href, '?') ? '&' : '?';
+                $href .= $separator.'referral_update='.$referral->id;
+
+                return [
+                    'key' => 'referral-update:'.$referral->id,
+                    'signature' => 'referral-update:'.$referral->id.':'.$status.':'.($actedAt?->timestamp ?? 0),
+                    'referral_id' => $referral->id,
+                    'urgency' => 65,
+                    'sort_at' => $actedAt?->timestamp ?? 0,
+                    'title' => $this->referrerUpdateTitle($referral, $row['title'], $status),
+                    'subtitle' => $this->referrerUpdateSubtitle($referral, $actor, $status),
+                    'href' => $href,
+                    'icon' => $row['icon'],
+                    'tone' => 'medium',
+                    'queue' => 'Your referrals',
+                    'group' => 'referral_updates',
+                    'priority' => 'medium',
+                    'count' => 1,
+                    'meta' => [
+                        'subject_type' => $referral->subject_type,
+                        'subject_id' => $referral->subject_id,
+                        'status' => $status,
+                    ],
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function referrerUpdateStatus(StaffCaseReferral $referral): string
+    {
+        if ($referral->status === StaffCaseReferral::STATUS_RETURNED) {
+            return 'returned';
+        }
+
+        if ($referral->status === StaffCaseReferral::STATUS_COMPLETED) {
+            $followOn = $this->followOnSource($referral);
+
+            return match ($followOn) {
+                StaffCaseReferral::SOURCE_TAKEN_OVER => 'taken_over',
+                StaffCaseReferral::SOURCE_REASSIGNED => 'reassigned',
+                default => 'resolved',
+            };
+        }
+
+        if ($referral->acknowledged_at !== null) {
+            return 'in_review';
+        }
+
+        return 'updated';
+    }
+
+    private function followOnSource(StaffCaseReferral $referral): ?string
+    {
+        if (! $referral->completed_at) {
+            return null;
+        }
+
+        $start = $referral->completed_at->copy()->subSeconds(5);
+        $end = $referral->completed_at->copy()->addMinute();
+
+        return StaffCaseReferral::query()
+            ->where('subject_type', $referral->subject_type)
+            ->where('subject_id', $referral->subject_id)
+            ->where('id', '>', $referral->id)
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('source', [
+                StaffCaseReferral::SOURCE_TAKEN_OVER,
+                StaffCaseReferral::SOURCE_REASSIGNED,
+            ])
+            ->orderBy('id')
+            ->value('source');
+    }
+
+    private function referrerUpdateTitle(StaffCaseReferral $referral, string $subjectTitle, ?string $status = null): string
+    {
+        $status ??= $this->referrerUpdateStatus($referral);
+
+        return match ($status) {
+            'resolved' => 'Resolved: '.$subjectTitle,
+            'returned' => 'Returned: '.$subjectTitle,
+            'taken_over' => 'Taken over: '.$subjectTitle,
+            'reassigned' => 'Reassigned: '.$subjectTitle,
+            'in_review' => 'In review: '.$subjectTitle,
+            default => 'Update: '.$subjectTitle,
+        };
+    }
+
+    private function referrerUpdateSubtitle(StaffCaseReferral $referral, string $actor, ?string $status = null): string
+    {
+        $status ??= $this->referrerUpdateStatus($referral);
+
+        return match ($status) {
+            'resolved' => ($actor !== '' ? $actor.' resolved' : 'Resolved').' the case you referred',
+            'returned' => ($actor !== '' ? $actor.' returned' : 'Returned').' the case to you',
+            'taken_over' => ($actor !== '' ? $actor : 'Super Admin').' took over the case you referred',
+            'reassigned' => ($actor !== '' ? $actor.' reassigned' : 'Reassigned').' the case you referred',
+            'in_review' => ($actor !== '' ? $actor.' is reviewing' : 'Now in review').' your escalation',
+            default => ($actor !== '' ? $actor.' updated' : 'Updated').' the case you referred',
+        };
+    }
+
+    private function referrerUpdateActor(StaffCaseReferral $referral): string
+    {
+        if ($referral->status === StaffCaseReferral::STATUS_COMPLETED) {
+            $followOn = $this->followOnSource($referral);
+
+            if ($followOn === StaffCaseReferral::SOURCE_TAKEN_OVER) {
+                return StaffCaseReferral::query()
+                    ->where('subject_type', $referral->subject_type)
+                    ->where('subject_id', $referral->subject_id)
+                    ->where('source', StaffCaseReferral::SOURCE_TAKEN_OVER)
+                    ->where('id', '>', $referral->id)
+                    ->with('assignee:id,name,email')
+                    ->orderBy('id')
+                    ->first()
+                    ?->assignee
+                    ?->name
+                    ?: 'Super Admin';
+            }
+
+            if ($referral->isSuperEscalation()) {
+                return $referral->acknowledgedBy?->name
+                    ?: $referral->assignee?->name
+                    ?: 'Super Admin';
+            }
+
+            return $referral->assignee?->name
+                ?: $referral->assignee?->email
+                ?: 'Operations';
+        }
+
+        if ($referral->status === StaffCaseReferral::STATUS_RETURNED) {
+            return $referral->assignee?->name
+                ?: $referral->assignee?->email
+                ?: 'Operations';
+        }
+
+        return $referral->acknowledgedBy?->name
+            ?: $referral->acknowledgedBy?->email
+            ?: 'Super Admin';
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function present(StaffCaseReferral $referral): ?array
     {
-        $subject = $this->subjectModel($referral);
-        if ($subject === null) {
+        try {
+            $subject = $this->subjectModel($referral);
+            if ($subject === null) {
+                return null;
+            }
+
+            $meta = $this->subjectMeta($referral->subject_type, $subject);
+        } catch (\Throwable) {
             return null;
         }
 
-        $meta = $this->subjectMeta($referral->subject_type, $subject);
         $referredAt = $referral->referred_at ?? $referral->created_at;
         $origin = $this->originFor($referral);
         $title = $referral->isSuperEscalation()
@@ -1357,6 +1674,8 @@ class StaffCaseReferralService
                 'kind' => 'staff_escalation',
                 'href' => $href,
                 'referral_id' => $referral->id,
+                'subject_type' => $referral->subject_type,
+                'subject_id' => $referral->subject_id,
             ],
         );
     }
@@ -1388,6 +1707,83 @@ class StaffCaseReferralService
                 'href' => $meta['href'],
                 'referral_id' => $referral->id,
             ],
+        );
+    }
+
+    private function notifyReferrerOfAction(User $actor, StaffCaseReferral $referral, string $action): void
+    {
+        $referrerId = (int) $referral->referred_by_user_id;
+
+        if ($referrerId <= 0 || $referrerId === (int) $actor->id) {
+            return;
+        }
+
+        $referrer = User::query()->find($referrerId);
+
+        if (! $referrer?->isStaff() || $referrer->isSuspended()) {
+            return;
+        }
+
+        $subject = $this->subjectModel($referral);
+
+        if (! $subject) {
+            return;
+        }
+
+        $meta = $this->subjectMeta($referral->subject_type, $subject);
+        $href = $meta['href'];
+        $separator = str_contains($href, '?') ? '&' : '?';
+        $href .= $separator.'referral_update='.$referral->id;
+
+        $actorName = $actor->name ?: $actor->email ?: 'Staff';
+        $title = match ($action) {
+            'resolved' => 'Resolved: '.$meta['title'],
+            'in_review' => 'In review: '.$meta['title'],
+            'taken_over' => 'Taken over: '.$meta['title'],
+            'reassigned' => 'Reassigned: '.$meta['title'],
+            'returned' => 'Returned: '.$meta['title'],
+            default => 'Update: '.$meta['title'],
+        };
+        $body = match ($action) {
+            'resolved' => "{$actorName} resolved the case you referred.",
+            'in_review' => "{$actorName} is reviewing your escalation.",
+            'taken_over' => "{$actorName} took over the case you referred.",
+            'reassigned' => "{$actorName} reassigned the case you referred.",
+            'returned' => "{$actorName} returned the case to you.",
+            default => "{$actorName} updated the case you referred.",
+        };
+
+        $this->announcements->sendToStaff(
+            $actor,
+            [$referrerId],
+            $title,
+            $body,
+            [Announcement::CHANNEL_IN_APP],
+            null,
+            [
+                'kind' => 'staff_referral_update',
+                'href' => $href,
+                'referral_id' => $referral->id,
+                'action' => $action,
+                'subject_type' => $referral->subject_type,
+                'subject_id' => $referral->subject_id,
+            ],
+        );
+    }
+
+    private function clearEscalationNotifications(User $super, StaffCaseReferral $referral): void
+    {
+        app(OpsAttentionFeed::class)->markRead(
+            $super,
+            'escalation:'.$referral->id,
+            'escalation:'.$referral->id.':'.($referral->referred_at?->timestamp ?? 0),
+        );
+
+        app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+            $super,
+            $referral->subject_type,
+            (int) $referral->subject_id,
+            (int) $referral->id,
         );
     }
 

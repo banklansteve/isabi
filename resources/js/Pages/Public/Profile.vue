@@ -80,6 +80,10 @@
                                 v-if="profile.avatar_url"
                                 :src="profile.avatar_url"
                                 :alt="profile.business_name"
+                                width="160"
+                                height="160"
+                                decoding="async"
+                                fetchpriority="high"
                                 class="h-full w-full object-cover"
                             />
                             <span v-else class="font-display">{{ initials }}</span>
@@ -564,12 +568,14 @@
                                 hasActiveFilters
                                     ? 'Clear filters'
                                     : viewerIsOwner
-                                      ? 'Log a job'
+                                      ? emailVerified
+                                          ? 'Log a job'
+                                          : 'Verify email'
                                       : ''
                             "
                             :cta-href="
                                 !hasActiveFilters && viewerIsOwner
-                                    ? route('work-log.create')
+                                    ? logJobHref
                                     : ''
                             "
                             @action="clearFilters"
@@ -817,6 +823,14 @@ const props = defineProps({
 
 const page = usePage();
 const isLoggedIn = computed(() => !!page.props.auth?.user);
+const emailVerified = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user || user.is_staff) return true;
+    return !!user.email_verified_at;
+});
+const logJobHref = computed(() =>
+    emailVerified.value ? route('work-log.create') : route('verification.notice'),
+);
 
 const extraTrades = computed(() => {
     const primary = String(props.profile.trade || '').toLowerCase();

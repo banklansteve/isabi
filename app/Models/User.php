@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Enums\StaffStatus;
 use App\Enums\UserRole;
 use App\Notifications\StaffResetPasswordNotification;
-use App\Support\Auth\EmailVerificationService;
 use App\Support\Identity\UserUid;
 use App\Support\Referrals\ReferralService;
 use App\Support\Staff\AdminPermissions;
@@ -42,6 +41,7 @@ use Illuminate\Support\Str;
     'email',
     'password',
     'password_set_at',
+    'terms_accepted_at',
     'role',
     'staff_status',
     'invited_by_user_id',
@@ -92,18 +92,13 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasFactory, MustVerifyEmailTrait, Notifiable, SoftDeletes;
 
     /**
-     * Send the custom code + link verification email.
+     * Verification mail is issued explicitly via EmailVerificationService after
+     * login + session regenerate. Leave this empty so the Registered listener
+     * never double-sends a different code.
      */
     public function sendEmailVerificationNotification(): void
     {
-        if ($this->hasVerifiedEmail() || $this->isStaff()) {
-            return;
-        }
-
-        app(EmailVerificationService::class)->issue(
-            $this,
-            session()->getId(),
-        );
+        //
     }
 
     /**
@@ -119,6 +114,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verification_attempts' => 'integer',
             'password' => 'hashed',
             'password_set_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
             'role' => UserRole::class,
             'staff_status' => StaffStatus::class,
             'suspended_at' => 'datetime',
@@ -507,6 +503,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function workLogs(): HasMany
     {
         return $this->hasMany(WorkLog::class);
+    }
+
+    public function activityDays(): HasMany
+    {
+        return $this->hasMany(AnalyticsUserActivityDay::class);
     }
 
     public function patrolCases(): HasMany

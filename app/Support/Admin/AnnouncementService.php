@@ -116,6 +116,9 @@ class AnnouncementService
             '{{first_name}}' => $first,
             '{{name}}' => (string) $user->name,
             '{{business_name}}' => (string) ($user->business_name ?: $user->name),
+            '{first_name}' => $first,
+            '{name}' => (string) $user->name,
+            '{business_name}' => (string) ($user->business_name ?: $user->name),
         ]);
     }
 
@@ -297,6 +300,7 @@ class AnnouncementService
             'staff_approval' => 'ti ti-shield-check',
             'staff_flag' => 'ti ti-flag',
             'staff_referral' => 'ti ti-transfer',
+            'staff_referral_update' => 'ti ti-bell-check',
             'quote_request' => 'ti ti-file-invoice',
             default => $message?->audience === 'staff' ? 'ti ti-shield' : 'ti ti-megaphone',
         };
@@ -312,6 +316,8 @@ class AnnouncementService
             'time' => ($delivery->sent_at ?? $delivery->created_at)?->diffForHumans() ?? '',
             'icon' => $icon,
             'unread' => $delivery->status === AnnouncementDelivery::STATUS_SENT,
+            'kind' => $kind,
+            'referral_id' => $segment['referral_id'] ?? null,
             'href' => $href,
         ];
     }

@@ -17,7 +17,8 @@
                     role="dialog"
                     aria-modal="true"
                     :aria-labelledby="titleId"
-                    class="admin-dialog-card relative z-[81] w-full max-w-md rounded-[1.35rem] bg-white p-5 shadow-premium-ink sm:p-6"
+                    class="admin-dialog-card relative z-[81] w-full rounded-[1.35rem] bg-white p-5 shadow-premium-ink sm:p-6"
+                    :class="wide ? 'max-w-lg' : 'max-w-md'"
                     @submit.prevent="submit"
                 >
                     <h3 :id="titleId" class="text-[16px] font-bold tracking-tight text-ink">{{ title }}</h3>
@@ -92,6 +93,7 @@ const props = defineProps({
     reasonPlaceholder: { type: String, default: 'What happened, in a sentence…' },
     confirmPhrase: { type: String, default: '' },
     processing: { type: Boolean, default: false },
+    wide: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'confirm']);

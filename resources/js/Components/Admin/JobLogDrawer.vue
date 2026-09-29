@@ -115,9 +115,18 @@
                 </p>
             </div>
 
-            <div v-if="record.flagged || record.flag_reason" class="rounded-2xl bg-coral-tint/60 p-5 ring-1 ring-coral/10">
-                <p class="text-xs font-bold uppercase tracking-[0.14em] text-coral-deep">Flag</p>
-                <p class="mt-2 text-sm font-medium text-ink/80">{{ record.flag_reason || 'Flagged' }}</p>
+            <div v-if="record.flagged || record.flag_reason || (record.flag_reasons && record.flag_reasons.length)" class="rounded-2xl bg-coral-tint/60 p-5 ring-1 ring-coral/10">
+                <p class="text-xs font-bold uppercase tracking-[0.14em] text-coral-deep">Why flagged</p>
+                <ul v-if="record.flag_reasons?.length" class="mt-2 space-y-1.5">
+                    <li
+                        v-for="(reason, index) in record.flag_reasons"
+                        :key="`${index}-${reason}`"
+                        class="text-sm font-medium leading-relaxed text-ink/80"
+                    >
+                        {{ reason }}
+                    </li>
+                </ul>
+                <p v-else class="mt-2 text-sm font-medium text-ink/80">{{ record.flag_reason || 'Flagged' }}</p>
                 <p v-if="record.flagged_at_label" class="mt-1 text-xs font-medium text-ink/45">{{ record.flagged_at_label }}</p>
             </div>
 
@@ -128,6 +137,16 @@
                 <p class="mt-1 text-xs font-medium text-ink/45">
                     {{ record.referral.referred_at }}
                     <span v-if="record.referral.referred_by"> · {{ record.referral.referred_by }}</span>
+                </p>
+            </div>
+
+            <div v-if="escalation" class="rounded-2xl bg-violet-50/80 p-5 ring-1 ring-violet-100">
+                <p class="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Escalated to Super Admin</p>
+                <p class="mt-2 text-sm font-semibold text-ink">{{ escalation.status }}</p>
+                <p v-if="escalation.note" class="mt-1 text-sm font-medium leading-relaxed text-ink/70">{{ escalation.note }}</p>
+                <p class="mt-1 text-xs font-medium text-ink/45">
+                    {{ escalation.referred_at }}
+                    <span v-if="escalation.referred_by"> · {{ escalation.referred_by }}</span>
                 </p>
             </div>
 
@@ -143,7 +162,7 @@
             </dl>
         </div>
 
-        <template v-if="can.manage || can.message" #footer>
+        <template v-if="can.manage || can.message || can.refer || can.escalate" #footer>
             <div class="space-y-3">
                 <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[12px] font-semibold">
                     <Link
@@ -201,6 +220,13 @@
                         class="w-full"
                         label="Refer to ops"
                         @click="openRefer"
+                    />
+                    <FormButton
+                        v-if="can.escalate && !escalation"
+                        variant="secondary"
+                        class="w-full"
+                        label="Escalate to Super Admin"
+                        @click="escalateOpen = true"
                     />
                     <FormButton
                         v-if="can.remove && record?.visibility !== 'removed'"
@@ -362,11 +388,21 @@
             <p v-if="referError" class="mt-1.5 text-[12px] font-medium text-coral">{{ referError }}</p>
         </label>
     </AdminConfirmDialog>
+
+    <EscalateToSuperDialog
+        :open="escalateOpen"
+        title="Escalate this job to Super Admin?"
+        description="Include what you tried and why you need a decision upstairs."
+        :processing="busy === 'escalate'"
+        @close="escalateOpen = false"
+        @confirm="submitEscalate"
+    />
 </template>
 
 <script setup>
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminDrawer from '@/Components/Admin/AdminDrawer.vue';
+import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
 import FormTextInput from '@/Components/Form/FormTextInput.vue';
 import FormTextarea from '@/Components/Form/FormTextarea.vue';
@@ -386,6 +422,7 @@ const emit = defineEmits(['close', 'refresh', 'updated']);
 const record = computed(() => props.panel?.record || null);
 const can = computed(() => props.panel?.can || {});
 const staff = computed(() => props.panel?.staff || []);
+const escalation = computed(() => props.panel?.escalation || null);
 const heading = computed(() => ({
     title: record.value?.artisan?.name || props.row?.user?.name || 'Job log',
     eyebrow: record.value?.uid || props.row?.uid || 'Job file',
@@ -425,6 +462,7 @@ const unhideOpen = ref(false);
 const removeOpen = ref(false);
 const suspendOpen = ref(false);
 const referOpen = ref(false);
+const escalateOpen = ref(false);
 const messageOpen = ref(false);
 const referAssigneeId = ref('');
 const referError = ref('');
@@ -476,6 +514,7 @@ const resetOverlays = () => {
     removeOpen.value = false;
     suspendOpen.value = false;
     referOpen.value = false;
+    escalateOpen.value = false;
     messageOpen.value = false;
     referAssigneeId.value = '';
     referError.value = '';
@@ -567,6 +606,23 @@ const submitRefer = ({ reason }) => {
         }),
         () => {
             referOpen.value = false;
+        },
+    );
+};
+
+const submitEscalate = ({ note }) => {
+    submitAxios(
+        'escalate',
+        () => axios.post(route('admin.escalations.store'), {
+            subject_type: 'job',
+            subject_uid: record.value.uid,
+            note,
+        }),
+        (data) => {
+            escalateOpen.value = false;
+            if (data?.block) {
+                emit('updated', { ...data, escalation: data.block });
+            }
         },
     );
 };

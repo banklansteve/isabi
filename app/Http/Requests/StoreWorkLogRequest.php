@@ -59,6 +59,7 @@ class StoreWorkLogRequest extends FormRequest
                 'max:5120', // 5MB in kilobytes
                 'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm',
             ],
+            'terms_accepted' => ['accepted'],
         ];
     }
 
@@ -87,6 +88,7 @@ class StoreWorkLogRequest extends FormRequest
             'media.max' => 'You can attach up to 8 photos or videos.',
             'media.*.max' => 'Each file must be smaller than 5MB.',
             'media.*.mimetypes' => 'Only images (JPG, PNG, WebP, GIF) and videos (MP4, MOV, WebM) are allowed.',
+            'terms_accepted.accepted' => 'Please confirm you agree to the Terms and privacy notice before saving this job.',
         ];
     }
 

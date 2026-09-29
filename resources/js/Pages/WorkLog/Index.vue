@@ -48,11 +48,11 @@
                             Export references PDF
                         </a>
                         <Link
-                            :href="route('work-log.create')"
+                            :href="logJobHref"
                             class="tap-target inline-flex items-center justify-center gap-2 rounded-2xl bg-coral px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(255,106,61,0.55)] transition-colors hover:bg-coral-deep"
                         >
-                            <i class="ti ti-plus" aria-hidden="true" />
-                            Log a job
+                            <i :class="emailVerified ? 'ti ti-plus' : 'ti ti-mail-check'" aria-hidden="true" />
+                            {{ emailVerified ? 'Log a job' : 'Verify email' }}
                         </Link>
                     </div>
                 </div>
@@ -203,8 +203,8 @@
                 icon="ti ti-notebook"
                 title="No jobs yet"
                 description="Log your first finished job — a short description and date is enough to start your proof trail."
-                cta-label="Log a job"
-                :cta-href="route('work-log.create')"
+                :cta-label="emailVerified ? 'Log a job' : 'Verify email'"
+                :cta-href="logJobHref"
             />
 
             <AppEmptyState
@@ -358,7 +358,7 @@
 <script setup>
 import AppEmptyState from '@/Components/App/AppEmptyState.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -367,6 +367,15 @@ const props = defineProps({
     dueReminderCount: { type: Number, default: 0 },
 });
 
+const pageProps = usePage();
+const emailVerified = computed(() => {
+    const user = pageProps.props.auth?.user;
+    if (!user || user.is_staff) return true;
+    return !!user.email_verified_at;
+});
+const logJobHref = computed(() =>
+    emailVerified.value ? route('work-log.create') : route('verification.notice'),
+);
 const search = ref('');
 const period = ref('all');
 const sort = ref('newest');

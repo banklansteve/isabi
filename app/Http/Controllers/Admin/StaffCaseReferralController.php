@@ -39,20 +39,34 @@ class StaffCaseReferralController extends Controller
 
         $scope = 'mine';
         $viewingStaff = null;
-        if ($isSuper && $request->filled('staff')) {
+        $desk = strtolower(trim((string) $request->query('desk', 'assigned')));
+        if (! in_array($desk, ['assigned', 'referred'], true)) {
+            $desk = 'assigned';
+        }
+
+        if ($desk === 'assigned' && $isSuper && $request->filled('staff')) {
             $viewingStaff = User::query()
                 ->staff()
                 ->whereKey((int) $request->query('staff'))
                 ->first();
             $scope = 'staff';
-        } elseif ($isSuper) {
+        } elseif ($desk === 'assigned' && $isSuper) {
             $scope = strtolower(trim((string) $request->query('scope', 'mine')));
             if (! in_array($scope, ['mine', 'all'], true)) {
                 $scope = 'mine';
             }
         }
 
-        $page = $this->referrals->assignedPage($request->user(), $queue, $viewingStaff, $scope);
+        $page = $this->referrals->assignedPage($request->user(), $queue, $viewingStaff, $scope, $desk);
+
+        if ($request->user()?->isStaff() && ! $request->user()->isRestrictedStaff() && $request->filled('referral_update')) {
+            app(\App\Support\Admin\OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+                $request->user(),
+                null,
+                null,
+                $request->integer('referral_update') ?: null,
+            );
+        }
 
         return Inertia::render('Admin/Ops/Assigned', $page);
     }

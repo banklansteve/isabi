@@ -29,7 +29,7 @@ class OpsAttentionController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user?->isOperationsAdmin() && ! $user->isRestrictedStaff(), 403);
+        abort_unless($user?->isStaff() && ! $user->isRestrictedStaff(), 403);
 
         $this->feed->markAllRead($user);
 

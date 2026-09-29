@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Support\Admin\DashboardMetrics;
 use App\Support\Analytics\LivePresenceReport;
+use App\Support\Analytics\AnalyticsPulseReports;
 use App\Support\Analytics\ProductAnalyticsReports;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,10 +17,15 @@ class AnalyticsAdminController extends Controller
         Request $request,
         DashboardMetrics $metrics,
         ProductAnalyticsReports $product,
+        AnalyticsPulseReports $pulse,
         LivePresenceReport $presence,
     ): Response {
+        // Keep DAU / engagement charts current without waiting for tonight's cron.
+        $pulse->refreshRecentSummaries(3);
+
         $legacy = $metrics->analytics();
         $productPayload = $product->forAnalyticsPage();
+        $pulsePayload = $pulse->forAnalyticsPage();
 
         return Inertia::render('Admin/Analytics/Index', [
             // Growth / geography (operational tables).
@@ -45,6 +51,9 @@ class AnalyticsAdminController extends Controller
 
             // Product-usage summaries (login / page / feature analytics).
             ...$productPayload,
+
+            // Pulse additions (growth / engagement / retention).
+            ...$pulsePayload,
 
             'filters' => [
                 'tab' => (string) $request->query('tab', 'live'),

@@ -72,6 +72,15 @@
                         <span v-if="job.backdated_days >= 30" class="mt-1 block text-[12px] font-semibold text-coral">
                             Backdated {{ job.backdated_days }} days
                         </span>
+                        <span
+                            v-if="job.flagged && (job.flag_reasons?.length || job.flag_reason)"
+                            class="mt-1 block text-[12px] font-medium leading-snug text-coral-deep"
+                        >
+                            {{ (job.flag_reasons && job.flag_reasons[0]) || job.flag_reason }}
+                            <template v-if="(job.flag_reasons?.length || 0) > 1">
+                                · +{{ job.flag_reasons.length - 1 }} more
+                            </template>
+                        </span>
                     </span>
                     <i class="ti ti-chevron-right mt-2 shrink-0 text-sm text-ink/20 transition-colors group-hover:text-ink/40" aria-hidden="true" />
                 </button>

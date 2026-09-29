@@ -5,12 +5,24 @@ namespace Tests\Feature;
 use App\Models\ProfileViewMonth;
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Support\CookieConsent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ArtisanDirectoryAndSearchVisibilityTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function consentCookie(string $status): array
+    {
+        return [
+            CookieConsent::COOKIE => json_encode([
+                'status' => $status,
+                'v' => CookieConsent::VERSION,
+                'at' => now()->toIso8601String(),
+            ], JSON_THROW_ON_ERROR),
+        ];
+    }
 
     public function test_directory_and_trade_location_landings_render(): void
     {
@@ -60,7 +72,8 @@ class ArtisanDirectoryAndSearchVisibilityTest extends TestCase
         ]);
         $this->createWorkLog($user);
 
-        $this->withHeader('Referer', 'https://www.google.com/search?q=electrician')
+        $this->withCookies($this->consentCookie(CookieConsent::STATUS_ACCEPTED))
+            ->withHeader('Referer', 'https://www.google.com/search?q=electrician')
             ->get(route('public.profile', $user->slug))
             ->assertOk();
 
@@ -77,6 +90,24 @@ class ArtisanDirectoryAndSearchVisibilityTest extends TestCase
                 ->component('Dashboard')
                 ->where('searchVisibility.search_views', 1)
                 ->where('searchVisibility.views', 1));
+    }
+
+    public function test_profile_view_skips_tracking_when_cookies_rejected(): void
+    {
+        $user = User::factory()->create([
+            'slug' => 'spark-power',
+            'public_page_enabled' => true,
+            'business_name' => 'Spark Power',
+            'public_page_views' => 0,
+        ]);
+        $this->createWorkLog($user);
+
+        $this->withCookies($this->consentCookie(CookieConsent::STATUS_REJECTED))
+            ->get(route('public.profile', $user->slug))
+            ->assertOk();
+
+        $this->assertNull(ProfileViewMonth::query()->where('user_id', $user->id)->first());
+        $this->assertSame(0, (int) $user->fresh()->public_page_views);
     }
 
     private function createWorkLog(User $user): WorkLog

@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\UserAdminController;
+use App\Http\Controllers\AnalyticsBeaconController;
 use App\Http\Controllers\AppPlaceholderController;
 use App\Http\Controllers\ArtisanDirectoryController;
 use App\Http\Controllers\CareerApplicationController;
+use App\Http\Controllers\MaintenanceBypassController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\CookieConsentController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
@@ -164,6 +167,14 @@ foreach (LegalContent::all() as $slug => $page) {
 Route::post('/cookie-consent', [CookieConsentController::class, 'store'])
     ->name('cookie-consent.store');
 
+Route::get('/maintenance', [MaintenanceController::class, 'show'])
+    ->name('maintenance.show');
+
+Route::get('/maintenance/bypass/{token}', MaintenanceBypassController::class)
+    ->where('token', '[a-z0-9]{32,64}')
+    ->middleware('throttle:20,1')
+    ->name('maintenance.bypass');
+
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/artisans', [ArtisanDirectoryController::class, 'index'])->name('public.directory');
@@ -252,6 +263,10 @@ Route::get('/r/{token}/thanks', [PublicReviewController::class, 'thanks'])
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
+    Route::post('/analytics/beacon/page-duration', [AnalyticsBeaconController::class, 'pageDuration'])
+        ->middleware('throttle:120,1')
+        ->name('analytics.beacon.page-duration');
+
     Route::post('/impersonation/leave', [UserAdminController::class, 'leaveImpersonation'])
         ->name('impersonation.leave');
 
@@ -259,8 +274,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/work-log', [WorkLogController::class, 'index'])->name('work-log.index');
     Route::get('/work-log/export', [WorkLogController::class, 'export'])->name('work-log.export');
-    Route::get('/work-log/create', [WorkLogController::class, 'create'])->name('work-log.create');
-    Route::post('/work-log', [WorkLogController::class, 'store'])->name('work-log.store');
+    Route::get('/work-log/create', [WorkLogController::class, 'create'])
+        ->middleware('verified')
+        ->name('work-log.create');
+    Route::post('/work-log', [WorkLogController::class, 'store'])
+        ->middleware('verified')
+        ->name('work-log.store');
     Route::get('/work-log/{workLog}', [WorkLogController::class, 'show'])->name('work-log.show');
     Route::get('/work-log/{workLog}/edit', [WorkLogController::class, 'edit'])->name('work-log.edit');
     Route::post('/work-log/{workLog}', [WorkLogController::class, 'update'])->name('work-log.update');

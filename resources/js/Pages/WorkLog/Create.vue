@@ -168,7 +168,7 @@
                             icon="ti ti-user"
                             placeholder="e.g. Mrs. Adeyemi"
                             autocomplete="off"
-                            hint="Private — only you see this. Never put this in the subject."
+                            hint="Private — only you see this. Stored under Nigeria’s NDPR / NDPA rules for review invites, never shown on your public page."
                             :error="fieldError('client_name')"
                         />
 
@@ -238,7 +238,7 @@
                             placeholder="0803 000 0000"
                             inputmode="tel"
                             autocomplete="tel"
-                            hint="Needed when you want to request a review for this job."
+                            hint="Private — used only to send a review invite. Kept under Nigeria’s NDPR / NDPA rules; never shown publicly."
                             :error="fieldError('client_whatsapp')"
                             @blur="normalizeWhatsapp"
                         />
@@ -377,6 +377,33 @@
                                 </p>
                             </div>
                         </div>
+
+                        <div class="space-y-1.5 rounded-[1.35rem] bg-white p-4 shadow-premium ring-1 ring-ink/[0.06] sm:p-5">
+                            <FormCheckbox
+                                v-model="form.terms_accepted"
+                                name="terms_accepted"
+                                @update:model-value="clearFieldError('terms_accepted')"
+                            >
+                                I confirm this job is accurate, I have the right to upload any media, and
+                                any client details I add stay private for reviews only — in line with the
+                                <Link
+                                    :href="route('terms')"
+                                    target="_blank"
+                                    class="font-semibold text-base-action underline-offset-2 hover:underline"
+                                    @click.stop
+                                >
+                                    Terms of use
+                                </Link>
+                                and Nigeria’s NDPR / NDPA data protection rules.
+                                <span class="text-red-500">*</span>
+                            </FormCheckbox>
+                            <p
+                                v-if="fieldError('terms_accepted')"
+                                class="ps-8 text-sm font-medium text-red-600"
+                            >
+                                {{ fieldError('terms_accepted') }}
+                            </p>
+                        </div>
                     </div>
                 </section>
 
@@ -438,6 +465,7 @@
 <script setup>
 import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import FormCheckbox from '@/Components/Form/FormCheckbox.vue';
 import FormDatePicker from '@/Components/Form/FormDatePicker.vue';
 import FormFileUpload from '@/Components/Form/FormFileUpload.vue';
 import FormSelect from '@/Components/Form/FormSelect.vue';
@@ -498,6 +526,7 @@ const form = useForm({
     amount_charged: '',
     media: [],
     from_quote_uid: props.fromQuote?.uid || '',
+    terms_accepted: false,
 });
 
 const CLEARABLE_FIELDS = [
@@ -513,6 +542,7 @@ const CLEARABLE_FIELDS = [
     'client_whatsapp',
     'amount_charged',
     'media',
+    'terms_accepted',
 ];
 
 const clearFieldError = (field) => {
@@ -761,6 +791,15 @@ const submit = () => {
         return;
     }
 
+    if (!form.terms_accepted) {
+        form.setError(
+            'terms_accepted',
+            'Please confirm you agree to the Terms and privacy notice before saving.',
+        );
+        step.value = 2;
+        return;
+    }
+
     normalizeWhatsapp();
 
     form
@@ -774,6 +813,7 @@ const submit = () => {
             service_city: data.service_city || null,
             client_whatsapp: data.client_whatsapp || null,
             amount_charged: data.amount_charged === '' ? null : data.amount_charged,
+            terms_accepted: data.terms_accepted ? 1 : 0,
         }))
         .post(route('work-log.store'), {
             forceFormData: true,

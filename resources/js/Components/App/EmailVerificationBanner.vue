@@ -17,14 +17,14 @@
                     <p class="mt-0.5 text-xs font-medium text-ink/55">
                         Enter the code we sent to
                         <span class="font-semibold text-ink/70">{{ email }}</span>
-                        — review requests stay locked until you do.
+                        — logging jobs and review requests stay locked until you do.
                     </p>
                 </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
                 <Link
-                    :href="route('register')"
+                    :href="route('verification.notice')"
                     class="tap-target inline-flex items-center justify-center rounded-xl bg-base-action px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-base-hover"
                 >
                     Enter code

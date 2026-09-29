@@ -57,6 +57,7 @@ class RegisterRequest extends FormRequest
             'office_address' => ['required', 'string', 'max:255'],
             'whatsapp' => ['required', 'string', 'max:20', 'regex:/^(?:\+?234|0)[789][01]\d{8}$/'],
             'password' => ['required', 'confirmed', Password::defaults()],
+            'terms_accepted' => ['accepted'],
             'ref' => ['nullable', 'string', 'max:40'],
         ];
     }
@@ -75,6 +76,7 @@ class RegisterRequest extends FormRequest
             'trades.max' => 'You can select up to 12 trades.',
             'skills.max' => 'You can highlight up to 15 skills.',
             'skills.*.max' => 'Each skill must be 40 characters or fewer.',
+            'terms_accepted.accepted' => 'Please agree to the Terms of use and Privacy policy to create your account.',
         ];
     }
 

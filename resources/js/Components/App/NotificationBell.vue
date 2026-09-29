@@ -57,7 +57,7 @@
                     </span>
                     <p class="mt-3 text-sm font-bold text-ink">You’re all caught up</p>
                     <p class="mt-1 text-xs font-medium leading-relaxed text-ink/45">
-                        Reviews, credit updates, and plan reminders will show up here.
+                        Escalations, referrals, and staff updates will show up here.
                     </p>
                 </div>
             </div>
@@ -97,10 +97,48 @@ const removeItem = (item) => {
     };
 };
 
-const markRead = async (item) => {
-    if (item?.id && item.unread) {
-        removeItem(item);
+const markAttention = async (item) => {
+    if (!item?.attention_key || !item?.signature) {
+        return;
+    }
 
+    try {
+        await axios.post(route('admin.attention.read'), {
+            key: item.attention_key,
+            signature: item.signature,
+        }, jsonHeaders);
+    } catch {
+        // Keep optimistic drop.
+    }
+};
+
+const acknowledgeEscalation = async (item) => {
+    if (!item?.acknowledge_escalation || !item?.referral_id) {
+        return;
+    }
+
+    try {
+        await axios.post(route('admin.escalations.acknowledge', item.referral_id), {}, jsonHeaders);
+    } catch {
+        // Navigation still proceeds.
+    }
+};
+
+const markRead = async (item) => {
+    if (!item) {
+        return;
+    }
+
+    if (item.unread) {
+        removeItem(item);
+    }
+
+    if (item.attention_key) {
+        await acknowledgeEscalation(item);
+        await markAttention(item);
+    }
+
+    if (item.id && !String(item.id).startsWith('attention:') && item.unread) {
         try {
             const { data } = await axios.post(route('notifications.read', item.id), {}, jsonHeaders);
             applyNotifications(data.notifications);
@@ -109,17 +147,22 @@ const markRead = async (item) => {
         }
     }
 
-    if (item?.href) {
+    if (item.href) {
         router.visit(item.href);
     }
 };
 
 const markAllRead = async () => {
+    const attentionItems = (page.props.notifications?.items || []).filter((item) => item.attention_key);
+
     page.props.notifications = { unread_count: 0, items: [] };
 
     try {
-        const { data } = await axios.post(route('notifications.read-all'), {}, jsonHeaders);
-        applyNotifications(data.notifications);
+        await Promise.all([
+            axios.post(route('notifications.read-all'), {}, jsonHeaders),
+            ...attentionItems.map((item) => markAttention(item)),
+            axios.post(route('admin.attention.read-all'), {}, jsonHeaders).catch(() => null),
+        ]);
     } catch {
         // Keep optimistic state; next page load will reconcile.
     }

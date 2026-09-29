@@ -12,10 +12,12 @@ use App\Models\StaffCaseReferral;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Support\Admin\AdminAudit;
+use App\Support\Admin\AdminNavigation;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Admin\ApprovalService;
 use App\Support\Admin\JobAdminPresenter;
+use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Admin\StaffCaseReferralService;
 use App\Support\ReviewInvite;
 use Illuminate\Http\JsonResponse;
@@ -30,12 +32,22 @@ class JobAdminController extends Controller
 {
     public function index(Request $request): Response
     {
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'flagged_jobs');
+            $this->clearReferrerUpdate($request);
+        }
+
         return Inertia::render('Admin/Jobs/Index', $this->indexProps($request));
     }
 
     public function show(Request $request, WorkLog $workLog): Response|JsonResponse
     {
         abort_unless($request->user()?->canDo('admin.content.manage'), 403);
+
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'flagged_jobs');
+            $this->clearReferrerUpdate($request, StaffCaseReferral::SUBJECT_JOB, (int) $workLog->id);
+        }
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
             return response()->json(JobAdminPresenter::panel($workLog, $request->user()));
@@ -371,7 +383,11 @@ class JobAdminController extends Controller
         $this->ensureUids();
 
         $jobs = WorkLog::query()
-            ->with(['user:id,name,email,business_name,slug,trade'])
+            ->with([
+                'user:id,name,email,business_name,slug,trade',
+                'patrolCase:id,work_log_id,kind,status,severity,flagged_at',
+                'patrolCase.rules',
+            ])
             ->latest('id')
             ->limit(2500)
             ->get()
@@ -380,11 +396,39 @@ class JobAdminController extends Controller
 
         $openedUid = $openedUid ?: trim((string) $request->query('job', ''));
 
+        if ($openedUid !== '' && $request->user()?->isOperationsAdmin()) {
+            $opened = WorkLog::query()->where('uid', $openedUid)->first(['id']);
+            if ($opened) {
+                $this->clearReferrerUpdate($request, StaffCaseReferral::SUBJECT_JOB, (int) $opened->id);
+            }
+        }
+
         return [
             'jobs' => $jobs,
             'opened_uid' => $openedUid !== '' ? $openedUid : null,
             'can' => JobAdminPresenter::abilities($request->user()),
         ];
+    }
+
+    private function clearReferrerUpdate(Request $request, ?string $subjectType = null, ?int $subjectId = null): void
+    {
+        $user = $request->user();
+        if (! $user?->isStaff() || $user->isRestrictedStaff()) {
+            return;
+        }
+
+        $referralId = $request->integer('referral_update') ?: null;
+
+        if ($subjectType === null && $subjectId === null && ! $referralId) {
+            return;
+        }
+
+        app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+            $user,
+            $subjectType,
+            $subjectId,
+            $referralId > 0 ? $referralId : null,
+        );
     }
 
     private function ensureUids(): void

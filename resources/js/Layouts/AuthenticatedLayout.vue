@@ -50,11 +50,11 @@
 
                 <div class="flex items-center gap-2 sm:gap-3">
                     <Link
-                        :href="route('work-log.create')"
+                        :href="logJobHref"
                         class="tap-target hidden items-center gap-2 rounded-xl bg-base-action px-4 py-2.5 text-[0.95rem] font-bold text-white shadow-[0_10px_24px_-10px_rgba(26,79,181,0.5)] transition-[background-color,transform] duration-200 hover:bg-base-hover hover:scale-[1.01] active:scale-[0.99] lg:inline-flex"
                     >
-                        <i class="ti ti-plus text-sm" aria-hidden="true" />
-                        Log a job
+                        <i :class="emailVerified ? 'ti ti-plus' : 'ti ti-mail-check'" class="text-sm" aria-hidden="true" />
+                        {{ emailVerified ? 'Log a job' : 'Verify email' }}
                     </Link>
 
                     <NotificationBell />
@@ -175,6 +175,14 @@ defineProps({
 
 const page = usePage();
 const impersonating = computed(() => page.props.auth?.impersonating || null);
+const emailVerified = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user || user.is_staff) return true;
+    return !!user.email_verified_at;
+});
+const logJobHref = computed(() =>
+    emailVerified.value ? route('work-log.create') : route('verification.notice'),
+);
 const mobileOpen = ref(false);
 const scrolled = ref(false);
 

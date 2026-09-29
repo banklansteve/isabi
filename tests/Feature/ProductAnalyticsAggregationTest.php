@@ -63,6 +63,54 @@ class ProductAnalyticsAggregationTest extends TestCase
         );
     }
 
+    public function test_aggregator_counts_dau_from_last_login_at_without_events(): void
+    {
+        $user = User::factory()->regularUser()->create([
+            'created_at' => now()->subMonths(2),
+            'last_login_at' => now()->subHours(3),
+        ]);
+
+        $metric = app(AnalyticsAggregator::class)->aggregateDay(now());
+
+        $this->assertSame(1, $metric->dau);
+        $this->assertTrue(
+            AnalyticsUserActivityDay::query()
+                ->where('user_id', $user->id)
+                ->whereDate('activity_date', now()->toDateString())
+                ->exists()
+        );
+    }
+
+    public function test_analytics_admin_page_includes_pulse_reports(): void
+    {
+        $admin = User::factory()->superAdmin()->create(['last_seen_at' => now()]);
+
+        User::factory()->regularUser()->create([
+            'created_at' => now()->subDays(2),
+            'trade' => 'Plumbing',
+            'state' => 'Lagos',
+            'lga' => 'Ikeja',
+            'last_login_at' => now()->subDays(45),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.analytics.index', ['tab' => 'growth']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Analytics/Index')
+                ->has('signup_daily')
+                ->has('signup_weekly')
+                ->has('signup_source')
+                ->has('trade_signup_trend')
+                ->has('geo_signups.states')
+                ->has('device_split')
+                ->has('time_to_first_job')
+                ->has('retention_heatmap.columns')
+                ->missing('dormant_users')
+                ->missing('single_session_users')
+                ->where('page_time_ready', false));
+    }
+
     public function test_product_reports_read_summaries_not_raw_events(): void
     {
         AnalyticsDailyMetric::query()->create([
@@ -102,6 +150,17 @@ class ProductAnalyticsAggregationTest extends TestCase
         $admin = User::factory()->superAdmin()->create([
             'last_seen_at' => now(),
         ]);
+
+        $artisans = User::factory()->regularUser()->count(3)->create([
+            'last_login_at' => now()->subHour(),
+        ]);
+
+        foreach ($artisans as $artisan) {
+            AnalyticsUserActivityDay::query()->create([
+                'user_id' => $artisan->id,
+                'activity_date' => now()->toDateString(),
+            ]);
+        }
 
         AnalyticsDailyMetric::query()->create([
             'metric_date' => now()->toDateString(),

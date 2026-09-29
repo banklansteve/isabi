@@ -90,6 +90,15 @@
                             <span class="mt-1 block text-[12px] font-medium text-ink/35">
                                 {{ review.user?.name || 'Unknown artisan' }} · {{ review.submitted_at }}
                             </span>
+                            <span
+                                v-if="review.flagged && (review.flag_reasons?.length || review.flag_reason)"
+                                class="mt-1 block text-[12px] font-medium leading-snug text-coral-deep"
+                            >
+                                {{ (review.flag_reasons && review.flag_reasons[0]) || review.flag_reason }}
+                                <template v-if="(review.flag_reasons?.length || 0) > 1">
+                                    · +{{ review.flag_reasons.length - 1 }} more
+                                </template>
+                            </span>
                         </span>
                         <i class="ti ti-chevron-right mt-2 shrink-0 text-sm text-ink/20 transition-colors group-hover:text-ink/40" aria-hidden="true" />
                     </button>

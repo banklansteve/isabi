@@ -5,32 +5,35 @@ Hi {{ $user->first_name }},
 Hi,
 @endif
 
-Welcome to **{{ $appName }}**. Enter this code in the tab where you signed up to verify your email — you don’t need to leave that screen.
+Welcome to **{{ $appName }}**. Confirm your email with the code below to unlock logging jobs and sending client review requests.
 
-<div style="margin: 28px 0; text-align: center;">
-<div style="display: inline-block; padding: 16px 28px; border-radius: 16px; background: #F4F6FA; border: 1px solid rgba(11,31,58,0.08);">
-<span style="font-size: 32px; font-weight: 800; letter-spacing: 0.28em; color: #0B1F3A; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">
+<div style="margin: 32px 0; text-align: center;">
+<div style="display: inline-block; padding: 20px 36px; border-radius: 20px; background: linear-gradient(180deg, #F7FAFF 0%, #EEF3FB 100%); border: 1px solid rgba(26,79,181,0.12); box-shadow: 0 12px 32px -18px rgba(26,79,181,0.5);">
+<span style="display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #64748B; margin-bottom: 12px;">
+Verification code
+</span>
+<span style="font-size: 36px; font-weight: 800; letter-spacing: 0.36em; color: #0B1F3A; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">
 {{ $code }}
 </span>
 </div>
-<p style="margin: 12px 0 0; font-size: 13px; color: #64748B;">
-Expires in {{ $expiresMinutes }} minutes · one-time use
+<p style="margin: 14px 0 0; font-size: 13px; color: #64748B;">
+Expires in {{ $expiresMinutes }} minutes · single use
 </p>
 </div>
 
-Prefer a shortcut? You can also confirm with one tap:
+Type it on the screen where you left off. Prefer one tap?
 
 <x-mail::button :url="$verifyUrl" color="primary">
-Verify my email
+Confirm email
 </x-mail::button>
 
-If you didn’t create a {{ $appName }} account, you can ignore this email.
+If you didn’t create a {{ $appName }} account, you can ignore this email — nothing else will happen.
 
-Thanks,  
+Thanks,<br>
 The {{ $appName }} team
 
 <x-slot:subcopy>
-If the button doesn’t open, paste this link in your browser:<br>
+Button not working? Paste this into your browser:<br>
 [{{ $verifyUrl }}]({{ $verifyUrl }})
 </x-slot:subcopy>
 </x-mail::message>

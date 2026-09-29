@@ -40,7 +40,12 @@ const items = computed(() => {
         {
             label: 'My stats',
             href: route('admin.insights.index'),
-            active: String(current.value).startsWith('admin.insights'),
+            active: current.value === 'admin.insights.index' || current.value === 'admin.insights.live',
+        },
+        {
+            label: 'Content & support',
+            href: route('admin.insights.content'),
+            active: current.value === 'admin.insights.content',
         },
     ];
 

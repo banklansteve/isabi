@@ -63,11 +63,21 @@
                 </label>
 
                 <label class="mt-3 block">
-                    <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Message</span>
+                    <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">Email / in-app message</span>
                     <textarea
                         v-model="body"
                         rows="7"
                         :readonly="!canEditBody"
+                        class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
+                    />
+                </label>
+
+                <label v-if="canEditWhatsapp || whatsappBody" class="mt-3 block">
+                    <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-ink/35">WhatsApp text</span>
+                    <textarea
+                        v-model="whatsappBody"
+                        rows="3"
+                        :readonly="!canEditWhatsapp"
                         class="mt-1.5 w-full rounded-xl border border-ink/10 px-3 py-2.5 text-sm font-medium outline-none focus:border-base focus:ring-4 focus:ring-base/15"
                     />
                 </label>
@@ -82,6 +92,17 @@
                         Email
                     </label>
                 </div>
+
+                <a
+                    v-if="waHref"
+                    :href="waHref"
+                    target="_blank"
+                    rel="noopener"
+                    class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-[13px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                    <i class="ti ti-brand-whatsapp text-base" aria-hidden="true" />
+                    Open WhatsApp with this message
+                </a>
 
                 <p v-if="requires_approval" class="mt-3 text-[12px] font-medium text-amber-800/80">
                     This send will wait for Super Admin approval.
@@ -99,17 +120,26 @@
 
         <aside v-if="is_super" class="rounded-2xl bg-white p-4 shadow-premium ring-1 ring-ink/[0.05] sm:p-5">
             <h2 class="text-sm font-bold text-ink">Templates</h2>
-            <p class="mt-1 text-[12px] font-medium text-ink/45">Create policy and moderation templates for ops.</p>
+            <p class="mt-1 text-[12px] font-medium text-ink/45">Create policy, onboarding, dormant, and re-engagement templates for ops.</p>
             <form class="mt-4 space-y-2" @submit.prevent="saveTemplate">
                 <input v-model="newTpl.title" required placeholder="Title" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none" />
+                <select v-model="newTpl.category" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none">
+                    <option value="general">General</option>
+                    <option value="onboarding">Onboarding</option>
+                    <option value="reengagement">Re-engagement</option>
+                    <option value="dormant">Dormant</option>
+                    <option value="policy">Policy</option>
+                    <option value="moderation">Moderation</option>
+                </select>
                 <input v-model="newTpl.subject" required placeholder="Subject" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none" />
-                <textarea v-model="newTpl.body" required rows="5" placeholder="Body — use {name}" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none" />
+                <textarea v-model="newTpl.body" required rows="5" placeholder="Email / in-app body — use {{first_name}}" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none" />
+                <textarea v-model="newTpl.whatsapp_body" rows="3" placeholder="WhatsApp text — use {{first_name}}" class="w-full rounded-xl border border-ink/10 px-3 py-2 text-[13px] outline-none" />
                 <FormButton type="submit" variant="primary" label="Save template" />
             </form>
             <ul class="mt-4 space-y-2">
                 <li v-for="tpl in all_templates" :key="tpl.uid" class="rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink">
                     {{ tpl.title }}
-                    <span class="text-ink/40">· {{ tpl.is_active ? 'active' : 'off' }}</span>
+                    <span class="text-ink/40">· {{ tpl.category }} · {{ tpl.is_active ? 'active' : 'off' }}</span>
                 </li>
             </ul>
         </aside>
@@ -119,6 +149,7 @@
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
+import { waLink } from '@/utils/waLink';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
 
@@ -137,17 +168,42 @@ const selectedUser = ref(null);
 const templateUid = ref('');
 const subject = ref('');
 const body = ref('');
-const channels = ref(['in_app']);
-const newTpl = reactive({ title: '', subject: '', body: '' });
+const whatsappBody = ref('');
+const channels = ref(['in_app', 'email']);
+const newTpl = reactive({ title: '', category: 'general', subject: '', body: '', whatsapp_body: '' });
 
 const activeTemplate = computed(() => props.templates.find((item) => item.uid === templateUid.value));
 const canEditSubject = computed(() => (activeTemplate.value?.editable_keys || []).includes('subject'));
 const canEditBody = computed(() => (activeTemplate.value?.editable_keys || []).includes('body'));
+const canEditWhatsapp = computed(() => (activeTemplate.value?.editable_keys || []).includes('whatsapp_body'));
+
+const personalize = (text) => {
+    const first = String(selectedUser.value?.name || '').split(' ')[0] || 'there';
+    const name = selectedUser.value?.name || first;
+    const business = selectedUser.value?.business_name || name;
+
+    return String(text || '')
+        .replaceAll('{{first_name}}', first)
+        .replaceAll('{{name}}', name)
+        .replaceAll('{{business_name}}', business)
+        .replaceAll('{first_name}', first)
+        .replaceAll('{name}', name)
+        .replaceAll('{business_name}', business);
+};
+
+const waHref = computed(() => {
+    if (!selectedUser.value?.whatsapp || !whatsappBody.value.trim()) {
+        return '';
+    }
+
+    return waLink(selectedUser.value.whatsapp, personalize(whatsappBody.value));
+});
 
 watch(activeTemplate, (tpl) => {
     if (!tpl) return;
-    subject.value = tpl.subject;
-    body.value = tpl.body;
+    subject.value = personalize(tpl.subject);
+    body.value = personalize(tpl.body);
+    whatsappBody.value = personalize(tpl.whatsapp_body || tpl.body);
 });
 
 const initials = (name) =>
@@ -176,14 +232,15 @@ const send = () => {
 const saveTemplate = () => {
     router.post(route('admin.ops-messages.templates.store'), {
         ...newTpl,
-        editable_keys: ['body'],
-        category: 'general',
+        editable_keys: ['subject', 'body', 'whatsapp_body'],
     }, {
         preserveScroll: true,
         onSuccess: () => {
             newTpl.title = '';
+            newTpl.category = 'general';
             newTpl.subject = '';
             newTpl.body = '';
+            newTpl.whatsapp_body = '';
         },
     });
 };

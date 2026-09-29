@@ -158,6 +158,8 @@ class AnalyticsAggregator
 
     private function ingestLoginDays(Carbon $from, Carbon $to): void
     {
+        $now = now();
+
         $rows = AnalyticsEvent::query()
             ->where('action', 'auth.login')
             ->whereNotNull('user_id')
@@ -165,8 +167,6 @@ class AnalyticsAggregator
             ->select('user_id', DB::raw('DATE(created_at) as activity_date'))
             ->groupBy('user_id', DB::raw('DATE(created_at)'))
             ->get();
-
-        $now = now();
 
         foreach ($rows as $row) {
             AnalyticsUserActivityDay::query()->firstOrCreate(
@@ -177,6 +177,26 @@ class AnalyticsAggregator
                 ['created_at' => $now],
             );
         }
+
+        // Fallback: account last_login_at so DAU still works when login events
+        // were skipped (e.g. consent gate) or queues lagged.
+        User::query()
+            ->where('role', UserRole::User)
+            ->whereNotNull('last_login_at')
+            ->whereBetween('last_login_at', [$from, $to])
+            ->select('id', 'last_login_at')
+            ->orderBy('id')
+            ->chunkById(500, function ($users) use ($now): void {
+                foreach ($users as $user) {
+                    AnalyticsUserActivityDay::query()->firstOrCreate(
+                        [
+                            'activity_date' => $user->last_login_at->toDateString(),
+                            'user_id' => $user->id,
+                        ],
+                        ['created_at' => $now],
+                    );
+                }
+            });
     }
 
     /**

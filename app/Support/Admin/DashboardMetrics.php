@@ -97,6 +97,15 @@ class DashboardMetrics
             'monthly_active' => $this->monthlyActiveUsers(18),
             'active_daily' => $this->activeDaily(366),
             'currency_symbol' => (string) config('pricing.currency_symbol', '₦'),
+
+            // Revenue health (Overview additions — keep existing KPIs/charts above).
+            'revenue_by_source' => $this->revenueBySource(18),
+            'purchase_mix' => $this->purchaseMix(),
+            'arpu' => $this->arpuSeries(18),
+            'arpu_kpi' => $this->arpuKpi(),
+            'revenue_cohorts' => $this->revenueCohorts(12),
+            'revenue_by_state' => $this->revenueByGeography('state', 12),
+            'revenue_by_city' => $this->revenueByGeography('lga', 12),
         ];
     }
 
@@ -611,6 +620,175 @@ class DashboardMetrics
                 ['key' => 'annual', 'label' => 'Annual unlock', 'color' => '#0F9F6E', 'values' => $annual],
             ],
         ];
+    }
+
+    /**
+     * Purchase pack / annual mix for Overview plan distribution.
+     *
+     * @return list<array{label: string, value: int, color: string, percent: int}>
+     */
+    public function purchaseMix(): array
+    {
+        $completed = TokenPurchase::query()->where('status', TokenPurchase::STATUS_COMPLETED);
+        $annualKeys = ['annual', 'annual_unlock'];
+        $annual = (int) (clone $completed)->whereIn('pack_key', $annualKeys)->sum('price');
+        $packs = (int) (clone $completed)->whereNotIn('pack_key', $annualKeys)->sum('price');
+        $total = max(1, $annual + $packs);
+
+        $items = [
+            ['label' => 'Credit packs', 'value' => $packs, 'color' => '#2F6FED'],
+            ['label' => 'Annual unlock', 'value' => $annual, 'color' => '#0F9F6E'],
+        ];
+
+        return collect($items)
+            ->map(function (array $item) use ($total) {
+                $item['percent'] = (int) round(($item['value'] / $total) * 100);
+
+                return $item;
+            })
+            ->filter(fn (array $item) => $item['value'] > 0)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Monthly ARPU = completed revenue ÷ job-active artisans that month.
+     *
+     * @return list<array{label: string, date: string, value: float, revenue: int, active: int}>
+     */
+    public function arpuSeries(int $months): array
+    {
+        $series = [];
+
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $start = now()->subMonths($i)->startOfMonth();
+            $end = (clone $start)->endOfMonth();
+            $revenue = $this->completedRevenueBetween($start, $end);
+            $active = (int) WorkLog::query()
+                ->whereBetween('created_at', [$start, $end])
+                ->distinct('user_id')
+                ->count('user_id');
+
+            $series[] = [
+                'label' => $start->format('M Y'),
+                'date' => $start->toDateString(),
+                'value' => $active > 0 ? round($revenue / $active, 0) : 0.0,
+                'revenue' => $revenue,
+                'active' => $active,
+            ];
+        }
+
+        return $series;
+    }
+
+    /**
+     * @return array{value: string, raw: float, active: int, revenue: int, delta: array|null}
+     */
+    public function arpuKpi(): array
+    {
+        $series = $this->arpuSeries(2);
+        $current = $series[count($series) - 1] ?? ['value' => 0, 'active' => 0, 'revenue' => 0];
+        $prior = $series[count($series) - 2] ?? null;
+
+        return [
+            'value' => NumberFormat::naira((int) round((float) ($current['value'] ?? 0)), false),
+            'raw' => (float) ($current['value'] ?? 0),
+            'active' => (int) ($current['active'] ?? 0),
+            'revenue' => (int) ($current['revenue'] ?? 0),
+            'delta' => $prior
+                ? NumberFormat::percentDelta((float) ($current['value'] ?? 0), (float) ($prior['value'] ?? 0))
+                : null,
+        ];
+    }
+
+    /**
+     * Lifetime completed revenue for each signup-month cohort.
+     *
+     * @return list<array{label: string, date: string, value: int, signed_up: int, per_user: float}>
+     */
+    public function revenueCohorts(int $months): array
+    {
+        $rows = [];
+
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $start = now()->subMonths($i)->startOfMonth();
+            $end = (clone $start)->endOfMonth();
+            $ids = User::query()
+                ->artisans()
+                ->whereBetween('created_at', [$start, $end])
+                ->pluck('id');
+
+            $signedUp = $ids->count();
+            $revenue = $signedUp
+                ? (int) TokenPurchase::query()
+                    ->where('status', TokenPurchase::STATUS_COMPLETED)
+                    ->whereIn('user_id', $ids)
+                    ->sum('price')
+                : 0;
+
+            $rows[] = [
+                'label' => $start->format('M Y'),
+                'date' => $start->toDateString(),
+                'value' => $revenue,
+                'signed_up' => $signedUp,
+                'per_user' => $signedUp > 0 ? round($revenue / $signedUp, 0) : 0.0,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Average / total revenue by state or LGA among paying artisans.
+     *
+     * @return list<array{label: string, value: int, total: int, payers: int, artisans: int}>
+     */
+    public function revenueByGeography(string $column, int $limit = 12): array
+    {
+        $column = in_array($column, ['state', 'lga'], true) ? $column : 'state';
+
+        $rows = TokenPurchase::query()
+            ->where('token_purchases.status', TokenPurchase::STATUS_COMPLETED)
+            ->join('users', 'users.id', '=', 'token_purchases.user_id')
+            ->whereNull('users.deleted_at')
+            ->whereNotNull("users.{$column}")
+            ->where("users.{$column}", '!=', '')
+            ->select(
+                "users.{$column} as geo",
+                $column === 'lga' ? 'users.state as state' : DB::raw('NULL as state'),
+                DB::raw('SUM(token_purchases.price) as total'),
+                DB::raw('COUNT(DISTINCT token_purchases.user_id) as payers'),
+            )
+            ->groupBy(...($column === 'lga' ? ['geo', 'state'] : ['geo']))
+            ->orderByDesc('total')
+            ->limit($limit)
+            ->get();
+
+        $artisanCounts = User::query()
+            ->artisans()
+            ->whereNotNull($column)
+            ->where($column, '!=', '')
+            ->select($column, DB::raw('COUNT(*) as total'))
+            ->groupBy($column)
+            ->pluck('total', $column);
+
+        return $rows->map(function ($row) use ($artisanCounts, $column) {
+            $geo = (string) $row->geo;
+            $label = $column === 'lga' && $row->state
+                ? $geo.', '.$row->state
+                : $geo;
+            $artisans = (int) ($artisanCounts[$geo] ?? 0);
+            $total = (int) $row->total;
+            $payers = (int) $row->payers;
+
+            return [
+                'label' => $label,
+                'value' => $payers > 0 ? (int) round($total / $payers) : 0,
+                'total' => $total,
+                'payers' => $payers,
+                'artisans' => $artisans,
+            ];
+        })->all();
     }
 
     /**

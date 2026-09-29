@@ -1,6 +1,6 @@
 <template>
     <Teleport to="body">
-        <Transition name="app-modal">
+        <Transition :name="sheet ? 'app-modal-sheet' : 'app-modal'" @after-enter="onOpened" @after-leave="unlockScroll">
             <div
                 v-if="show"
                 class="fixed inset-0 z-[95] flex"
@@ -11,7 +11,7 @@
             >
                 <button
                     type="button"
-                    class="app-modal__backdrop absolute inset-0 bg-[#070f1c]/55 backdrop-blur-sm"
+                    class="app-modal__backdrop absolute inset-0 bg-[#070f1c]/55 backdrop-blur-[2px]"
                     aria-label="Close dialog"
                     :disabled="!closeable"
                     @click="onBackdrop"
@@ -19,7 +19,7 @@
 
                 <div
                     ref="panelRef"
-                    class="app-modal__panel relative z-10 flex w-full flex-col overflow-hidden bg-white shadow-premium-hover ring-1 ring-ink/[0.08]"
+                    class="app-modal__panel relative z-10 flex w-full flex-col overflow-hidden bg-white shadow-premium-hover ring-1 ring-ink/[0.08] will-change-transform"
                     :class="[
                         sheet
                             ? 'max-h-[92dvh] rounded-t-3xl sm:max-h-[85vh] sm:rounded-3xl'
@@ -137,6 +137,10 @@ const emit = defineEmits(['close', 'opened']);
 const slots = useSlots();
 const panelRef = ref(null);
 const titleId = useId();
+let scrollLocked = false;
+let previousPaddingRight = '';
+let previousHtmlOverflow = '';
+let previousBodyOverflow = '';
 
 const showHeader = computed(
     () =>
@@ -169,6 +173,34 @@ const iconToneClass = computed(() => {
     return map[props.iconTone] || map.base;
 });
 
+const lockScroll = () => {
+    if (scrollLocked || typeof document === 'undefined') return;
+
+    const docEl = document.documentElement;
+    const body = document.body;
+    const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
+
+    previousHtmlOverflow = docEl.style.overflow;
+    previousBodyOverflow = body.style.overflow;
+    previousPaddingRight = body.style.paddingRight;
+
+    docEl.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+        body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    scrollLocked = true;
+};
+
+const unlockScroll = () => {
+    if (!scrollLocked || typeof document === 'undefined') return;
+
+    document.documentElement.style.overflow = previousHtmlOverflow;
+    document.body.style.overflow = previousBodyOverflow;
+    document.body.style.paddingRight = previousPaddingRight;
+    scrollLocked = false;
+};
+
 const close = () => {
     if (props.closeable) {
         emit('close');
@@ -194,39 +226,42 @@ const onGlobalKeydown = (e) => {
     }
 };
 
+const onOpened = async () => {
+    await nextTick();
+    panelRef.value?.focus?.({ preventScroll: true });
+    emit('opened');
+};
+
 watch(
     () => props.show,
-    async (open) => {
+    (open) => {
         if (open) {
-            document.body.style.overflow = 'hidden';
+            lockScroll();
             window.addEventListener('keydown', onGlobalKeydown);
-            await nextTick();
-            panelRef.value?.focus?.({ preventScroll: true });
-            emit('opened');
         } else {
-            document.body.style.overflow = '';
             window.removeEventListener('keydown', onGlobalKeydown);
         }
     },
 );
 
 onUnmounted(() => {
-    document.body.style.overflow = '';
     window.removeEventListener('keydown', onGlobalKeydown);
+    unlockScroll();
 });
 </script>
 
 <style scoped>
+/* Centered modal */
 .app-modal-enter-active,
 .app-modal-leave-active {
-    transition: opacity 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-modal-enter-active .app-modal__panel,
 .app-modal-leave-active .app-modal__panel {
     transition:
-        transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-        opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-modal-enter-from,
@@ -237,13 +272,42 @@ onUnmounted(() => {
 .app-modal-enter-from .app-modal__panel,
 .app-modal-leave-to .app-modal__panel {
     opacity: 0;
-    transform: translateY(16px) scale(0.98);
+    transform: translateY(12px) scale(0.98);
 }
 
-@media (max-width: 639px) {
-    .app-modal-enter-from .app-modal__panel,
-    .app-modal-leave-to .app-modal__panel {
-        transform: translateY(24px);
+/* Bottom sheet — slide up without layout shift */
+.app-modal-sheet-enter-active,
+.app-modal-sheet-leave-active {
+    transition: opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-modal-sheet-enter-active .app-modal__panel,
+.app-modal-sheet-leave-active .app-modal__panel {
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-modal-sheet-enter-from,
+.app-modal-sheet-leave-to {
+    opacity: 0;
+}
+
+.app-modal-sheet-enter-from .app-modal__panel,
+.app-modal-sheet-leave-to .app-modal__panel {
+    transform: translate3d(0, 100%, 0);
+}
+
+@media (min-width: 640px) {
+    .app-modal-sheet-enter-from .app-modal__panel,
+    .app-modal-sheet-leave-to .app-modal__panel {
+        opacity: 0;
+        transform: translateY(16px) scale(0.98);
+    }
+
+    .app-modal-sheet-enter-active .app-modal__panel,
+    .app-modal-sheet-leave-active .app-modal__panel {
+        transition:
+            transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
     }
 }
 </style>

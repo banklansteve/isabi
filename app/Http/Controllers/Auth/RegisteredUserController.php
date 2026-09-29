@@ -34,6 +34,7 @@ class RegisteredUserController extends Controller
         }
 
         if ($user && ! $user->isStaff()) {
+            // Only re-issue when there is no usable code left — never on every visit.
             if (
                 blank($user->email_verification_code_hash)
                 || blank($user->email_verification_code_expires_at)
@@ -77,6 +78,15 @@ class RegisteredUserController extends Controller
         ReferralService $referrals,
         EmailVerificationService $verification,
     ): Response {
+        // Purge any leftover session / remember-me from a previous account so the
+        // new signup owns this browser context (avoids logging into the old account).
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            $request->session()->forget('url.intended');
+        }
+
         $data = $request->validated();
         $slug = ProfileSlug::uniqueFrom($data['business_name']);
 
@@ -94,17 +104,18 @@ class RegisteredUserController extends Controller
             'office_address' => $data['office_address'],
             'whatsapp' => $data['whatsapp'],
             'password' => $data['password'],
+            'terms_accepted_at' => now(),
             'role' => UserRole::User,
         ]);
 
         $referrals->attributeOnSignup($user, $data['ref'] ?? null);
 
-        event(new Registered($user));
-
         Auth::login($user);
-        $request->session()->regenerate();
+        $request->session()->forget('url.intended');
 
+        // Single code send — Registered listener must not send a second mail.
         $verification->issue($user, $request->session()->getId());
+        event(new Registered($user));
 
         ActivityLogger::log(
             action: 'auth.register',

@@ -46,8 +46,19 @@ class PatrolPresenter
                     'key' => $rule->rule_key,
                     'label' => $rule->label(),
                     'severity' => $rule->severity,
+                    'trigger' => is_array($rule->evidence)
+                        ? (string) ($rule->evidence['trigger'] ?? $rule->label())
+                        : $rule->label(),
                 ])
                 ->values(),
+            'flag_reasons' => $case->rules
+                ->map(fn (PatrolCaseRule $rule) => is_array($rule->evidence)
+                    ? (string) ($rule->evidence['trigger'] ?? $rule->label())
+                    : $rule->label())
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
             'severity' => $case->severity,
             'severity_label' => $case->severityLabel(),
             'status' => $case->status,

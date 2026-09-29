@@ -8,6 +8,9 @@
 
         {!! app(\App\Support\Seo::class)->render() !!}
 
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <link rel="alternate icon" href="/favicon.svg">
+
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=fraunces:400,400i,600,700,800|ibm-plex-sans:400,500,600,700|instrument-serif:400,400i|manrope:400,500,600,700,800|plus-jakarta-sans:400,500,600,700,800|syne:600,700,800&display=swap" rel="stylesheet" />
 

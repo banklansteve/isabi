@@ -7,7 +7,7 @@
         :eyebrow="is_super ? 'Every conversation' : 'Live inbox'"
     />
 
-    <SupportWorkspaceNav :counts="counts" />
+    <SupportWorkspaceNav :counts="counts" :history-days="history_days" />
 
     <div
         class="flex flex-col lg:h-[calc(100dvh-10rem)] lg:flex-row lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-premium lg:ring-1 lg:ring-ink/[0.05]"
@@ -16,7 +16,7 @@
             class="flex w-full flex-col border-ink/[0.06] lg:w-[22rem] lg:shrink-0 lg:border-r"
             :class="ticket ? 'hidden lg:flex' : 'flex'"
         >
-            <div class="space-y-2 border-b border-ink/[0.06] p-3">
+            <div v-if="showDeskFilters" class="space-y-2 border-b border-ink/[0.06] p-3">
                 <input
                     v-model="query"
                     type="search"
@@ -24,23 +24,6 @@
                     class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
                     @change="visitFilters"
                 />
-                <div class="flex gap-2">
-                    <select
-                        :value="filters.assigned"
-                        class="min-w-0 flex-1 rounded-xl border border-ink/10 bg-[#F4F6FA] px-2.5 py-2 text-[12px] font-semibold text-ink outline-none"
-                        @change="setFilter('assigned', $event.target.value)"
-                    >
-                        <option v-if="is_super" value="all">Anyone</option>
-                        <option v-else value="me">Mine</option>
-                        <option v-if="is_super" value="me">Mine</option>
-                        <option value="unassigned">Unassigned</option>
-                        <template v-if="is_super">
-                            <option v-for="agent in agents" :key="agent.id" :value="String(agent.id)">
-                                {{ agent.name }}
-                            </option>
-                        </template>
-                    </select>
-                </div>
                 <div class="flex gap-1 rounded-full bg-[#F4F6FA] p-1">
                     <button
                         type="button"
@@ -89,6 +72,15 @@
                     </button>
                 </div>
             </div>
+            <div v-else class="border-b border-ink/[0.06] p-3">
+                <input
+                    v-model="query"
+                    type="search"
+                    placeholder="Search history…"
+                    class="w-full rounded-xl border border-ink/10 bg-[#F4F6FA] px-3.5 py-2.5 text-sm font-medium outline-none focus:border-base focus:bg-white focus:ring-4 focus:ring-base/15"
+                    @change="visitFilters"
+                />
+            </div>
 
             <div v-if="loading && !visibleList.length" class="space-y-2 p-3">
                 <div v-for="n in 6" :key="n" class="h-16 animate-pulse rounded-xl bg-pale" />
@@ -126,6 +118,9 @@
                                 </span>
                             </span>
                             <span class="mt-0.5 block truncate text-[12px] font-medium text-ink/45">{{ item.preview }}</span>
+                            <span v-if="item.referral" class="mt-1 block truncate text-[11px] font-semibold text-ink/35">
+                                {{ item.referral.status_label }}<span v-if="item.referral.to"> · {{ item.referral.to }}</span>
+                            </span>
                             <span
                                 class="mt-1 block text-[11px] font-bold"
                                 :class="item.waiting_hot ? 'text-coral-deep' : 'text-ink/35'"
@@ -176,7 +171,7 @@
                         {{ queueStatusLabel(ticket.queue_status) }}
                     </span>
                     <button
-                        v-if="ticket.status !== 'resolved' && canPickUp"
+                        v-if="ticket.status !== 'resolved' && ticket.status !== 'abandoned' && canPickUp"
                         type="button"
                         class="tap-target rounded-xl bg-base-action px-3 py-2 text-[12px] font-semibold text-white hover:bg-base-hover"
                         @click="askConfirm('claim')"
@@ -184,13 +179,13 @@
                         {{ ticket.assigned?.id && is_super ? 'Take over' : 'Pick up' }}
                     </button>
                     <button
-                        v-if="ticket.status !== 'resolved'"
+                        v-if="ticket.status !== 'resolved' && ticket.status !== 'abandoned'"
                         type="button"
                         class="tap-target rounded-xl px-3 py-2 text-[12px] font-semibold"
                         :class="canPickUp ? 'bg-pale text-ink' : 'bg-base-action text-white hover:bg-base-hover'"
-                        @click="askConfirm('resolve')"
+                        @click="closeOpen = true"
                     >
-                        Resolve
+                        Close chat
                     </button>
                     <button
                         v-else
@@ -258,7 +253,7 @@
                         </div>
 
                         <form
-                            v-if="ticket.status !== 'resolved'"
+                            v-if="!isClosed"
                             class="shrink-0 border-t border-ink/[0.06] bg-white p-3 sm:p-4"
                             style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))"
                             @submit.prevent="reply"
@@ -350,7 +345,7 @@
                                     {{ ticket.assigned?.name || 'Unassigned' }}
                                 </p>
                                 <button
-                                    v-if="ticket.status !== 'resolved' && canPickUp"
+                                    v-if="!isClosed && canPickUp"
                                     type="button"
                                     class="mt-2 w-full rounded-xl bg-base-action px-3 py-2 text-[12px] font-semibold text-white hover:bg-base-hover"
                                     @click="askConfirm('claim')"
@@ -358,7 +353,7 @@
                                     Pick up this chat
                                 </button>
                                 <button
-                                    v-else-if="ticket.status !== 'resolved' && isMine"
+                                    v-else-if="!isClosed && isMine"
                                     type="button"
                                     class="mt-2 w-full rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink hover:bg-tint"
                                     @click="askConfirm('release')"
@@ -366,7 +361,7 @@
                                     Release chat
                                 </button>
                                 <button
-                                    v-if="ticket.status !== 'resolved' && can_refer && (isMine || is_super || canPickUp)"
+                                    v-if="!isClosed && can_refer && (isMine || is_super || canPickUp)"
                                     type="button"
                                     class="mt-2 w-full rounded-xl bg-pale px-3 py-2 text-[12px] font-semibold text-ink hover:bg-tint"
                                     @click="referOpen = true"
@@ -374,13 +369,29 @@
                                     Refer to colleague
                                 </button>
                                 <button
-                                    v-if="ticket.status !== 'resolved' && can_escalate && !is_super && !ticket.escalation"
+                                    v-if="!isClosed && can_escalate && !is_super && !ticket.escalation"
                                     type="button"
                                     class="mt-2 w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[12px] font-semibold text-violet-800 hover:bg-violet-100"
                                     @click="escalateOpen = true"
                                 >
                                     Escalate to Super Admin
                                 </button>
+                                <div
+                                    v-if="ticket.referral"
+                                    class="mt-3 rounded-xl bg-pale p-3 ring-1 ring-ink/[0.06]"
+                                >
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-ink/35">Referral</p>
+                                    <p class="mt-1 text-[12px] font-semibold text-ink">{{ ticket.referral.status_label }}</p>
+                                    <p v-if="ticket.referral.to" class="mt-0.5 text-[12px] font-medium text-ink/50">
+                                        To {{ ticket.referral.to }}
+                                    </p>
+                                    <p v-if="ticket.referral.note" class="mt-2 text-[12px] font-medium leading-relaxed text-ink/60">
+                                        {{ ticket.referral.note }}
+                                    </p>
+                                    <p v-if="ticket.referral.when" class="mt-1 text-[11px] font-semibold text-ink/35">
+                                        {{ ticket.referral.when }}
+                                    </p>
+                                </div>
                                 <div
                                     v-if="ticket.escalation"
                                     class="mt-3 rounded-xl bg-violet-50/80 p-3 ring-1 ring-violet-100"
@@ -473,6 +484,16 @@
         @confirm="submitEscalate"
     />
 
+    <CloseSupportChatDialog
+        :open="closeOpen"
+        :templates="canned"
+        :already-sent="!!ticket?.close_message_sent"
+        :history-days="history_days"
+        :processing="closeBusy"
+        @close="closeOpen = false"
+        @confirm="submitClose"
+    />
+
     <AdminConfirmDialog
         :open="!!confirmAction"
         :title="confirmMeta.title"
@@ -490,6 +511,7 @@
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import AdminConfirmDialog from '@/Components/Admin/AdminConfirmDialog.vue';
 import AdminEmpty from '@/Components/Admin/AdminEmpty.vue';
+import CloseSupportChatDialog from '@/Components/Admin/CloseSupportChatDialog.vue';
 import OpsNoteSessions from '@/Components/Admin/OpsNoteSessions.vue';
 import ReferToStaffDialog from '@/Components/Admin/ReferToStaffDialog.vue';
 import EscalateToSuperDialog from '@/Components/Admin/EscalateToSuperDialog.vue';
@@ -517,28 +539,15 @@ const props = defineProps({
     topics: { type: Array, default: () => [] },
     canned: { type: Array, default: () => [] },
     moments: { type: Array, default: () => [] },
-    counts: { type: Object, default: () => ({ active: 0, resolved: 0, unassigned: 0, mine: 0, open: 0 }) },
+    counts: { type: Object, default: () => ({ active: 0, referred: 0, abandoned: 0, resolved: 0, unassigned: 0, mine: 0, open: 0 }) },
     is_super: { type: Boolean, default: false },
     poll_ms: { type: Number, default: 8000 },
+    history_days: { type: Number, default: 30 },
 });
 
 const page = usePage();
-const list = ref([...props.tickets].filter((item) => {
-    if (props.is_super) {
-        return true;
-    }
-    const id = item?.assigned?.id ?? null;
-    const me = Number(page.props.auth?.user?.id || 0);
-
-    return id == null || Number(id) === me;
-}));
-const ticket = ref(
-    props.ticket && (props.is_super
-        || !props.ticket.assigned?.id
-        || Number(props.ticket.assigned.id) === Number(page.props.auth?.user?.id || 0))
-        ? props.ticket
-        : null,
-);
+const list = ref([...props.tickets]);
+const ticket = ref(props.ticket || null);
 const query = ref(props.filters?.q || '');
 const draft = ref('');
 const noteDraft = ref('');
@@ -551,6 +560,8 @@ const referOpen = ref(false);
 const referBusy = ref(false);
 const escalateOpen = ref(false);
 const escalateBusy = ref(false);
+const closeOpen = ref(false);
+const closeBusy = ref(false);
 const confirmAction = ref(null);
 const confirmBusy = ref(false);
 const sending = ref(false);
@@ -576,6 +587,10 @@ const isVisibleChat = (item) => {
         return true;
     }
 
+    if (props.filters?.status === 'referred') {
+        return true;
+    }
+
     const assignedId = assignedIdOf(item);
     const filter = props.filters?.assigned || 'me';
 
@@ -589,6 +604,10 @@ const isVisibleChat = (item) => {
 
 const visibleList = computed(() => list.value.filter(isVisibleChat));
 
+const isClosed = computed(() => ['resolved', 'abandoned'].includes(ticket.value?.status));
+
+const showDeskFilters = computed(() => !['referred', 'abandoned', 'resolved'].includes(props.filters?.status || 'active'));
+
 const isMine = computed(() => {
     if (!ticket.value) {
         return false;
@@ -598,7 +617,7 @@ const isMine = computed(() => {
 });
 
 const canPickUp = computed(() => {
-    if (!ticket.value || ticket.value.status === 'resolved') {
+    if (!ticket.value || isClosed.value) {
         return false;
     }
 
@@ -614,15 +633,9 @@ const canPickUp = computed(() => {
 
 const confirmMeta = computed(() => {
     const map = {
-        resolve: {
-            title: 'Resolve this chat?',
-            description: 'The artisan will see it as closed. You can reopen it later if needed.',
-            confirmLabel: 'Resolve chat',
-            tone: 'default',
-        },
         reopen: {
             title: 'Reopen this chat?',
-            description: 'It returns to the active queue for follow-up.',
+            description: 'It returns to your active queue for follow-up.',
             confirmLabel: 'Reopen chat',
             tone: 'default',
         },
@@ -742,6 +755,37 @@ const askConfirm = (action) => {
     confirmAction.value = action;
 };
 
+const submitClose = async ({ body, outcome }) => {
+    if (!ticket.value) {
+        return;
+    }
+
+    closeBusy.value = true;
+    try {
+        await axios.post(route('admin.support.resolve', ticket.value.uid), {
+            body,
+            outcome,
+        }, jsonHeaders);
+        closeOpen.value = false;
+        ticket.value = null;
+        const nextStatus = outcome === 'abandoned' ? 'abandoned' : 'resolved';
+        router.get(route('admin.support.index', { ...props.filters, status: nextStatus, q: query.value }), {}, {
+            preserveState: false,
+            replace: true,
+        });
+    } catch (error) {
+        toast({
+            type: 'error',
+            title: 'Couldn’t close chat',
+            message: error?.response?.data?.message
+                || error?.response?.data?.errors?.body?.[0]
+                || 'Try that again in a moment.',
+        });
+    } finally {
+        closeBusy.value = false;
+    }
+};
+
 const submitConfirm = async ({ reason }) => {
     if (!ticket.value || !confirmAction.value) {
         return;
@@ -758,15 +802,6 @@ const submitConfirm = async ({ reason }) => {
                 reason,
             }, jsonHeaders);
             applyThread(data);
-        } else if (confirmAction.value === 'resolve') {
-            await axios.post(route('admin.support.resolve', ticket.value.uid), { reason }, jsonHeaders);
-            ticket.value = null;
-            confirmAction.value = null;
-            router.get(route('admin.support.index', { ...props.filters, status: 'resolved', q: query.value }), {}, {
-                preserveState: false,
-                replace: true,
-            });
-            return;
         } else if (confirmAction.value === 'reopen') {
             const { data } = await axios.post(route('admin.support.reopen', ticket.value.uid), { reason }, jsonHeaders);
             applyThread(data);

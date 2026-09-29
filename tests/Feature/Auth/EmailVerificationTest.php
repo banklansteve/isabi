@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Mail\VerifyEmailMail;
 use App\Models\User;
+use App\Models\WorkLog;
 use App\Support\Auth\EmailVerificationService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -113,7 +114,7 @@ class EmailVerificationTest extends TestCase
             ->assertSessionHasErrors('email');
     }
 
-    public function test_unverified_user_can_use_app_but_not_request_review(): void
+    public function test_unverified_user_can_use_app_but_not_log_jobs_or_request_review(): void
     {
         $user = User::factory()->unverified()->create();
 
@@ -121,7 +122,23 @@ class EmailVerificationTest extends TestCase
             ->get('/dashboard')
             ->assertOk();
 
-        $workLog = \App\Models\WorkLog::query()->create([
+        $this->actingAs($user)
+            ->get(route('work-log.create'))
+            ->assertRedirect(route('verification.notice'));
+
+        $this->actingAs($user)
+            ->post(route('work-log.store'), [
+                'subject' => 'Kitchen sink repair',
+                'description' => 'Fixed a leaking sink for a client.',
+                'job_category' => 'Plumbing',
+                'job_subcategory' => 'Kitchen plumbing',
+                'worked_on' => now()->subDay()->toDateString(),
+            ])
+            ->assertRedirect(route('verification.notice'));
+
+        $this->assertSame(0, WorkLog::query()->where('user_id', $user->id)->count());
+
+        $workLog = WorkLog::query()->create([
             'user_id' => $user->id,
             'subject' => 'Kitchen sink repair',
             'description' => 'Fixed a leaking sink for a client.',
@@ -133,7 +150,7 @@ class EmailVerificationTest extends TestCase
         $this->actingAs($user)
             ->from(route('work-log.show', $workLog))
             ->post(route('work-log.request-review', $workLog))
-            ->assertRedirect(route('work-log.show', $workLog));
+            ->assertRedirect(route('verification.notice'));
 
         $this->assertNull($workLog->fresh()->review_requested_at);
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
@@ -152,5 +169,67 @@ class EmailVerificationTest extends TestCase
 
         $this->get($badUrl)->assertForbidden();
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_registration_sends_only_one_verification_code(): void
+    {
+        Mail::fake();
+
+        $this->post('/register', [
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'business_name' => 'Test Plumbing',
+            'email' => 'once@example.com',
+            'job_category' => 'Plumbing, Water & Gas',
+            'trade' => 'Plumber',
+            'trades' => ['Plumber'],
+            'skills' => ['Pipe repairs'],
+            'state' => 'Lagos',
+            'lga' => 'Ikeja',
+            'office_address' => '12 Allen Avenue, Ikeja',
+            'whatsapp' => '08031234567',
+            'password' => 'password1',
+            'password_confirmation' => 'password1',
+            'terms_accepted' => true,
+        ])->assertOk();
+
+        Mail::assertSent(VerifyEmailMail::class, 1);
+        $this->assertAuthenticated();
+        $this->assertSame('once@example.com', auth()->user()->email);
+    }
+
+    public function test_registration_replaces_previous_session_user(): void
+    {
+        Mail::fake();
+
+        $previous = User::factory()->create([
+            'email' => 'previous@example.com',
+            'business_name' => 'Previous Biz',
+        ]);
+
+        $this->actingAs($previous)
+            ->post('/register', [
+                'first_name' => 'New',
+                'last_name' => 'Artisan',
+                'business_name' => 'New Plumbing',
+                'email' => 'fresh@example.com',
+                'job_category' => 'Plumbing, Water & Gas',
+                'trade' => 'Plumber',
+                'trades' => ['Plumber'],
+                'skills' => ['Pipe repairs'],
+                'state' => 'Lagos',
+                'lga' => 'Ikeja',
+                'office_address' => '12 Allen Avenue, Ikeja',
+                'whatsapp' => '08031234567',
+                'password' => 'password1',
+                'password_confirmation' => 'password1',
+                'terms_accepted' => true,
+            ])
+            ->assertOk();
+
+        $fresh = User::query()->where('email', 'fresh@example.com')->first();
+        $this->assertNotNull($fresh);
+        $this->assertAuthenticatedAs($fresh);
+        $this->assertNotSame($previous->id, auth()->id());
     }
 }

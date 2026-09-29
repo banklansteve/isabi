@@ -51,18 +51,35 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
         PatrolIp::rememberLogin($user, $request->ip());
 
+        $user->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'last_seen_at' => now(),
+        ])->saveQuietly();
+
         // Product analytics only — not the audit trail (anomaly detection deferred).
         AnalyticsEventLogger::log(
             action: 'auth.login',
             summary: "{$user->name} signed in to Kraftrack.",
             user: $user,
+            properties: [
+                'device' => $this->deviceClass((string) $request->userAgent()),
+            ],
         );
-
-        $user->forceFill(['last_seen_at' => now()])->saveQuietly();
 
         $home = route($user->homeRouteName(), absolute: false);
 
         return redirect()->intended($home);
+    }
+
+    private function deviceClass(string $ua): string
+    {
+        $ua = strtolower($ua);
+        if (str_contains($ua, 'mobile') || str_contains($ua, 'android') || str_contains($ua, 'iphone') || str_contains($ua, 'ipad')) {
+            return 'mobile';
+        }
+
+        return 'desktop';
     }
 
     /**

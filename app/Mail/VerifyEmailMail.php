@@ -26,7 +26,7 @@ class VerifyEmailMail extends Mailable
         $app = config('app.name', 'Kraftrack');
 
         return new Envelope(
-            subject: "Confirm your {$app} email",
+            subject: "{$this->code} is your {$app} verification code",
             from: new Address(
                 (string) config('mail.from.address'),
                 (string) config('mail.from.name', $app),

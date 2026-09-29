@@ -27,8 +27,15 @@ class NotificationController extends Controller
         }
 
         if ($request->wantsJson()) {
+            $payload = $announcements->inboxPayloadFor($request->user());
+
+            if ($request->user()?->isSuperAdmin()) {
+                $payload = app(\App\Support\Admin\OpsAttentionFeed::class)
+                    ->mergeSuperAdminNotifications($request->user(), $payload);
+            }
+
             return response()->json([
-                'notifications' => $announcements->inboxPayloadFor($request->user()),
+                'notifications' => $payload,
             ]);
         }
 
@@ -58,8 +65,15 @@ class NotificationController extends Controller
             ->each(fn (Announcement $announcement) => $announcements->refreshCounts($announcement));
 
         if ($request->wantsJson()) {
+            $payload = $announcements->inboxPayloadFor($request->user());
+
+            if ($request->user()?->isSuperAdmin()) {
+                $payload = app(\App\Support\Admin\OpsAttentionFeed::class)
+                    ->mergeSuperAdminNotifications($request->user(), $payload);
+            }
+
             return response()->json([
-                'notifications' => $announcements->inboxPayloadFor($request->user()),
+                'notifications' => $payload,
             ]);
         }
 

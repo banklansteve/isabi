@@ -105,12 +105,13 @@ class SupportConversationService
     }
 
     /**
-     * @param  array{body?: string, attachment?: UploadedFile|null}  $input
+     * @param  array{body?: string, attachment?: UploadedFile|null, is_close_message?: bool}  $input
      */
     public function staffReply(User $staff, SupportTicket $ticket, array $input): SupportTicketMessage
     {
         $body = trim((string) ($input['body'] ?? ''));
         $file = $input['attachment'] ?? null;
+        $isCloseMessage = ! empty($input['is_close_message']);
 
         $attachment = $file instanceof UploadedFile
             ? $this->attachments->store($file, $ticket->id)
@@ -139,6 +140,8 @@ class SupportConversationService
             'first_response_at' => $ticket->first_response_at ?? now(),
             'staff_last_read_at' => now(),
             'resolved_at' => null,
+            'close_outcome' => null,
+            'close_message_sent_at' => $isCloseMessage ? now() : $ticket->close_message_sent_at,
         ])->save();
 
         app(\App\Support\Realtime\Realtime::class)->conversation($ticket->fresh() ?? $ticket);
@@ -161,10 +164,13 @@ class SupportConversationService
         return $note;
     }
 
-    public function resolve(SupportTicket $ticket): void
+    public function resolve(SupportTicket $ticket, string $outcome = SupportTicket::OUTCOME_COMPLETED): void
     {
+        $abandoned = $outcome === SupportTicket::OUTCOME_ABANDONED;
+
         $ticket->forceFill([
-            'status' => SupportTicket::STATUS_RESOLVED,
+            'status' => $abandoned ? SupportTicket::STATUS_ABANDONED : SupportTicket::STATUS_RESOLVED,
+            'close_outcome' => $abandoned ? SupportTicket::OUTCOME_ABANDONED : SupportTicket::OUTCOME_COMPLETED,
             'resolved_at' => now(),
             'last_reply_at' => now(),
         ])->save();
@@ -177,6 +183,8 @@ class SupportConversationService
         $ticket->forceFill([
             'status' => SupportTicket::STATUS_NEW,
             'resolved_at' => null,
+            'close_outcome' => null,
+            'close_message_sent_at' => null,
             'csat_score' => null,
             'csat_comment' => null,
             'csat_dismissed_at' => null,
@@ -196,8 +204,8 @@ class SupportConversationService
         $ticket->forceFill([
             'assigned_to_user_id' => $agent?->id,
             'assigned_at' => $agent ? now() : null,
-            'status' => $ticket->status === SupportTicket::STATUS_RESOLVED
-                ? SupportTicket::STATUS_RESOLVED
+            'status' => $ticket->isClosed()
+                ? $ticket->status
                 : ($agent ? SupportTicket::STATUS_OPEN : SupportTicket::STATUS_NEW),
         ])->save();
     }

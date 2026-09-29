@@ -15,7 +15,7 @@ class BackdatingRule implements PatrolRule
     public function evaluate(WorkLog $log): ?array
     {
         $config = config('patrol.rules.backdating');
-        $allowedDays = max(0, (int) ($config['allowed_days'] ?? 2));
+        $allowedDays = max(0, (int) ($config['allowed_days'] ?? 5));
         $repeatMin = max(2, (int) ($config['repeat_min'] ?? 3));
         $repeatWindowDays = max(1, (int) ($config['repeat_window_days'] ?? 30));
 
@@ -23,7 +23,17 @@ class BackdatingRule implements PatrolRule
             return null;
         }
 
-        $days = (int) $log->created_at->startOfDay()->diffInDays($log->worked_on->copy()->startOfDay());
+        $workedDay = $log->worked_on->copy()->startOfDay();
+        $createdDay = $log->created_at->copy()->startOfDay();
+
+        // Only flag true backdating (job date before the day it was logged).
+        if ($workedDay->gte($createdDay)) {
+            return null;
+        }
+
+        $days = (int) $workedDay->diffInDays($createdDay);
+
+        // Strict: any job dated more than allowed_days before it was logged is flagged.
         if ($days <= $allowedDays) {
             return null;
         }
@@ -39,17 +49,20 @@ class BackdatingRule implements PatrolRule
                     return false;
                 }
 
-                return $item->created_at->startOfDay()->diffInDays($item->worked_on->copy()->startOfDay()) > $allowedDays;
+                $workedDay = $item->worked_on->copy()->startOfDay();
+                $createdDay = $item->created_at->copy()->startOfDay();
+
+                if ($workedDay->gte($createdDay)) {
+                    return false;
+                }
+
+                return (int) $workedDay->diffInDays($createdDay) > $allowedDays;
             })
             ->count();
 
-        if ($repeats < 2 && $days <= ($allowedDays + 3)) {
-            return null;
-        }
-
         return [
             'trigger' => sprintf(
-                'backdated %d days, exceeds %d-day threshold%s',
+                'backdated %d days (limit %d)%s',
                 $days,
                 $allowedDays,
                 $repeats >= $repeatMin ? sprintf(' · %d backdated jobs in %d days', $repeats, $repeatWindowDays) : '',

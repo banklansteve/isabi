@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\FilterOpsInsightsRequest;
+use App\Support\Admin\ContentEffectivenessReports;
 use App\Support\Admin\OpsInsightsService;
 use App\Support\Staff\StaffPresence;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,6 +17,7 @@ class OpsInsightsController extends Controller
     public function __construct(
         private readonly OpsInsightsService $insights,
         private readonly StaffPresence $presence,
+        private readonly ContentEffectivenessReports $content,
     ) {}
 
     public function index(FilterOpsInsightsRequest $request): Response
@@ -24,6 +27,20 @@ class OpsInsightsController extends Controller
         $payload = $this->insights->payload($request->user(), $request->filters());
 
         return Inertia::render('Admin/Insights/Index', $payload);
+    }
+
+    public function content(Request $request): Response
+    {
+        abort_unless(
+            $request->user()?->isSuperAdmin()
+                || $request->user()?->canDo('admin.support.manage')
+                || $request->user()?->canDo('admin.analytics.view'),
+            403,
+        );
+
+        $this->presence->touch($request->user());
+
+        return Inertia::render('Admin/Insights/Content', $this->content->forInsightsPage());
     }
 
     public function live(FilterOpsInsightsRequest $request): JsonResponse

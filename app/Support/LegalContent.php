@@ -133,7 +133,7 @@ final class LegalContent
                     'heading' => '1. Introduction',
                     'paragraphs' => [
                         'This Privacy Policy explains what personal data we process when you use Kraftrack, why we process it, and the choices you have. We design the product so public proof (jobs and reviews) is visible, while sensitive details stay private where possible.',
-                        'We process personal data in line with the Nigeria Data Protection Act / NDPR framework and other applicable law. If you have questions, email hello@kraftrack.com with “Privacy” in the subject.',
+                        'We process personal data in line with the Nigeria Data Protection Act, 2023 (NDPA), the Nigeria Data Protection Regulation (NDPR), and other applicable law. If you have questions, email hello@kraftrack.com with “Privacy” in the subject.',
                     ],
                 ],
                 [

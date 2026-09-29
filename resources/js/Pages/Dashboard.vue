@@ -204,7 +204,7 @@
                     :class="pendingReview ? 'sm:grid-cols-3' : 'sm:grid-cols-2'"
                 >
                     <Link
-                        :href="route('work-log.create')"
+                        :href="logJobHref"
                         class="group relative flex items-center gap-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#FF8A5B] via-coral to-[#C94C24] px-4 py-4 text-white shadow-[0_14px_36px_-14px_rgba(255,106,61,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-14px_rgba(255,106,61,0.6)] sm:block sm:px-5 sm:py-6"
                     >
                         <div
@@ -220,17 +220,21 @@
                             <span
                                 class="block font-editorial text-[1.0625rem] font-semibold tracking-tight sm:mt-5 sm:text-xl"
                             >
-                                Log a job
+                                {{ emailVerified ? 'Log a job' : 'Verify email' }}
                             </span>
                             <span
                                 class="mt-0.5 line-clamp-2 block text-xs font-medium leading-relaxed text-pretty text-white/85 sm:mt-1.5 sm:line-clamp-none sm:text-sm"
                             >
-                                Record finished work, then send a review link to your client.
+                                {{
+                                    emailVerified
+                                        ? 'Record finished work, then send a review link to your client.'
+                                        : 'Confirm your email to unlock job logging and review requests.'
+                                }}
                             </span>
                             <span
                                 class="mt-5 hidden items-center gap-1.5 text-sm font-bold sm:inline-flex"
                             >
-                                Start entry
+                                {{ emailVerified ? 'Start entry' : 'Enter code' }}
                                 <i
                                     class="ti ti-arrow-right text-sm transition-transform duration-200 group-hover:translate-x-0.5"
                                     aria-hidden="true"
@@ -490,8 +494,8 @@
                         icon="ti ti-sparkles"
                         title="Your story starts here"
                         description="Log a job, share your page, or send a review request — activity will show up here as you go."
-                        cta-label="Log a job"
-                        :cta-href="route('work-log.create')"
+                        :cta-label="emailVerified ? 'Log a job' : 'Verify email'"
+                        :cta-href="logJobHref"
                     />
                 </section>
             </div>
@@ -591,6 +595,13 @@ const props = defineProps({
 
 const pageProps = usePage();
 const user = computed(() => pageProps.props.auth.user || {});
+const emailVerified = computed(() => {
+    if (!user.value || user.value.is_staff) return true;
+    return !!user.value.email_verified_at;
+});
+const logJobHref = computed(() =>
+    emailVerified.value ? route('work-log.create') : route('verification.notice'),
+);
 
 const qrOpen = ref(false);
 const copied = ref(false);

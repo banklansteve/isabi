@@ -34,7 +34,7 @@ class OpsMessageController extends Controller
             403,
         );
 
-        if (Schema::hasTable('ops_message_templates') && ! OpsMessageTemplate::query()->exists()) {
+        if (Schema::hasTable('ops_message_templates')) {
             $this->messages->seedDefaults($user);
         }
 
@@ -55,7 +55,7 @@ class OpsMessageController extends Controller
                 })
                 ->orderBy('name')
                 ->limit(30)
-                ->get(['id', 'uid', 'name', 'first_name', 'last_name', 'email', 'business_name', 'avatar_url'])
+                ->get(['id', 'uid', 'name', 'first_name', 'last_name', 'email', 'business_name', 'avatar_url', 'whatsapp'])
                 ->map(fn (User $artisan) => [
                     'id' => $artisan->id,
                     'uid' => $artisan->uid,
@@ -63,6 +63,7 @@ class OpsMessageController extends Controller
                     'email' => $artisan->email,
                     'business_name' => $artisan->business_name,
                     'avatar_url' => $artisan->avatar_url,
+                    'whatsapp' => trim((string) $artisan->whatsapp) ?: null,
                 ]);
         }
 
@@ -75,6 +76,7 @@ class OpsMessageController extends Controller
                 'category' => $template->category,
                 'subject' => $template->subject,
                 'body' => $template->body,
+                'whatsapp_body' => $template->whatsapp_body,
                 'editable_keys' => $template->editable_keys ?? ['body'],
             ])->values()->all(),
             'all_templates' => $user->isSuperAdmin()
@@ -84,6 +86,7 @@ class OpsMessageController extends Controller
                     'category' => $template->category,
                     'subject' => $template->subject,
                     'body' => $template->body,
+                    'whatsapp_body' => $template->whatsapp_body,
                     'editable_keys' => $template->editable_keys ?? ['body'],
                     'is_active' => $template->is_active,
                 ])->values()->all()
@@ -104,7 +107,7 @@ class OpsMessageController extends Controller
             403,
         );
 
-        if (Schema::hasTable('ops_message_templates') && ! OpsMessageTemplate::query()->exists()) {
+        if (Schema::hasTable('ops_message_templates')) {
             $this->messages->seedDefaults($user);
         }
 
@@ -115,6 +118,7 @@ class OpsMessageController extends Controller
                 'category' => $template->category,
                 'subject' => $template->subject,
                 'body' => $template->body,
+                'whatsapp_body' => $template->whatsapp_body,
                 'editable_keys' => $template->editable_keys ?? ['body'],
             ])->values()->all(),
             'messaging_enabled' => $this->messages->messagingEnabled() || $user->isSuperAdmin(),
@@ -159,7 +163,8 @@ class OpsMessageController extends Controller
             'category' => $data['category'] ?? 'general',
             'subject' => $data['subject'],
             'body' => $data['body'],
-            'editable_keys' => $data['editable_keys'] ?? ['body'],
+            'whatsapp_body' => $data['whatsapp_body'] ?? null,
+            'editable_keys' => $data['editable_keys'] ?? ['body', 'whatsapp_body'],
             'is_active' => true,
             'created_by_user_id' => $request->user()->id,
         ]);
@@ -185,6 +190,7 @@ class OpsMessageController extends Controller
             'category' => $data['category'] ?? $template->category,
             'subject' => $data['subject'],
             'body' => $data['body'],
+            'whatsapp_body' => $data['whatsapp_body'] ?? $template->whatsapp_body,
             'editable_keys' => $data['editable_keys'] ?? $template->editable_keys,
             'is_active' => (bool) ($data['is_active'] ?? $template->is_active),
         ])->save();

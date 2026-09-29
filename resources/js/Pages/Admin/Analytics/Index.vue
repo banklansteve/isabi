@@ -104,6 +104,52 @@
                     :rows="job_retention"
                 />
             </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Retention cohort heatmap"
+                    description="Week-by-week survival for each signup cohort — darker cells mean more people still active."
+                />
+                <AdminHeatmap
+                    title="Weekly retention heatmap"
+                    hint="Tap a cell for detail. W0 is signup week; later columns are weeks after."
+                    :columns="retention_heatmap.columns || []"
+                    :rows="retention_heatmap.rows || []"
+                />
+            </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Lifecycle outreach"
+                    description="Dormant and single-session queues live on Patrol so they stay paginated and actionable as the user base grows."
+                />
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <Link
+                        :href="route('admin.patrol.dormant')"
+                        class="group rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05] transition hover:shadow-premium-hover"
+                    >
+                        <p class="text-[15px] font-semibold tracking-tight text-ink group-hover:text-deep">
+                            Dormant / at-risk artisans
+                        </p>
+                        <p class="mt-1 text-[13px] font-medium leading-relaxed text-ink/45">
+                            Quiet for 30+ days — WhatsApp, email, in-app, and audit trail.
+                        </p>
+                        <p class="mt-3 text-[12px] font-bold text-base-action">Open lifecycle patrol →</p>
+                    </Link>
+                    <Link
+                        :href="route('admin.patrol.single-session')"
+                        class="group rounded-2xl bg-white p-5 shadow-premium ring-1 ring-ink/[0.05] transition hover:shadow-premium-hover"
+                    >
+                        <p class="text-[15px] font-semibold tracking-tight text-ink group-hover:text-deep">
+                            Single-session users
+                        </p>
+                        <p class="mt-1 text-[13px] font-medium leading-relaxed text-ink/45">
+                            One-and-done signups — an onboarding signal worth working as a queue.
+                        </p>
+                        <p class="mt-3 text-[12px] font-bold text-base-action">Open lifecycle patrol →</p>
+                    </Link>
+                </div>
+            </section>
         </div>
 
         <!-- Product -->
@@ -217,6 +263,60 @@
                     :series="jobsPerActiveSeries"
                 />
             </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Time spent per page"
+                    description="Average dwell from page-exit beacons. New event: page.duration — accumulates as artisans use the app."
+                />
+                <div
+                    v-if="!page_time_ready"
+                    class="rounded-2xl bg-tint/50 px-4 py-3 text-[13px] font-medium text-ink/55 ring-1 ring-ink/[0.05]"
+                >
+                    No page-duration beacons yet. Once artisans navigate between pages, average time spent will appear here.
+                </div>
+                <AdminBarList
+                    v-else
+                    title="Avg seconds per visit"
+                    hint="Hover bars for relative depth — longer dwell often means richer workflows."
+                    :items="pageTimeItems"
+                />
+            </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Device &amp; browser split"
+                    description="Mobile vs desktop from recent login sessions — confirms how mobile-first real usage is."
+                />
+                <div class="grid gap-4 xl:grid-cols-5">
+                    <AdminDonutChart
+                        class="xl:col-span-2"
+                        title="Device mix"
+                        :items="device_split"
+                    />
+                    <div class="grid gap-3 sm:grid-cols-2 xl:col-span-3 xl:grid-cols-1">
+                        <AdminKpiCard
+                            v-for="item in device_split"
+                            :key="item.label"
+                            :label="item.label"
+                            :value="`${item.percent ?? 0}%`"
+                            :delta="{ label: `${item.value ?? 0} recent logins`, tone: 'neutral' }"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Time to first job"
+                    description="Median days from signup to first logged job. A rising line is an early warning that onboarding friction is creeping in."
+                />
+                <AdminAreaChart
+                    title="Median days to first job"
+                    hint="Only artisans who have logged at least one job in that signup month"
+                    :series="timeToFirstJobSeries"
+                />
+            </section>
         </div>
 
         <!-- Growth -->
@@ -239,6 +339,71 @@
                 <AdminAreaChart title="Cumulative users" hint="Running total of artisan accounts" :series="cumulative_users" />
             </div>
             <AdminAreaChart title="Monthly signups" :series="growthSeries" />
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Signup velocity"
+                    description="Daily noise smoothed with a 7-day average, plus weekly volume for a cleaner growth pulse."
+                />
+                <AdminDualLineChart
+                    title="Daily new signups"
+                    hint="Solid = daily count · dashed = rolling average"
+                    primary-label="Daily"
+                    secondary-label="7-day avg"
+                    :series="dailySignupPulse"
+                />
+                <AdminAreaChart title="Weekly new signups" :series="weeklySignupPulse" />
+            </section>
+
+            <section
+                v-if="showSignupSource"
+                class="grid gap-3 border-t border-ink/[0.06] pt-6"
+            >
+                <ReportSection
+                    title="Signup source breakdown"
+                    description="Organic vs referral (and direct when that channel is tracked)."
+                />
+                <div class="grid gap-4 xl:grid-cols-5">
+                    <AdminDonutChart
+                        class="xl:col-span-2"
+                        title="Source mix"
+                        :items="signupSourceVisible"
+                    />
+                    <div class="grid gap-3 sm:grid-cols-3 xl:col-span-3">
+                        <AdminKpiCard
+                            v-for="item in signupSourceVisible"
+                            :key="item.label"
+                            :label="item.label"
+                            :value="`${item.percent ?? 0}%`"
+                            :delta="{ label: `${item.value ?? 0} artisans`, tone: 'neutral' }"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Trade / category signup trend"
+                    description="Which professions are growing fastest among new signups — where supply is concentrating."
+                />
+                <AdminBarList
+                    title="New signups by trade (90 days)"
+                    hint="Badge shows change vs the prior 90 days"
+                    :items="trade_signup_trend"
+                />
+            </section>
+
+            <section class="grid gap-3 border-t border-ink/[0.06] pt-6">
+                <ReportSection
+                    title="Geographic distribution (new signups)"
+                    description="Where recent signups land — useful for focusing local growth efforts."
+                />
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <AdminBarList title="Signups by state (90 days)" :items="geo_signups.states || []" />
+                    <AdminBarList title="Signups by city / LGA (90 days)" :items="geo_signups.cities || []" />
+                </div>
+            </section>
+
             <AdminAreaChart
                 title="Jobs logged"
                 hint="Finished work entries created over time"
@@ -253,7 +418,9 @@ import AdminBarList from '@/Components/Admin/AdminBarList.vue';
 import AdminCohortTable from '@/Components/Admin/AdminCohortTable.vue';
 import AdminColumnChart from '@/Components/Admin/AdminColumnChart.vue';
 import AdminDonutChart from '@/Components/Admin/AdminDonutChart.vue';
+import AdminDualLineChart from '@/Components/Admin/AdminDualLineChart.vue';
 import AdminFunnelChart from '@/Components/Admin/AdminFunnelChart.vue';
+import AdminHeatmap from '@/Components/Admin/AdminHeatmap.vue';
 import AdminKpiCard from '@/Components/Admin/AdminKpiCard.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
 import { useAdminTabs } from '@/Composables/useAdminTabs';
@@ -312,6 +479,17 @@ const props = defineProps({
             hint: '',
         }),
     },
+    // Pulse additions
+    signup_daily: { type: Array, default: () => [] },
+    signup_weekly: { type: Array, default: () => [] },
+    signup_source: { type: Array, default: () => [] },
+    trade_signup_trend: { type: Array, default: () => [] },
+    geo_signups: { type: Object, default: () => ({ states: [], cities: [] }) },
+    device_split: { type: Array, default: () => [] },
+    time_to_first_job: { type: Array, default: () => [] },
+    page_time: { type: Array, default: () => [] },
+    page_time_ready: { type: Boolean, default: false },
+    retention_heatmap: { type: Object, default: () => ({ columns: [], rows: [] }) },
     filters: { type: Object, default: () => ({}) },
 });
 
@@ -353,6 +531,22 @@ const signupSeries = computed(() => range.series(props.daily_signups));
 const growthSeries = computed(() => range.series(props.user_growth));
 const jobsTrendSeries = computed(() => range.series(props.jobs_trend));
 const jobsPerActiveSeries = computed(() => range.series(props.jobs_per_active));
+const dailySignupPulse = computed(() => range.series(props.signup_daily));
+const weeklySignupPulse = computed(() => range.series(props.signup_weekly));
+const timeToFirstJobSeries = computed(() => range.series(props.time_to_first_job));
+
+const signupSourceVisible = computed(() =>
+    (props.signup_source || []).filter((item) => Number(item.value) > 0),
+);
+const showSignupSource = computed(() => signupSourceVisible.value.length >= 2);
+
+const pageTimeItems = computed(() =>
+    (props.page_time || []).map((row) => ({
+        label: row.label,
+        value: Math.round(Number(row.value) || 0),
+        key: row.label,
+    })),
+);
 
 const loginSeries = computed(() => {
     if (loginMode.value === 'mau') return range.series(props.monthly_active);

@@ -149,7 +149,10 @@ class SupportChatTest extends TestCase
             ->assertOk();
 
         $this->actingAs($staff)
-            ->postJson(route('admin.support.resolve', $ticket))
+            ->postJson(route('admin.support.resolve', $ticket), [
+                'body' => "I'll close this chat for now. Reply anytime if you need us again.",
+                'outcome' => 'completed',
+            ])
             ->assertOk()
             ->assertJsonPath('status', 'resolved');
     }
@@ -263,7 +266,10 @@ class SupportChatTest extends TestCase
         $this->assertSame(1, AdminAuditLog::query()->where('action', 'support.claimed')->count());
 
         $this->actingAs($staff)
-            ->postJson(route('admin.support.resolve', $ticket))
+            ->postJson(route('admin.support.resolve', $ticket), [
+                'body' => 'Glad we got this sorted. Closing the chat now.',
+                'outcome' => 'completed',
+            ])
             ->assertOk();
 
         $this->assertDatabaseHas('admin_audit_logs', [

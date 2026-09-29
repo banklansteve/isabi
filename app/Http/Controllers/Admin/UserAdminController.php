@@ -21,6 +21,7 @@ use App\Support\Admin\AdminAudit;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\AnnouncementService;
 use App\Support\Admin\ApprovalService;
+use App\Support\Admin\OpsAttentionFeed;
 use App\Models\StaffCaseReferral;
 use App\Support\Admin\StaffCaseReferralService;
 use App\Support\NigeriaLocations;
@@ -50,6 +51,15 @@ class UserAdminController extends Controller
     public function show(Request $request, User $user): Response|JsonResponse|RedirectResponse
     {
         abort_unless($user->isRegularUser(), 404);
+
+        if ($request->user()?->isStaff() && ! $request->user()->isRestrictedStaff()) {
+            app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+                $request->user(),
+                StaffCaseReferral::SUBJECT_USER,
+                (int) $user->id,
+                $request->integer('referral_update') ?: null,
+            );
+        }
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
             return response()->json($this->panel($user, $request->user()));

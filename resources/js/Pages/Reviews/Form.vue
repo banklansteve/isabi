@@ -293,7 +293,8 @@
                     <i class="ti ti-lock mt-0.5 shrink-0 text-sm" aria-hidden="true" />
                     <span>
                         No account needed. This review is tied to this job only —
-                        {{ artisan.first_name }} can’t write or edit it.
+                        {{ artisan.first_name }} can’t write or edit it. Optional name or photo is
+                        processed under Nigeria’s NDPA / NDPR for display on their public page.
                     </span>
                 </p>
             </form>

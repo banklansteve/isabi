@@ -16,6 +16,7 @@ class ReviewAdminPresenter
     {
         $submitted = $review->submitted_at ?? $review->created_at;
         $artisan = $review->relationLoaded('artisan') ? $review->artisan : null;
+        $flagReasons = self::flagReasons($review);
 
         return [
             'id' => $review->id,
@@ -29,7 +30,8 @@ class ReviewAdminPresenter
             'submitted_at' => $submitted?->timezone(config('app.display_timezone'))->format('j M Y · g:ia'),
             'submitted_iso' => $submitted?->toIso8601String(),
             'flagged' => $review->flagged_at !== null,
-            'flag_reason' => $review->flag_reason,
+            'flag_reason' => $review->flag_reason ?: ($flagReasons[0] ?? null),
+            'flag_reasons' => $flagReasons,
             'hidden' => $review->hidden_at !== null,
             'removed' => $review->removed_at !== null,
             'referred' => $review->referred_at !== null,
@@ -61,6 +63,8 @@ class ReviewAdminPresenter
             'workLog:id,uid,user_id,description,client_name,worked_on,job_category,review_requested_at',
             'assignedTo:id,name,email',
             'referredByStaff:id,name,email',
+            'patrolCase:id,review_id,kind,status,severity,flagged_at',
+            'patrolCase.rules',
         ]);
 
         $referrals = app(StaffCaseReferralService::class);
@@ -83,6 +87,10 @@ class ReviewAdminPresenter
             'record' => self::record($review, $actor, $block),
             'can' => self::abilities($actor),
             'staff' => JobAdminPresenter::staffOptions(),
+            'escalation' => $referrals->escalationBlockFor(
+                StaffCaseReferral::SUBJECT_REVIEW,
+                (int) $review->id,
+            ),
         ];
     }
 
@@ -159,7 +167,66 @@ class ReviewAdminPresenter
                     ? route('admin.jobs.show', $review->workLog)
                     : null,
             ] : null,
+            'patrol' => self::patrolBlock($review, $actor),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function patrolBlock(Review $review, User $actor): ?array
+    {
+        if (! $actor->canDo('patrol.view')) {
+            return null;
+        }
+
+        $patrol = $review->relationLoaded('patrolCase')
+            ? $review->patrolCase
+            : $review->patrolCase()->first();
+
+        if (! $patrol) {
+            return null;
+        }
+
+        return [
+            'id' => $patrol->id,
+            'status' => $patrol->status,
+            'status_label' => Str::headline((string) $patrol->status),
+            'severity' => $patrol->severity,
+            'url' => route('admin.patrol.show', $patrol),
+            'reasons' => self::flagReasons($review),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function flagReasons(Review $review): array
+    {
+        $reasons = [];
+
+        if (filled($review->flag_reason)) {
+            $reasons[] = trim((string) $review->flag_reason);
+        }
+
+        $patrol = $review->relationLoaded('patrolCase')
+            ? $review->patrolCase
+            : null;
+
+        if ($patrol?->relationLoaded('rules')) {
+            foreach ($patrol->rules as $rule) {
+                $trigger = is_array($rule->evidence)
+                    ? (string) ($rule->evidence['trigger'] ?? '')
+                    : '';
+                $label = $trigger !== '' ? $trigger : (string) $rule->label();
+
+                if ($label !== '') {
+                    $reasons[] = $label;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($reasons)));
     }
 
     /**
@@ -168,14 +235,17 @@ class ReviewAdminPresenter
     public static function abilities(User $actor): array
     {
         $manage = $actor->canDo('admin.content.manage');
+        $referrals = app(StaffCaseReferralService::class);
 
         return [
             'manage' => $manage,
             'flag' => $manage,
             'hide' => $manage,
             'remove' => $manage,
-            'refer' => app(StaffCaseReferralService::class)->canRefer($actor, StaffCaseReferral::SUBJECT_REVIEW),
+            'refer' => $referrals->canRefer($actor, StaffCaseReferral::SUBJECT_REVIEW),
+            'escalate' => $referrals->canEscalate($actor, StaffCaseReferral::SUBJECT_REVIEW),
             'view_users' => $actor->canDo('admin.users.view'),
+            'view_patrol' => $actor->canDo('patrol.view'),
             'suspend_user' => $actor->canDo('admin.users.manage'),
             'message' => $manage || $actor->canDo('admin.messaging.manage'),
         ];

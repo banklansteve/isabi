@@ -16,7 +16,10 @@ export const adminNavGroups = [
                 icon: 'ti ti-chart-bar',
                 route: 'admin.insights.index',
                 match: ['admin.insights.*'],
-                tabs: [{ label: 'Performance', route: 'admin.insights.index' }],
+                tabs: [
+                    { label: 'Performance', route: 'admin.insights.index' },
+                    { label: 'Content & support', route: 'admin.insights.content' },
+                ],
             },
             {
                 key: 'analytics',
@@ -119,6 +122,19 @@ export const adminNavGroups = [
                 ability: 'patrol.view',
             },
             {
+                key: 'patrol-lifecycle',
+                label: 'Lifecycle patrol',
+                shortLabel: 'Lifecycle',
+                icon: 'ti ti-user-off',
+                route: 'admin.patrol.dormant',
+                match: ['admin.patrol.dormant', 'admin.patrol.single-session'],
+                ability: 'patrol.view',
+                tabs: [
+                    { label: 'Dormant', route: 'admin.patrol.dormant' },
+                    { label: 'Single-session', route: 'admin.patrol.single-session' },
+                ],
+            },
+            {
                 key: 'reviews',
                 label: 'Reviews',
                 icon: 'ti ti-star',
@@ -177,14 +193,6 @@ export const adminNavGroups = [
                 ],
             },
             {
-                key: 'verification',
-                label: 'Verification Officer',
-                icon: 'ti ti-rosette-discount-check',
-                route: 'admin.verification.index',
-                match: ['admin.verification.*'],
-                ability: 'ops.verification.manage',
-            },
-            {
                 key: 'onboarding',
                 label: 'Onboarding follow-up',
                 shortLabel: 'Onboarding',
@@ -201,6 +209,10 @@ export const adminNavGroups = [
                 route: 'admin.reengagement.index',
                 match: ['admin.reengagement.*'],
                 ability: 'ops.reengagement.manage',
+                tabs: [
+                    { label: 'Login quiet', route: 'admin.reengagement.index', params: { kind: 'login' } },
+                    { label: 'Dormant / at-risk', route: 'admin.reengagement.index', params: { kind: 'dormant' } },
+                ],
             },
             {
                 key: 'knowledge',
@@ -377,6 +389,7 @@ export const adminNavGroups = [
                     { label: 'Payments', route: 'admin.settings.index', params: { tab: 'payments' } },
                     { label: 'Session', route: 'admin.settings.index', params: { tab: 'session' } },
                     { label: 'Slugs', route: 'admin.settings.index', params: { tab: 'slugs' } },
+                    { label: 'Maintenance', route: 'admin.settings.index', params: { tab: 'maintenance' } },
                 ],
             },
         ],
@@ -419,7 +432,7 @@ export const opsHubs = [
         key: 'growth',
         label: 'Growth',
         icon: 'ti ti-trending-up',
-        items: ['referrals', 'verification', 'onboarding', 'reengagement'],
+        items: ['referrals', 'onboarding', 'reengagement'],
     },
     {
         key: 'comms',
@@ -568,7 +581,7 @@ export function navItemHref(item, isSuperAdmin = false, abilities = []) {
     }
 
     try {
-        return route(item.route);
+        return route(item.route, item.params || {});
     } catch {
         return '#';
     }
@@ -596,7 +609,7 @@ export function tabIsActive(tab, current, query = {}) {
     const keys = Object.keys(params);
 
     if (keys.length === 0) {
-        return !query.tab && !query.status && !query.audience;
+        return !query.tab && !query.status && !query.audience && !query.kind;
     }
 
     return keys.every((key) => {

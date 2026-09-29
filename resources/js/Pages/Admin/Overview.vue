@@ -65,18 +65,107 @@
                 <AdminAreaChart title="Revenue" hint="Completed purchases in this range" money :series="revenueSeries" />
                 <AdminAreaChart :title="activeTitle" hint="Artisans who logged a job" :series="activeSeries" />
             </div>
+
+            <!-- Revenue health -->
+            <section class="mt-8 grid gap-4">
+                <div>
+                    <h2 class="text-[15px] font-bold tracking-tight text-ink">Revenue</h2>
+                    <p class="mt-1 max-w-2xl text-[13px] font-medium leading-relaxed text-ink/45">
+                        Is the business actually working — trend, sources, plans, ARPU, cohorts, and where money is coming from geographically.
+                    </p>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <AdminKpiCard
+                        label="ARPU (this month)"
+                        :value="arpu_kpi.value || '₦0'"
+                        :delta="arpu_kpi.delta"
+                        delta-suffix="vs last month"
+                    />
+                    <AdminKpiCard
+                        label="Active payers base"
+                        :value="formatCompact(arpu_kpi.active || 0)"
+                        :delta="{ label: 'Job-active artisans this month', tone: 'neutral' }"
+                    />
+                    <AdminKpiCard
+                        label="Month revenue (ARPU base)"
+                        :value="formatNaira(arpu_kpi.revenue || 0)"
+                        :delta="{ label: 'Completed purchases', tone: 'neutral' }"
+                    />
+                    <AdminKpiCard
+                        label="Top revenue state"
+                        :value="topStateLabel"
+                        :delta="topStateDelta"
+                    />
+                </div>
+
+                <div class="grid gap-4 xl:grid-cols-2">
+                    <AdminAreaChart
+                        title="Revenue trend"
+                        hint="Completed purchases — use the range picker above"
+                        money
+                        :series="revenueSeries"
+                    />
+                    <AdminStackedAreaChart
+                        title="Revenue by source"
+                        :labels="stackedSource.labels"
+                        :layers="stackedSource.layers"
+                    />
+                </div>
+
+                <div class="grid gap-4 xl:grid-cols-5">
+                    <AdminDonutChart
+                        class="xl:col-span-2"
+                        title="Plan / purchase distribution"
+                        :items="purchase_mix"
+                        empty-label="No purchases yet"
+                    />
+                    <AdminAreaChart
+                        class="xl:col-span-3"
+                        title="ARPU trend"
+                        hint="Average revenue per job-active artisan each month"
+                        money
+                        :series="arpuSeries"
+                    />
+                </div>
+
+                <div class="grid gap-4 xl:grid-cols-2">
+                    <AdminColumnChart
+                        title="Lifetime per signup cohort"
+                        hint="Lifetime lifetime revenue from artisans who signed up that month"
+                        money
+                        :series="cohortSeries"
+                    />
+                    <AdminBarList
+                        title="Avg revenue per paying artisan (state)"
+                        hint="Highest overall revenue sources by state"
+                        money
+                        :items="revenue_by_state"
+                    />
+                </div>
+
+                <AdminBarList
+                    title="Avg revenue per paying artisan (city / LGA)"
+                    hint="Where local monetization is concentrating"
+                    money
+                    :items="revenue_by_city"
+                />
+            </section>
         </template>
 </template>
 
 <script setup>
 import AdminAreaChart from '@/Components/Admin/AdminAreaChart.vue';
+import AdminBarList from '@/Components/Admin/AdminBarList.vue';
+import AdminColumnChart from '@/Components/Admin/AdminColumnChart.vue';
 import AdminDonutChart from '@/Components/Admin/AdminDonutChart.vue';
 import AdminFunnelChart from '@/Components/Admin/AdminFunnelChart.vue';
 import AdminKpiCard from '@/Components/Admin/AdminKpiCard.vue';
 import AdminRangePicker from '@/Components/Admin/AdminRangePicker.vue';
+import AdminStackedAreaChart from '@/Components/Admin/AdminStackedAreaChart.vue';
 import OpsPriorityPanel from '@/Components/Admin/OpsPriorityPanel.vue';
 import { useDateRange } from '@/Composables/useDateRange';
-import { formatCompact, formatNaira } from '@/utils/adminRange';
+import { formatCompact, formatNaira, sliceStacked } from '@/utils/adminRange';
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -95,6 +184,13 @@ const props = defineProps({
     active_daily: { type: Array, default: () => [] },
     currency_symbol: { type: String, default: '₦' },
     restricted: { type: Boolean, default: false },
+    revenue_by_source: { type: Object, default: () => ({ labels: [], layers: [], dates: [] }) },
+    purchase_mix: { type: Array, default: () => [] },
+    arpu: { type: Array, default: () => [] },
+    arpu_kpi: { type: Object, default: () => ({ value: '₦0', active: 0, revenue: 0 }) },
+    revenue_cohorts: { type: Array, default: () => [] },
+    revenue_by_state: { type: Array, default: () => [] },
+    revenue_by_city: { type: Array, default: () => [] },
 });
 
 const range = useDateRange('this_month');
@@ -106,6 +202,26 @@ const priorityOpenCount = computed(() => adminInbox.value?.open_count || 0);
 
 const revenueSeries = computed(() => range.series(props.revenue_daily?.length ? props.revenue_daily : props.revenue));
 const signupSeries = computed(() => range.series(props.signups_daily || []));
+const stackedSource = computed(() => sliceStacked(props.revenue_by_source, range.bounds.value));
+const arpuSeries = computed(() => range.series(props.arpu || []));
+
+const cohortSeries = computed(() =>
+    (props.revenue_cohorts || []).map((row) => ({
+        label: row.label,
+        date: row.date,
+        value: row.value,
+    })),
+);
+
+const topState = computed(() => (props.revenue_by_state || [])[0] || null);
+const topStateLabel = computed(() => topState.value?.label || '—');
+const topStateDelta = computed(() => {
+    if (!topState.value) return { label: 'No geo revenue yet', tone: 'neutral' };
+    return {
+        label: `${formatNaira(topState.value.total)} · ${topState.value.payers} payers`,
+        tone: 'neutral',
+    };
+});
 
 const activeSeries = computed(() => {
     if (activeMode.value === 'mau') {

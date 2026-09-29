@@ -124,7 +124,10 @@
                         class="w-full text-xs font-medium text-ink/45"
                     >
                         Verify your email to unlock review requests.
-                        <Link :href="route('register')" class="font-bold text-base-action hover:text-base-hover">
+                        <Link
+                            :href="route('verification.notice')"
+                            class="font-bold text-base-action hover:text-base-hover"
+                        >
                             Enter code
                         </Link>
                     </p>
@@ -741,7 +744,7 @@ const requireVerifiedEmail = () => {
         return true;
     }
     toast('Verify your email to send review requests.', 'info', 5200);
-    router.visit(route('register'));
+    router.visit(route('verification.notice'));
     return false;
 };
 

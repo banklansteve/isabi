@@ -108,37 +108,51 @@
                 <button
                     :ref="(el) => setRowRef(item.id, el)"
                     type="button"
-                    class="flex w-full items-start gap-3.5 px-5 py-4 text-left transition-colors duration-150 sm:px-6"
+                    class="tap-target flex w-full items-start gap-3 px-4 py-4 text-left transition-colors duration-150 active:bg-pale sm:gap-3.5 sm:px-6"
                     :class="rowClass(item)"
                     @pointerenter="prefetchCase(item)"
                     @focus="prefetchCase(item)"
                     @pointerdown="prefetchCase(item)"
                     @click="openCase(item)"
                 >
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pale text-xs font-bold text-deep">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pale text-xs font-bold text-deep sm:h-10 sm:w-10 sm:rounded-xl">
                         {{ item.artisan?.initials || '—' }}
                     </span>
                     <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <p class="truncate text-sm font-semibold text-ink">{{ item.artisan?.name }}</p>
+                        <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <p class="truncate text-[14px] font-bold tracking-tight text-ink sm:text-sm sm:font-semibold">{{ item.artisan?.name }}</p>
                             <span :class="[patrolPill, patrolStatusMeta(item.status).class]">{{ item.status_label }}</span>
                             <span :class="[patrolPill, patrolSeverityMeta(item.severity).class]">{{ item.severity_label }}</span>
-                            <span :class="[patrolPill, patrolVisibilityMeta(item.visibility).class]">{{ patrolVisibilityMeta(item.visibility).label }}</span>
+                            <span class="hidden sm:inline-flex" :class="[patrolPill, patrolVisibilityMeta(item.visibility).class]">{{ patrolVisibilityMeta(item.visibility).label }}</span>
                         </div>
-                        <p class="mt-0.5 text-sm font-medium text-ink/60">
+                        <p class="mt-1 text-[13px] font-medium leading-snug text-ink/60 sm:mt-0.5 sm:text-sm">
                             <span v-if="item.kind === 'review' && item.rating != null" class="me-1.5 font-semibold text-ink">{{ item.rating }}★</span>
                             {{ item.kind === 'review' ? item.review_excerpt : item.job_summary }}
                         </p>
-                        <p class="mt-1 text-xs font-medium text-ink/40">
-                            {{ item.rules.map((rule) => rule.label).join(' · ') }}
-                            <span v-if="item.worked_on_label"> · Job {{ item.worked_on_label }}</span>
-                            · Flagged {{ item.flagged_label }}
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="rule in item.rules"
+                                :key="rule.key || rule.label"
+                                class="rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-deep"
+                            >
+                                {{ rule.label }}
+                            </span>
+                        </div>
+                        <p
+                            v-if="primaryFlagReason(item)"
+                            class="mt-1.5 text-[12px] font-medium leading-snug text-coral-deep sm:text-[13px]"
+                        >
+                            {{ primaryFlagReason(item) }}
+                        </p>
+                        <p class="mt-1.5 text-[11px] font-medium text-ink/40 sm:text-xs">
+                            <span v-if="item.worked_on_label">Job {{ item.worked_on_label }} · </span>
+                            Flagged {{ item.flagged_label }}
                         </p>
                         <p v-if="item.pending_approval && can.resolve" class="mt-1 text-xs font-semibold text-violet-700">
                             Pending your approval
                         </p>
                     </div>
-                    <i class="ti ti-chevron-right mt-2 shrink-0 text-ink/25" aria-hidden="true" />
+                    <i class="ti ti-chevron-right mt-3 shrink-0 text-ink/25" aria-hidden="true" />
                 </button>
             </li>
         </ul>
@@ -200,6 +214,16 @@ const sortOptions = [
 ];
 const tabStats = computed(() => props.stats);
 const listRoute = computed(() => (isReviews.value ? 'admin.patrol.reviews' : 'admin.patrol.jobs'));
+
+const primaryFlagReason = (item) => {
+    if (Array.isArray(item?.flag_reasons) && item.flag_reasons.length) {
+        return item.flag_reasons[0];
+    }
+
+    const rule = (item?.rules || []).find((entry) => entry?.trigger);
+
+    return rule?.trigger || '';
+};
 const openId = ref(null);
 const openRow = ref(null);
 const panel = ref(null);

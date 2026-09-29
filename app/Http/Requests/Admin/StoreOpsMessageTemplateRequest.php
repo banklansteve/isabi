@@ -21,8 +21,9 @@ class StoreOpsMessageTemplateRequest extends FormRequest
             'category' => ['nullable', 'string', 'max:40'],
             'subject' => ['required', 'string', 'max:180'],
             'body' => ['required', 'string', 'max:5000'],
+            'whatsapp_body' => ['nullable', 'string', 'max:2000'],
             'editable_keys' => ['nullable', 'array'],
-            'editable_keys.*' => ['string', 'in:subject,body'],
+            'editable_keys.*' => ['string', 'in:subject,body,whatsapp_body'],
         ];
     }
 }

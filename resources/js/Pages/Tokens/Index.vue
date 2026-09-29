@@ -45,13 +45,16 @@
                     </Link>
                 </div>
 
-                <div class="relative mt-7 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3">
+                <div class="relative mt-7 grid grid-cols-2 gap-2 sm:mt-8 sm:grid-cols-4 sm:gap-3">
                     <div class="rounded-2xl bg-white/[0.07] px-3 py-3 ring-1 ring-white/10 sm:px-4 sm:py-3.5">
                         <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                            Balance
+                            Purchased
                         </p>
                         <p class="mt-1 font-display text-xl font-extrabold tabular-nums text-white sm:text-2xl">
-                            {{ status.token_balance }}
+                            {{ status.purchased_balance ?? status.token_balance }}
+                        </p>
+                        <p class="mt-0.5 text-[11px] font-medium text-white/50">
+                            Token balance
                         </p>
                     </div>
                     <div class="rounded-2xl bg-white/[0.07] px-3 py-3 ring-1 ring-white/10 sm:px-4 sm:py-3.5">
@@ -61,6 +64,21 @@
                         <p class="mt-1 font-display text-xl font-extrabold tabular-nums text-white sm:text-2xl">
                             <template v-if="status.has_annual">∞</template>
                             <template v-else>{{ status.free_remaining }}/{{ status.free_limit }}</template>
+                        </p>
+                        <p class="mt-0.5 text-[11px] font-medium text-white/50">
+                            {{ status.period_label }}
+                        </p>
+                    </div>
+                    <div class="rounded-2xl bg-white/[0.07] px-3 py-3 ring-1 ring-white/10 sm:px-4 sm:py-3.5">
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                            Total left
+                        </p>
+                        <p class="mt-1 font-display text-xl font-extrabold tabular-nums text-white sm:text-2xl">
+                            <template v-if="status.has_annual">∞</template>
+                            <template v-else>{{ status.total_remaining ?? ((status.purchased_balance ?? status.token_balance) + status.free_remaining) }}</template>
+                        </p>
+                        <p class="mt-0.5 text-[11px] font-medium text-white/50">
+                            Free + purchased
                         </p>
                     </div>
                     <div class="rounded-2xl bg-white/[0.07] px-3 py-3 ring-1 ring-white/10 sm:px-4 sm:py-3.5">

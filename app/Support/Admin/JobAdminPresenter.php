@@ -3,6 +3,7 @@
 namespace App\Support\Admin;
 
 use App\Enums\StaffStatus;
+use App\Models\StaffCaseReferral;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogMedia;
@@ -17,6 +18,7 @@ class JobAdminPresenter
     public static function listRow(WorkLog $log): array
     {
         $user = $log->user;
+        $flagReasons = self::flagReasons($log);
 
         return [
             'id' => $log->id,
@@ -32,7 +34,8 @@ class JobAdminPresenter
                 ? $log->created_at->startOfDay()->diffInDays($log->worked_on)
                 : 0,
             'flagged' => $log->flagged_at !== null,
-            'flag_reason' => $log->flag_reason,
+            'flag_reason' => $log->flag_reason ?: ($flagReasons[0] ?? null),
+            'flag_reasons' => $flagReasons,
             'hidden' => $log->hidden_at !== null,
             'removed' => $log->removed_at !== null,
             'referred' => $log->referred_at !== null,
@@ -55,6 +58,7 @@ class JobAdminPresenter
             'media',
             'review:id,uid,work_log_id,rating,comment,client_display_name,submitted_at,hidden_at,removed_at',
             'patrolCase:id,work_log_id,kind,status,severity,flagged_at',
+            'patrolCase.rules',
             'referredTo:id,name,email',
             'referredBy:id,name,email',
         ]);
@@ -63,6 +67,10 @@ class JobAdminPresenter
             'record' => self::record($log, $actor),
             'can' => self::abilities($actor),
             'staff' => self::staffOptions(),
+            'escalation' => app(StaffCaseReferralService::class)->escalationBlockFor(
+                StaffCaseReferral::SUBJECT_JOB,
+                (int) $log->id,
+            ),
         ];
     }
 
@@ -161,6 +169,7 @@ class JobAdminPresenter
                 'status_label' => Str::headline((string) $patrol->status),
                 'severity' => $patrol->severity,
                 'url' => route('admin.patrol.show', $patrol),
+                'reasons' => self::flagReasons($log),
             ] : null,
             'referral' => $log->referred_at ? [
                 'assignee_id' => $log->referred_to_user_id,
@@ -179,11 +188,13 @@ class JobAdminPresenter
     public static function abilities(User $actor): array
     {
         $manage = $actor->canDo('admin.content.manage');
+        $referrals = app(StaffCaseReferralService::class);
 
         return [
             'manage' => $manage,
             'flag' => $manage,
-            'refer' => $manage,
+            'refer' => $referrals->canRefer($actor, StaffCaseReferral::SUBJECT_JOB),
+            'escalate' => $referrals->canEscalate($actor, StaffCaseReferral::SUBJECT_JOB),
             'hide' => $manage,
             'remove' => $manage,
             'message' => $manage || $actor->canDo('admin.messaging.manage'),
@@ -210,6 +221,37 @@ class JobAdminPresenter
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function flagReasons(WorkLog $log): array
+    {
+        $reasons = [];
+
+        if (filled($log->flag_reason)) {
+            $reasons[] = trim((string) $log->flag_reason);
+        }
+
+        $patrol = $log->relationLoaded('patrolCase')
+            ? $log->patrolCase
+            : null;
+
+        if ($patrol?->relationLoaded('rules')) {
+            foreach ($patrol->rules as $rule) {
+                $trigger = is_array($rule->evidence)
+                    ? (string) ($rule->evidence['trigger'] ?? '')
+                    : '';
+                $label = $trigger !== '' ? $trigger : (string) $rule->label();
+
+                if ($label !== '') {
+                    $reasons[] = $label;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($reasons)));
     }
 
     private static function location(WorkLog $log): ?string

@@ -19,9 +19,11 @@ class ReviewLinkGate
      *     has_annual: bool,
      *     annual_expires_at: ?string,
      *     token_balance: int,
+     *     purchased_balance: int,
      *     free_limit: int,
      *     free_used: int,
      *     free_remaining: int,
+     *     total_remaining: ?int,
      *     token_cost: int,
      *     period_label: string,
      *     can_send_new: bool,
@@ -39,15 +41,18 @@ class ReviewLinkGate
         $balance = (int) $user->token_balance;
         $nextUsesToken = ! $hasAnnual && $freeRemaining < 1;
         $canSend = $hasAnnual || $freeRemaining > 0 || $balance >= $tokenCost;
+        $totalRemaining = $hasAnnual ? null : ($freeRemaining + $balance);
 
         return [
             'plan' => $hasAnnual ? 'Annual' : 'Free',
             'has_annual' => $hasAnnual,
             'annual_expires_at' => $user->annual_expires_at?->toDateString(),
             'token_balance' => $balance,
+            'purchased_balance' => $balance,
             'free_limit' => $freeLimit,
             'free_used' => min($freeUsed, $freeLimit),
             'free_remaining' => $hasAnnual ? $freeLimit : $freeRemaining,
+            'total_remaining' => $totalRemaining,
             'token_cost' => $tokenCost,
             'period_label' => $this->periodLabel(),
             'can_send_new' => $canSend,

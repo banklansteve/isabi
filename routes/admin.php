@@ -33,6 +33,7 @@ use App\Http\Controllers\Admin\Hr\HrReportController;
 use App\Http\Controllers\Admin\Hr\HrSettingsController;
 use App\Http\Controllers\Admin\JobAdminController;
 use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\MaintenanceModeController;
 use App\Http\Controllers\Admin\ModerationDeskController;
 use App\Http\Controllers\Admin\OnboardingController;
 use App\Http\Controllers\Admin\OpsAttentionController;
@@ -106,6 +107,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('escalations/{referral}/complete', [StaffCaseReferralController::class, 'completeEscalation'])->name('escalations.complete');
         Route::post('referrals/{referral}/return', [StaffCaseReferralController::class, 'returnCase'])->name('referrals.return');
         Route::get('insights', [OpsInsightsController::class, 'index'])->name('insights.index');
+        Route::get('insights/content', [OpsInsightsController::class, 'content'])->name('insights.content');
         Route::get('insights/live', [OpsInsightsController::class, 'live'])->name('insights.live');
         Route::get('account', [AccountController::class, 'show'])->name('account');
         Route::post('account/avatar', [AccountController::class, 'updateAvatar'])->name('account.avatar');
@@ -182,6 +184,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/', fn () => redirect()->route('admin.patrol.jobs'))->name('index');
             Route::get('jobs', [PatrolController::class, 'jobs'])->name('jobs');
             Route::get('reviews', [PatrolController::class, 'reviews'])->name('reviews');
+            Route::get('dormant', [PatrolController::class, 'dormant'])->name('dormant');
+            Route::get('single-session', [PatrolController::class, 'singleSession'])->name('single-session');
             Route::get('{patrolCase}', [PatrolController::class, 'show'])->name('show');
             Route::post('{patrolCase}/notes', [PatrolController::class, 'storeNote'])->middleware('ability:patrol.investigate')->name('notes.store');
             Route::post('{patrolCase}/review', [PatrolController::class, 'startReview'])->middleware('ability:patrol.investigate')->name('review');
@@ -280,6 +284,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
             Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
+            Route::post('settings/maintenance/enable', [MaintenanceModeController::class, 'enable'])
+                ->name('maintenance.enable');
+            Route::post('settings/maintenance/disable', [MaintenanceModeController::class, 'disable'])
+                ->name('maintenance.disable');
+            Route::post('settings/maintenance/regenerate', [MaintenanceModeController::class, 'regenerate'])
+                ->name('maintenance.regenerate');
 
             Route::get('faqs', [FaqAdminController::class, 'index'])->name('faqs.index');
             Route::post('faqs', [FaqAdminController::class, 'store'])->name('faqs.store');

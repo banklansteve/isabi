@@ -5,7 +5,7 @@
 
     <div
         v-if="restricted"
-        class="flex flex-col items-center justify-center rounded-2xl bg-white px-6 py-20 text-center shadow-premium ring-1 ring-ink/[0.05]"
+        class="flex flex-col items-center justify-center rounded-[1.5rem] bg-white px-6 py-20 text-center shadow-premium ring-1 ring-ink/[0.05]"
     >
         <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-pale text-ink/30">
             <i class="ti ti-lock-access text-2xl" aria-hidden="true" />
@@ -16,63 +16,94 @@
         </p>
     </div>
 
-    <div v-else class="space-y-6 lg:space-y-8">
-        <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
-            <div class="min-w-0">
-                <h1 class="font-editorial text-[1.85rem] font-semibold leading-[1.12] tracking-tight text-ink sm:text-[2.25rem]">
-                    {{ greeting }}, {{ givenName }}.
-                </h1>
-                <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/35">
-                    {{ clockLabel }}
-                    <span v-if="role_summary"> · {{ role_summary }}</span>
-                </p>
+    <div v-else class="space-y-5 pb-6 sm:space-y-7">
+        <header class="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#0B1F3A] via-[#123B72] to-[#1A4FB5] px-5 py-6 text-white shadow-premium-ink sm:px-6 sm:py-7">
+            <div
+                class="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_10%_0%,rgba(255,255,255,0.14),transparent_55%),radial-gradient(45%_55%_at_100%_100%,rgba(255,106,61,0.18),transparent_50%)]"
+                aria-hidden="true"
+            />
+            <div class="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div class="min-w-0">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">
+                        {{ clockLabel || 'Ops desk' }}
+                    </p>
+                    <h1 class="mt-2 font-editorial text-[1.85rem] font-semibold leading-[1.1] tracking-tight sm:text-[2.2rem]">
+                        {{ greeting }}, {{ givenName }}.
+                    </h1>
+                    <p class="mt-2 max-w-lg text-sm font-medium leading-relaxed text-white/65">
+                        <template v-if="attentionOpenCount > 0">
+                            {{ attentionOpenCount }} {{ attentionOpenCount === 1 ? 'item needs' : 'items need' }} your attention — patrol cases first.
+                        </template>
+                        <template v-else>
+                            You’re clear. New patrol flags and assigned work will land here.
+                        </template>
+                    </p>
+                </div>
+                <span
+                    v-if="duty?.badge"
+                    class="inline-flex w-fit shrink-0 items-center rounded-full bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15"
+                >
+                    {{ duty.badge }}
+                </span>
             </div>
-            <span
-                v-if="duty?.badge"
-                class="inline-flex w-fit shrink-0 items-center rounded-full bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-800"
+
+            <div
+                v-if="queueChips.length"
+                class="relative mt-5 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-                {{ duty.badge }}
-            </span>
+                <Link
+                    v-for="chip in queueChips"
+                    :key="chip.key"
+                    :href="chip.href"
+                    class="tap-target inline-flex shrink-0 items-center gap-2 rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-bold text-white ring-1 ring-white/15 transition-colors hover:bg-white/16"
+                >
+                    <i :class="chip.icon" class="text-sm opacity-80" aria-hidden="true" />
+                    {{ chip.label }}
+                    <span
+                        v-if="chip.count > 0"
+                        class="rounded-full bg-coral px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums"
+                    >
+                        {{ formatBadgeCount(chip.count) }}
+                    </span>
+                </Link>
+            </div>
         </header>
 
-        <OpsEscalateBanner :escalate="escalate" />
+        <OpsPriorityPanel
+            :groups="priorityGroups"
+            :open-count="attentionOpenCount"
+            heading="Work now"
+        />
 
-        <OpsPriorityPanel :groups="priorityGroups" :open-count="attentionOpenCount" />
+        <section v-if="launcher.length" class="space-y-4">
+            <OpsSectionLabel label="Jump to a queue" />
 
-        <!-- Launcher: reach any page you're allowed to work in -->
-        <section v-if="launcher.length" class="space-y-5">
-            <OpsSectionLabel label="Your workspace" />
-
-            <div v-for="hub in launcher" :key="hub.key" class="space-y-2.5">
-                <div class="flex items-center gap-2">
-                    <i :class="hub.icon" class="text-[1.05rem] text-ink/40" aria-hidden="true" />
-                    <h3 class="text-[13px] font-bold uppercase tracking-[0.12em] text-ink/45">{{ hub.label }}</h3>
-                </div>
-                <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                    <Link
-                        v-for="tile in hub.tiles"
-                        :key="tile.key"
-                        :href="tile.href"
-                        class="group flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-premium ring-1 ring-ink/[0.05] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-                    >
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-base-action">
-                            <i :class="tile.icon" class="text-lg" aria-hidden="true" />
-                        </span>
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate text-[13px] font-bold text-ink">{{ tile.label }}</span>
-                            <span class="mt-0.5 block truncate text-[11px] font-medium text-ink/40">
-                                <template v-if="tile.count > 0">{{ tile.count }} {{ tile.hint }}</template>
-                                <template v-else>Open</template>
-                            </span>
+            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                <Link
+                    v-for="tile in flatTiles"
+                    :key="tile.key"
+                    :href="tile.href"
+                    class="group flex min-h-[4.75rem] flex-col justify-between rounded-[1.25rem] bg-white p-3.5 shadow-premium ring-1 ring-ink/[0.05] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                >
+                    <span class="flex items-center justify-between gap-2">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-tint text-base-action">
+                            <i :class="tile.icon" class="text-base" aria-hidden="true" />
                         </span>
                         <span
                             v-if="tile.count > 0"
-                            class="shrink-0 rounded-full bg-base-action px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-white"
+                            class="rounded-full bg-base-action px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-white"
                         >
                             {{ formatBadgeCount(tile.count) }}
                         </span>
-                    </Link>
-                </div>
+                    </span>
+                    <span class="mt-3 min-w-0">
+                        <span class="block truncate text-[13px] font-bold text-ink">{{ tile.label }}</span>
+                        <span class="mt-0.5 block truncate text-[11px] font-medium text-ink/40">
+                            <template v-if="tile.count > 0">{{ tile.count }} {{ tile.hint }}</template>
+                            <template v-else>Open</template>
+                        </span>
+                    </span>
+                </Link>
             </div>
         </section>
 
@@ -83,7 +114,6 @@
 <script setup>
 import AdminChrome from '@/Components/Admin/AdminChrome.vue';
 import OpsPriorityPanel from '@/Components/Admin/OpsPriorityPanel.vue';
-import OpsEscalateBanner from '@/Components/Admin/OpsEscalateBanner.vue';
 import OpsEscalationsCard from '@/Components/Admin/OpsEscalationsCard.vue';
 import OpsSectionLabel from '@/Components/Admin/OpsSectionLabel.vue';
 import { navItemHref, visibleOpsHubs } from '@/Data/adminNav';
@@ -102,7 +132,6 @@ const props = defineProps({
     shortcuts: { type: Array, default: () => [] },
     duty: { type: Object, default: null },
     escalations: { type: Array, default: () => [] },
-    escalate: { type: Object, default: null },
     open_count: { type: Number, default: 0 },
     unread_count: { type: Number, default: 0 },
     unread_items: { type: Array, default: () => [] },
@@ -170,6 +199,37 @@ const launcher = computed(() =>
             }),
         })),
 );
+
+const flatTiles = computed(() =>
+    launcher.value
+        .flatMap((hub) => hub.tiles)
+        .sort((a, b) => (b.count || 0) - (a.count || 0)),
+);
+
+const queueChips = computed(() => {
+    const preferred = [
+        'patrol_jobs',
+        'patrol_reviews',
+        'support',
+        'assigned',
+        'onboarding',
+        'reengagement',
+        'dormant',
+        'billing',
+        'approvals',
+    ];
+
+    return shortcuts.value
+        .filter((item) => preferred.includes(item.key) || Number(item.count || 0) > 0)
+        .slice(0, 8)
+        .map((item) => ({
+            key: item.key,
+            label: item.label,
+            icon: item.icon,
+            href: item.href,
+            count: Number(item.count || 0),
+        }));
+});
 
 const givenName = computed(() => {
     if (props.given_name) {

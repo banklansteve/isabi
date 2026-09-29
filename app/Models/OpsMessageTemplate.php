@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'category',
     'subject',
     'body',
+    'whatsapp_body',
     'editable_keys',
     'is_active',
     'created_by_user_id',

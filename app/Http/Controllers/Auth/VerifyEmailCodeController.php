@@ -21,12 +21,16 @@ class VerifyEmailCodeController extends Controller
         $user = $request->user();
 
         if ($user->hasVerifiedEmail()) {
-            return redirect()->intended(route($user->homeRouteName(), absolute: false));
+            $request->session()->forget('url.intended');
+
+            return redirect()->route($user->homeRouteName());
         }
 
         $verification->verifyCode($user, (string) $request->input('code'));
 
-        return redirect()->intended(route($user->homeRouteName(), absolute: false))
+        $request->session()->forget('url.intended');
+
+        return redirect()->route($user->homeRouteName())
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Email verified',

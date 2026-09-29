@@ -1,11 +1,11 @@
 <template>
     <AuthLayout
-        headline="Confirm it’s really you."
-        support="We sent a 6-digit code to your inbox. Enter it here — no need to leave this tab."
+        headline="One quick check."
+        support="Enter the 6-digit code from your inbox. That’s it — you’re in."
         :points="[
             'Code expires in about 15 minutes',
             'Resend anytime after a short wait',
-            'You can still explore the app while unverified',
+            'Unlocks job logging and review requests',
         ]"
     >
         <Head title="Verify email" />
@@ -35,18 +35,13 @@
                 :message="form.errors.code || form.errors.email || form.errors.link"
             />
 
-            <form class="mt-8 space-y-5" @submit.prevent="submitCode">
-                <FormTextInput
-                    id="code"
-                    :model-value="form.code"
+            <form class="mt-8 space-y-6" @submit.prevent="submitCode">
+                <FormOtpInput
+                    v-model="form.code"
                     label="Verification code"
-                    icon="ti ti-password"
-                    inputmode="numeric"
-                    autocomplete="one-time-code"
-                    placeholder="6-digit code"
-                    maxlength="6"
                     :error="form.errors.code"
-                    @update:model-value="onCodeInput"
+                    autofocus
+                    @complete="submitCode"
                 />
 
                 <FormButton
@@ -57,6 +52,7 @@
                     :loading="form.processing"
                     loading-label="Verifying…"
                     icon-right="ti ti-check"
+                    :disabled="form.code.length < 6"
                 />
             </form>
 
@@ -90,7 +86,7 @@
 <script setup>
 import AppInlineAlert from '@/Components/App/AppInlineAlert.vue';
 import FormButton from '@/Components/Form/FormButton.vue';
-import FormTextInput from '@/Components/Form/FormTextInput.vue';
+import FormOtpInput from '@/Components/Form/FormOtpInput.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -114,13 +110,8 @@ const resendLabel = computed(() =>
     cooldown.value > 0 ? `Resend in ${cooldown.value}s` : 'Resend code',
 );
 
-const onCodeInput = (value) => {
-    form.code = String(value || '')
-        .replace(/\D/g, '')
-        .slice(0, 6);
-};
-
 const submitCode = () => {
+    if (form.code.length < 6 || form.processing) return;
     form.post(route('verification.code'), {
         preserveScroll: true,
     });

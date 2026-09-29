@@ -27,7 +27,8 @@ class ActivityLogger
         $actorKind = ActorKind::fromUser($user);
         $tier = AuditRetention::tierForAction($action, staffSide: $actorKind === ActorKind::Staff);
 
-        WriteActivityLogJob::dispatch([
+        // Persist immediately — audit must not depend on a queue worker.
+        WriteActivityLogJob::dispatchSync([
             'user_id' => $user?->id,
             'actor_kind' => $actorKind->value,
             'action' => $action,

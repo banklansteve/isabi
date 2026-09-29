@@ -197,7 +197,7 @@ class StaffManagementTest extends TestCase
         $staff = $this->ops();
         $hr = StaffRole::query()->where('slug', 'people_hr')->first();
         $blocked = ['people_hr', 'knowledge_base', 'people_discipline', 'content_comms'];
-        $opsGrouped = ['verification', 'growth_lifecycle'];
+        $opsGrouped = ['growth_lifecycle', 'patrol', 'moderation', 'customer_support'];
 
         $this->assertNotNull($hr);
         $this->assertFalse($hr->is_assignable);
@@ -209,7 +209,7 @@ class StaffManagementTest extends TestCase
             $this->assertTrue($role->is_active);
         }
 
-        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer'] as $legacy) {
+        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer', 'verification'] as $legacy) {
             $this->assertNull(
                 StaffRole::query()->where('slug', $legacy)->first(),
                 "Retired ops duty {$legacy} must not remain in the database.",
@@ -257,7 +257,7 @@ class StaffManagementTest extends TestCase
             $this->assertTrue($saSlugs->contains($slug), "{$slug} must appear under Super Admin duties.");
         }
 
-        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer', 'Onboarding follow-up'] as $legacy) {
+        foreach (['onboarding_followup', 'referral_monitoring', 'reengagement', 'verification_officer', 'verification', 'Onboarding follow-up'] as $legacy) {
             $this->assertFalse($saSlugs->contains($legacy));
             $this->assertFalse($assignableSlugs->contains($legacy));
         }

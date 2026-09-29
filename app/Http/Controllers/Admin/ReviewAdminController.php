@@ -7,10 +7,12 @@ use App\Http\Requests\Admin\FlagContentRequest;
 use App\Models\Review;
 use App\Models\StaffCaseReferral;
 use App\Support\Admin\AdminAudit;
+use App\Support\Admin\AdminNavigation;
 use App\Support\Admin\AdminResponse;
 use App\Support\Admin\ApprovalService;
 use App\Support\Admin\DashboardMetrics;
 use App\Support\Admin\JobAdminPresenter;
+use App\Support\Admin\OpsAttentionFeed;
 use App\Support\Admin\ReviewAdminPresenter;
 use App\Support\Admin\StaffCaseReferralService;
 use Illuminate\Http\JsonResponse;
@@ -23,12 +25,22 @@ class ReviewAdminController extends Controller
 {
     public function index(Request $request, DashboardMetrics $metrics): Response
     {
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'flagged_reviews');
+            $this->clearReferrerUpdate($request);
+        }
+
         return Inertia::render('Admin/Reviews/Index', $this->indexProps($request, $metrics));
     }
 
     public function show(Request $request, Review $review): Response|JsonResponse
     {
         abort_unless($request->user()?->canDo('admin.content.manage'), 403);
+
+        if (AdminNavigation::shouldMutateAttention($request) && $request->user()?->isOperationsAdmin()) {
+            app(OpsAttentionFeed::class)->markGroupOpened($request->user(), 'flagged_reviews');
+            $this->clearReferrerUpdate($request, StaffCaseReferral::SUBJECT_REVIEW, (int) $review->id);
+        }
 
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {
             return response()->json(ReviewAdminPresenter::panel($review, $request->user()));
@@ -194,6 +206,8 @@ class ReviewAdminController extends Controller
             ->with([
                 'artisan:id,name,email,business_name,slug,trade,state,whatsapp,avatar_url,suspended_at',
                 'workLog:id,uid,user_id,description,client_name,worked_on,job_category,review_requested_at',
+                'patrolCase:id,review_id,kind,status,severity,flagged_at',
+                'patrolCase.rules',
             ])
             ->latest('submitted_at')
             ->latest('id')
@@ -205,6 +219,13 @@ class ReviewAdminController extends Controller
         $insights = $metrics->reviewInsights();
         $openedUid = trim((string) $request->query('review', ''));
 
+        if ($openedUid !== '' && $request->user()?->isOperationsAdmin()) {
+            $opened = Review::query()->where('uid', $openedUid)->first(['id']);
+            if ($opened) {
+                $this->clearReferrerUpdate($request, StaffCaseReferral::SUBJECT_REVIEW, (int) $opened->id);
+            }
+        }
+
         return [
             'reviews' => $reviews,
             'completion' => $insights['completion'],
@@ -213,6 +234,27 @@ class ReviewAdminController extends Controller
             'opened_uid' => $openedUid !== '' ? $openedUid : null,
             'can' => ReviewAdminPresenter::abilities($request->user()),
         ];
+    }
+
+    private function clearReferrerUpdate(Request $request, ?string $subjectType = null, ?int $subjectId = null): void
+    {
+        $user = $request->user();
+        if (! $user?->isStaff() || $user->isRestrictedStaff()) {
+            return;
+        }
+
+        $referralId = $request->integer('referral_update') ?: null;
+
+        if ($subjectType === null && $subjectId === null && ! $referralId) {
+            return;
+        }
+
+        app(OpsAttentionFeed::class)->markReferrerUpdatesOpened(
+            $user,
+            $subjectType,
+            $subjectId,
+            $referralId > 0 ? $referralId : null,
+        );
     }
 
     /**

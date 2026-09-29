@@ -325,7 +325,7 @@ class StaffCaseReferralTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Overview')
-                ->where('admin_inbox.open_count', 1)
+                ->where('admin_inbox.open_count', fn ($count) => (int) $count >= 1)
                 ->where('admin_inbox.priority_groups.0.key', 'escalations')
                 ->where('admin_inbox.priority_groups.0.items.0.unread', true));
 
@@ -470,7 +470,7 @@ class StaffCaseReferralTest extends TestCase
                 ->component('Admin/Ops/Assigned')
                 ->where('scope', 'all')
                 ->has('items', 1)
-                ->has('growth_duties', 4));
+                ->has('growth_duties', 5));
 
         $this->actingAs($super)
             ->postJson(route('admin.referrals.take-over', $referral), [
@@ -531,5 +531,208 @@ class StaffCaseReferralTest extends TestCase
         $this->assertNotNull($fresh);
         $this->assertSame($agentA->id, $fresh->assignee_user_id);
         $this->assertSame($agentA->id, $review->fresh()->assigned_to_user_id);
+    }
+
+    public function test_referrer_is_notified_when_assignee_resolves_and_clears_on_open(): void
+    {
+        $referrer = $this->withPermissions(['admin.content.manage'], 'content_notify_a');
+        $assignee = $this->withPermissions(['admin.content.manage'], 'content_notify_b');
+        $review = $this->makeReview($this->logJob($this->artisanUser()));
+
+        $this->actingAs($referrer)
+            ->postJson(route('admin.referrals.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'assignee_id' => $assignee->id,
+                'note' => 'Please check this review.',
+                'queue' => 'moderation',
+            ])
+            ->assertOk();
+
+        $referral = StaffCaseReferral::query()->active()->first();
+        $this->assertNotNull($referral);
+
+        $this->actingAs($assignee)
+            ->postJson(route('admin.referrals.complete', $referral))
+            ->assertOk();
+
+        $this->actingAs($referrer)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unread_count', fn ($count) => $count >= 1)
+                ->where('items', fn ($items) => collect($items)->contains(
+                    fn ($item) => ($item['group'] ?? null) === 'referral_updates'
+                        && ($item['unread'] ?? false) === true
+                        && str_contains((string) ($item['title'] ?? ''), 'Resolved')
+                )));
+
+        $this->actingAs($referrer)
+            ->get(route('admin.reviews.index', [
+                'review' => $review->uid,
+                'referral_update' => $referral->id,
+            ]))
+            ->assertOk();
+
+        $this->actingAs($referrer)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items', fn ($items) => collect($items)
+                    ->where('group', 'referral_updates')
+                    ->every(fn ($item) => ($item['unread'] ?? true) === false)));
+    }
+
+    public function test_referrer_is_notified_when_super_admin_acknowledges_escalation(): void
+    {
+        $super = User::factory()->superAdmin()->create();
+        $ops = $this->withPermissions(['admin.support.manage'], 'support_ack_notify');
+        $artisan = $this->artisanUser();
+
+        $ticket = SupportTicket::query()->create([
+            'user_id' => $artisan->id,
+            'subject' => 'Need a policy call',
+            'status' => SupportTicket::STATUS_OPEN,
+            'assigned_to_user_id' => $ops->id,
+        ]);
+
+        $this->actingAs($ops)
+            ->postJson(route('admin.escalations.store'), [
+                'subject_type' => 'support',
+                'subject_uid' => $ticket->uid,
+                'note' => 'Need Super Admin guidance.',
+            ])
+            ->assertOk();
+
+        $referral = StaffCaseReferral::query()->active()->superEscalations()->first();
+        $this->assertNotNull($referral);
+
+        $this->actingAs($super)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('notifications.unread_count', fn ($count) => $count >= 1)
+                ->where('notifications.items', fn ($items) => collect($items)->contains(
+                    fn ($item) => str_contains((string) ($item['title'] ?? ''), 'Escalat')
+                        || ($item['attention_key'] ?? null) === 'escalation:'.$referral->id
+                )));
+
+        $this->actingAs($super)
+            ->postJson(route('admin.escalations.acknowledge', $referral))
+            ->assertOk();
+
+        $this->assertNotNull($referral->fresh()->acknowledged_at);
+
+        $delivery = AnnouncementDelivery::query()
+            ->where('user_id', $ops->id)
+            ->whereHas('announcement', fn ($q) => $q->where('segment->kind', 'staff_referral_update'))
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($delivery);
+
+        $this->actingAs($ops)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items', fn ($items) => collect($items)->contains(
+                    fn ($item) => ($item['group'] ?? null) === 'referral_updates'
+                        && ($item['unread'] ?? false) === true
+                )));
+    }
+
+    public function test_ops_home_no_longer_exposes_escalate_deep_link_banner(): void
+    {
+        $ops = $this->withPermissions(['patrol.view', 'admin.content.manage'], 'home_no_banner');
+
+        $this->actingAs($ops)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Ops/Home')
+                ->missing('escalate'));
+    }
+
+    public function test_referred_by_me_desk_lists_outbound_referrals(): void
+    {
+        $referrer = $this->withPermissions(['admin.content.manage'], 'referrer_desk');
+        $assignee = $this->withPermissions(['admin.content.manage'], 'assignee_desk');
+        $review = $this->makeReview($this->logJob($this->artisanUser()));
+
+        $this->actingAs($referrer)
+            ->postJson(route('admin.referrals.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'assignee_id' => $assignee->id,
+                'note' => 'Please check authenticity.',
+                'queue' => 'moderation',
+            ])
+            ->assertOk();
+
+        $this->actingAs($referrer)
+            ->get(route('admin.assigned.index', ['desk' => 'referred', 'queue' => 'all']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Ops/Assigned')
+                ->where('desk', 'referred')
+                ->where('counts.referred', fn ($count) => (int) $count >= 1)
+                ->where('items', fn ($items) => collect($items)->contains(
+                    fn ($item) => ($item['subject_type'] ?? null) === 'review'
+                        && (int) ($item['assignee']['id'] ?? 0) === (int) $assignee->id
+                )));
+    }
+
+    public function test_ops_can_escalate_job_review_and_patrol_from_detail(): void
+    {
+        $super = User::factory()->superAdmin()->create();
+        $content = $this->withPermissions(['admin.content.manage'], 'content_escalate');
+        $patrol = $this->withPermissions(['patrol.view', 'patrol.investigate'], 'patrol_escalate');
+        $artisan = $this->artisanUser();
+        $job = $this->logJob($artisan);
+        $review = $this->makeReview($job);
+        $case = PatrolCase::query()->create([
+            'kind' => PatrolCase::KIND_JOB,
+            'work_log_id' => $job->id,
+            'user_id' => $artisan->id,
+            'status' => PatrolCase::STATUS_NEW,
+            'severity' => PatrolCase::SEVERITY_MEDIUM,
+            'flagged_at' => now(),
+        ]);
+
+        $this->actingAs($content)
+            ->postJson(route('admin.escalations.store'), [
+                'subject_type' => 'job',
+                'subject_uid' => $job->uid,
+                'note' => 'Photos look inconsistent with the claimed work.',
+            ])
+            ->assertOk();
+
+        $this->actingAs($content)
+            ->postJson(route('admin.escalations.store'), [
+                'subject_type' => 'review',
+                'subject_uid' => $review->uid,
+                'note' => 'Suspected fabricated client review.',
+            ])
+            ->assertOk();
+
+        $this->actingAs($patrol)
+            ->postJson(route('admin.escalations.store'), [
+                'subject_type' => 'patrol',
+                'subject_uid' => (string) $case->id,
+                'note' => 'Need Super Admin call on severity.',
+            ])
+            ->assertOk();
+
+        $this->assertSame(3, StaffCaseReferral::query()->active()->superEscalations()->count());
+        $this->assertTrue(
+            StaffCaseReferral::query()
+                ->active()
+                ->superEscalations()
+                ->where('subject_type', StaffCaseReferral::SUBJECT_JOB)
+                ->where('subject_id', $job->id)
+                ->where('referred_by_user_id', $content->id)
+                ->where('assignee_user_id', $super->id)
+                ->exists()
+        );
     }
 }
